@@ -597,9 +597,6 @@ class BokeoPOSDB {
     });
   }
 
-  /**
-   * Sync with public Google Sheet (Prices and Stock)
-   */
   async syncWithGoogleSheets() {
     try {
       console.log('Starting Google Sheets Sync...');
@@ -607,21 +604,37 @@ class BokeoPOSDB {
       const pricesUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=0';
       const stockUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=756509904';
 
-      // 1. Fetch Prices Sheet CSV via CORS Proxy
-      const pricesRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(pricesUrl)}`);
-      if (!pricesRes.ok) throw new Error('Failed to fetch prices sheet CSV');
-      const pricesText = await pricesRes.text();
-      const pricesRows = this._parseCSV(pricesText);
+      let pricesText = '';
+      let stockText = '';
+      const settings = await this.getSettings();
 
-      // 2. Fetch Stock Sheet CSV via CORS Proxy
-      const stockRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(stockUrl)}`);
-      if (!stockRes.ok) throw new Error('Failed to fetch stock sheet CSV');
-      const stockText = await stockRes.text();
+      if (settings && settings.gdrive_script_url) {
+        // Method A: Fetch via user's own Apps Script Web App (CORS-free, 100% stable)
+        const pricesRes = await fetch(`${settings.gdrive_script_url}?sheet=prices`);
+        if (!pricesRes.ok) throw new Error('Failed to fetch prices from Apps Script');
+        pricesText = await pricesRes.text();
+
+        const stockRes = await fetch(`${settings.gdrive_script_url}?sheet=stock`);
+        if (!stockRes.ok) throw new Error('Failed to fetch stock from Apps Script');
+        stockText = await stockRes.text();
+      } else {
+        // Method B: Fallback to stable JSON CORS proxy
+        const pricesRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(pricesUrl)}`);
+        if (!pricesRes.ok) throw new Error('Failed to fetch prices sheet CSV via proxy');
+        const pricesJson = await pricesRes.json();
+        pricesText = pricesJson.contents;
+
+        const stockRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(stockUrl)}`);
+        if (!stockRes.ok) throw new Error('Failed to fetch stock sheet CSV via proxy');
+        const stockJson = await stockRes.json();
+        stockText = stockJson.contents;
+      }
+
+      const pricesRows = this._parseCSV(pricesText);
       const stockRows = this._parseCSV(stockText);
 
       // Get current local products
       const localProducts = await this.getProducts();
-      const settings = await this.getSettings();
 
       // Parse Exchange Rates from prices sheet
       let rateLak = settings.exchange_rate_lak;
