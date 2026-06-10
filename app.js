@@ -1684,6 +1684,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (posContainer) {
       posContainer.innerHTML = posSummaryHTML;
     }
+  }
 
   // Global reprints helper
   window.reprintInvoice = async (txId) => {
