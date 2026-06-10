@@ -609,16 +609,48 @@ class BokeoPOSDB {
       const settings = await this.getSettings();
 
       if (settings && settings.gdrive_script_url) {
-        // Method A: Fetch via user's own Apps Script Web App (CORS-free, 100% stable)
-        const pricesRes = await fetch(`${settings.gdrive_script_url}?sheet=prices`);
-        if (!pricesRes.ok) throw new Error('Failed to fetch prices from Apps Script');
-        pricesText = await pricesRes.text();
+        try {
+          console.log('Attempting fetch via Apps Script Web App...');
+          const pricesRes = await fetch(`${settings.gdrive_script_url}?sheet=prices`);
+          if (!pricesRes.ok) throw new Error('Failed to fetch prices from Apps Script');
+          pricesText = await pricesRes.text();
 
-        const stockRes = await fetch(`${settings.gdrive_script_url}?sheet=stock`);
-        if (!stockRes.ok) throw new Error('Failed to fetch stock from Apps Script');
-        stockText = await stockRes.text();
-      } else {
-        // Method B: Fallback to stable JSON CORS proxy
+          const stockRes = await fetch(`${settings.gdrive_script_url}?sheet=stock`);
+          if (!stockRes.ok) throw new Error('Failed to fetch stock from Apps Script');
+          stockText = await stockRes.text();
+          console.log('Apps Script Web App fetch successful.');
+        } catch (err) {
+          console.warn('Apps Script Web App fetch failed, falling back to direct Gviz fetch:', err);
+          pricesText = '';
+          stockText = '';
+        }
+      }
+
+      // Method B: Direct Google Sheets fetch using gviz/tq endpoint (CORS-free, 100% stable Google servers)
+      if (!pricesText || !stockText) {
+        try {
+          console.log('Attempting direct Google Sheets Gviz fetch...');
+          const pricesGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&gid=0';
+          const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&gid=756509904';
+
+          const pricesRes = await fetch(pricesGvizUrl);
+          if (!pricesRes.ok) throw new Error('Failed to fetch prices from direct Gviz endpoint');
+          pricesText = await pricesRes.text();
+
+          const stockRes = await fetch(stockGvizUrl);
+          if (!stockRes.ok) throw new Error('Failed to fetch stock from direct Gviz endpoint');
+          stockText = await stockRes.text();
+          console.log('Direct Google Sheets Gviz fetch successful.');
+        } catch (err) {
+          console.warn('Direct Google Sheets Gviz fetch failed, falling back to AllOrigins proxy:', err);
+          pricesText = '';
+          stockText = '';
+        }
+      }
+
+      // Method C: Last-resort fallback to AllOrigins JSON CORS proxy
+      if (!pricesText || !stockText) {
+        console.log('Attempting fetch via AllOrigins proxy...');
         const pricesRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(pricesUrl)}`);
         if (!pricesRes.ok) throw new Error('Failed to fetch prices sheet CSV via proxy');
         const pricesJson = await pricesRes.json();
@@ -628,6 +660,7 @@ class BokeoPOSDB {
         if (!stockRes.ok) throw new Error('Failed to fetch stock sheet CSV via proxy');
         const stockJson = await stockRes.json();
         stockText = stockJson.contents;
+        console.log('AllOrigins proxy fetch successful.');
       }
 
       const pricesRows = this._parseCSV(pricesText);
@@ -704,7 +737,7 @@ class BokeoPOSDB {
         if (row.length < 8) return;
         const code = row[1] ? row[1].trim() : '';
         const name = row[2] ? row[2].trim() : '';
-        const stockVal = parseInt(row[7] ? row[7].replace(/[^\d]/g, '') : '0') || 0;
+        const stockVal = Math.round(parseFloat(row[7] ? row[7].replace(/[^\d\.]/g, '') : '0') || 0);
 
         if (code) {
           const matchedProduct = localProducts.find(p => p.code === code);
