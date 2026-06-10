@@ -1193,6 +1193,9 @@ document.addEventListener('DOMContentLoaded', async () => {
      ========================================================================= */
 
   let dashboardTransactions = [];
+  let salesChartInstance = null;
+  let chartMode = 'daily'; // 'daily', 'monthly', 'allmonths'
+  let dashboardListenersBound = false;
 
   function initDashboard() {
     // Populate default date fields
@@ -1209,11 +1212,59 @@ document.addEventListener('DOMContentLoaded', async () => {
       els.dashPOSFilter.appendChild(opt);
     });
 
-    els.startDateFilter.addEventListener('change', loadDashboardData);
-    els.endDateFilter.addEventListener('change', loadDashboardData);
-    els.dashPOSFilter.addEventListener('change', loadDashboardData);
+    if (!dashboardListenersBound) {
+      els.startDateFilter.addEventListener('change', loadDashboardData);
+      els.endDateFilter.addEventListener('change', loadDashboardData);
+      els.dashPOSFilter.addEventListener('change', loadDashboardData);
 
+      // Bind new chart toggles
+      const btnDaily = document.getElementById('chart-btn-daily');
+      const btnMonthly = document.getElementById('chart-btn-monthly');
+      const btnAllMonths = document.getElementById('chart-btn-allmonths');
+      const selectCurrency = document.getElementById('chart-currency');
+      
+      if (btnDaily) {
+        btnDaily.addEventListener('click', () => {
+          chartMode = 'daily';
+          updateChartToggles();
+          loadDashboardData();
+        });
+      }
+      if (btnMonthly) {
+        btnMonthly.addEventListener('click', () => {
+          chartMode = 'monthly';
+          updateChartToggles();
+          loadDashboardData();
+        });
+      }
+      if (btnAllMonths) {
+        btnAllMonths.addEventListener('click', () => {
+          chartMode = 'allmonths';
+          updateChartToggles();
+          loadDashboardData();
+        });
+      }
+      if (selectCurrency) {
+        selectCurrency.addEventListener('change', () => {
+          loadDashboardData();
+        });
+      }
+      
+      dashboardListenersBound = true;
+    }
+
+    updateChartToggles();
     loadDashboardData();
+  }
+
+  function updateChartToggles() {
+    const btnDaily = document.getElementById('chart-btn-daily');
+    const btnMonthly = document.getElementById('chart-btn-monthly');
+    const btnAllMonths = document.getElementById('chart-btn-allmonths');
+    
+    if (btnDaily) btnDaily.classList.toggle('active', chartMode === 'daily');
+    if (btnMonthly) btnMonthly.classList.toggle('active', chartMode === 'monthly');
+    if (btnAllMonths) btnAllMonths.classList.toggle('active', chartMode === 'allmonths');
   }
 
   async function loadDashboardData() {
@@ -1312,37 +1363,327 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.dashTableBody.innerHTML = '';
     if (dashboardTransactions.length === 0) {
       els.dashTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">ບໍ່ມີຂໍ້ມູນການຂາຍໃນໄລຍະເວລານີ້</td></tr>`;
-      return;
+    } else {
+      dashboardTransactions.forEach(tx => {
+        const tr = document.createElement('tr');
+        
+        let amountDisplay = '';
+        if (tx.paid_currency === 'LAK') amountDisplay = formatNumber(tx.total_lak) + ' ₭';
+        else if (tx.paid_currency === 'THB') amountDisplay = formatNumber(tx.total_thb) + ' ฿';
+        else if (tx.paid_currency === 'CNY') amountDisplay = formatNumber(tx.total_cny) + ' ¥';
+
+        tr.innerHTML = `
+          <td style="font-weight:700;">${tx.id}</td>
+          <td>${new Date(tx.timestamp).toLocaleString('lo-LA')}</td>
+          <td>${tx.pos}</td>
+          <td>${tx.cashier}</td>
+          <td><span class="badge ${tx.payment_type === 'ເງິນສົດ' ? 'cash' : 'transfer'}">${tx.payment_type} ${tx.bank ? `(${tx.bank})` : ''}</span></td>
+          <td style="font-weight:700;">${amountDisplay}</td>
+          <td>
+            <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="window.reprintInvoice('${tx.id}')">
+              <i class="fas fa-print"></i>
+            </button>
+            <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem; color:var(--danger-color);" onclick="window.deleteInvoice('${tx.id}')">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </td>
+        `;
+        els.dashTableBody.appendChild(tr);
+      });
     }
 
-    dashboardTransactions.forEach(tx => {
-      const tr = document.createElement('tr');
-      
-      let amountDisplay = '';
-      if (tx.paid_currency === 'LAK') amountDisplay = formatNumber(tx.total_lak) + ' ₭';
-      else if (tx.paid_currency === 'THB') amountDisplay = formatNumber(tx.total_thb) + ' ฿';
-      else if (tx.paid_currency === 'CNY') amountDisplay = formatNumber(tx.total_cny) + ' ¥';
+    // =========================================================================
+    // SALES TREND CHART GENERATOR (Chart.js)
+    // =========================================================================
+    let labels = [];
+    let dataValues = [];
 
-      tr.innerHTML = `
-        <td style="font-weight:700;">${tx.id}</td>
-        <td>${new Date(tx.timestamp).toLocaleString('lo-LA')}</td>
-        <td>${tx.pos}</td>
-        <td>${tx.cashier}</td>
-        <td><span class="badge ${tx.payment_type === 'ເງິນສົດ' ? 'cash' : 'transfer'}">${tx.payment_type} ${tx.bank ? `(${tx.bank})` : ''}</span></td>
-        <td style="font-weight:700;">${amountDisplay}</td>
-        <td>
-          <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="window.reprintInvoice('${tx.id}')">
-            <i class="fas fa-print"></i>
-          </button>
-          <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem; color:var(--danger-color);" onclick="window.deleteInvoice('${tx.id}')">
-            <i class="fas fa-trash-alt"></i>
-          </button>
-        </td>
-      `;
-      els.dashTableBody.appendChild(tr);
+    const chartCurrency = document.getElementById('chart-currency');
+    const selectedCurrency = chartCurrency ? chartCurrency.value : 'COMBINED_LAK';
+    const symbol = getCurrencySymbol(selectedCurrency);
+
+    function getTxAmount(tx, currency) {
+      if (currency === 'COMBINED_LAK') return tx.total_lak || 0;
+      if (currency === 'COMBINED_THB') return tx.total_thb || 0;
+      if (currency === 'LAK') return tx.paid_currency === 'LAK' ? (tx.total_lak || 0) : 0;
+      if (currency === 'THB') return tx.paid_currency === 'THB' ? (tx.total_thb || 0) : 0;
+      if (currency === 'CNY') return tx.paid_currency === 'CNY' ? (tx.total_cny || 0) : 0;
+      return 0;
+    }
+
+    function getCurrencySymbol(currency) {
+      if (currency === 'COMBINED_LAK' || currency === 'LAK') return '₭';
+      if (currency === 'COMBINED_THB' || currency === 'THB') return '฿';
+      if (currency === 'CNY') return '¥';
+      return '';
+    }
+
+    function getDatesInRange(startDateStr, endDateStr) {
+      const dates = [];
+      let [y1, m1, d1] = startDateStr.split('-').map(Number);
+      let [y2, m2, d2] = endDateStr.split('-').map(Number);
+      let start = new Date(y1, m1 - 1, d1);
+      const end = new Date(y2, m2 - 1, d2);
+      while (start <= end) {
+        const y = start.getFullYear();
+        const m = String(start.getMonth() + 1).padStart(2, '0');
+        const d = String(start.getDate()).padStart(2, '0');
+        dates.push(`${y}-${m}-${d}`);
+        start.setDate(start.getDate() + 1);
+      }
+      return dates;
+    }
+
+    function getMonthsInRange(startDateStr, endDateStr) {
+      const months = [];
+      let [y1, m1] = startDateStr.split('-').map(Number);
+      let [y2, m2] = endDateStr.split('-').map(Number);
+      let start = new Date(y1, m1 - 1, 1);
+      const end = new Date(y2, m2 - 1, 1);
+      while (start <= end) {
+        const y = start.getFullYear();
+        const m = String(start.getMonth() + 1).padStart(2, '0');
+        months.push(`${y}-${m}`);
+        start.setMonth(start.getMonth() + 1);
+      }
+      return months;
+    }
+
+    if (chartMode === 'daily') {
+      labels = getDatesInRange(start, end);
+      const sums = {};
+      labels.forEach(l => sums[l] = 0);
+      
+      dashboardTransactions.forEach(tx => {
+        const dateStr = tx.timestamp.split('T')[0];
+        if (sums[dateStr] !== undefined) {
+          sums[dateStr] += getTxAmount(tx, selectedCurrency);
+        }
+      });
+      dataValues = labels.map(l => sums[l]);
+    } else if (chartMode === 'monthly') {
+      labels = getMonthsInRange(start, end);
+      const sums = {};
+      labels.forEach(l => sums[l] = 0);
+      
+      dashboardTransactions.forEach(tx => {
+        const monthStr = tx.timestamp.split('T')[0].slice(0, 7);
+        if (sums[monthStr] !== undefined) {
+          sums[monthStr] += getTxAmount(tx, selectedCurrency);
+        }
+      });
+      dataValues = labels.map(l => sums[l]);
+    } else if (chartMode === 'allmonths') {
+      const chartTxs = allTx.filter(tx => {
+        return selectedPOS === 'all' || tx.pos === selectedPOS;
+      });
+      
+      let minDate = new Date().toISOString().split('T')[0];
+      let maxDate = minDate;
+      if (chartTxs.length > 0) {
+        const sortedTimestamps = chartTxs.map(t => t.timestamp).sort();
+        minDate = sortedTimestamps[0].split('T')[0];
+        maxDate = sortedTimestamps[sortedTimestamps.length - 1].split('T')[0];
+      }
+      labels = getMonthsInRange(minDate, maxDate);
+      const sums = {};
+      labels.forEach(l => sums[l] = 0);
+      
+      chartTxs.forEach(tx => {
+        const monthStr = tx.timestamp.split('T')[0].slice(0, 7);
+        if (sums[monthStr] !== undefined) {
+          sums[monthStr] += getTxAmount(tx, selectedCurrency);
+        }
+      });
+      dataValues = labels.map(l => sums[l]);
+    }
+
+    const displayLabels = labels.map(l => {
+      if (l.length === 10) {
+        const [y, m, d] = l.split('-');
+        return `${d}/${m}/${y}`;
+      }
+      if (l.length === 7) {
+        const [y, m] = l.split('-');
+        return `${m}/${y}`;
+      }
+      return l;
     });
-    checkLowStockAlerts();
-  }
+
+    if (salesChartInstance) {
+      salesChartInstance.destroy();
+      salesChartInstance = null;
+    }
+
+    const canvasEl = document.getElementById('salesChart');
+    if (canvasEl && typeof Chart !== 'undefined') {
+      const ctx = canvasEl.getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+      gradient.addColorStop(0, 'rgba(15, 118, 110, 0.4)');
+      gradient.addColorStop(1, 'rgba(15, 118, 110, 0.0)');
+      
+      salesChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: displayLabels,
+          datasets: [{
+            label: 'ຍອດຂາຍ (Sales)',
+            data: dataValues,
+            borderColor: '#0f766e',
+            borderWidth: 2,
+            backgroundColor: gradient,
+            fill: true,
+            tension: 0.3,
+            pointBackgroundColor: '#0f766e',
+            pointBorderColor: '#fff',
+            pointHoverRadius: 6,
+            pointHoverBackgroundColor: '#0f766e',
+            pointHoverBorderColor: '#fff',
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              bodyFont: {
+                family: 'Outfit, Noto Sans Lao'
+              },
+              titleFont: {
+                family: 'Outfit, Noto Sans Lao'
+              },
+              callbacks: {
+                label: function(context) {
+                  return 'ຍອດຂາຍ: ' + formatNumber(context.parsed.y) + ' ' + symbol;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                font: {
+                  family: 'Outfit, Noto Sans Lao',
+                  size: 11
+                }
+              }
+            },
+            y: {
+              grid: {
+                color: '#e6dfd3'
+              },
+              ticks: {
+                font: {
+                  family: 'Outfit, Noto Sans Lao',
+                  size: 11
+                },
+                callback: function(value) {
+                  return formatNumber(value) + ' ' + symbol;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // =========================================================================
+    // DAILY REVENUE SUMMARY BY POS CARD
+    // =========================================================================
+    const posDailyData = {};
+    dashboardTransactions.forEach(tx => {
+      const dateStr = tx.timestamp.split('T')[0];
+      const posName = tx.pos;
+      if (!posDailyData[dateStr]) {
+        posDailyData[dateStr] = {};
+      }
+      if (!posDailyData[dateStr][posName]) {
+        posDailyData[dateStr][posName] = { lak: 0, thb: 0, cny: 0 };
+      }
+      posDailyData[dateStr][posName].lak += tx.total_lak || 0;
+      posDailyData[dateStr][posName].thb += tx.total_thb || 0;
+      posDailyData[dateStr][posName].cny += tx.total_cny || 0;
+    });
+
+    const sortedDates = Object.keys(posDailyData).sort().reverse();
+    let posSummaryHTML = '';
+
+    if (sortedDates.length === 0) {
+      posSummaryHTML = `<div style="text-align: center; color: var(--text-secondary); padding: 20px; font-size: 0.85rem;">ບໍ່ມີຂໍ້ມູນສະຫຼຸບຈຸດຂາຍ</div>`;
+    } else {
+      sortedDates.forEach(dateStr => {
+        const [y, m, d] = dateStr.split('-');
+        const formattedDate = `${d}/${m}/${y}`;
+        
+        let rowsHtml = '';
+        let dayTotalLak = 0;
+        let dayTotalThb = 0;
+        let dayTotalCny = 0;
+        
+        const posNames = Object.keys(posDailyData[dateStr]).sort();
+        posNames.forEach(posName => {
+          const metrics = posDailyData[dateStr][posName];
+          dayTotalLak += metrics.lak;
+          dayTotalThb += metrics.thb;
+          dayTotalCny += metrics.cny;
+          
+          rowsHtml += `
+            <tr>
+              <td style="font-weight: 500; font-size: 0.8rem; padding: 6px 8px;">${posName}</td>
+              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(metrics.lak)} ₭</td>
+              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(metrics.thb)} ฿</td>
+              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(metrics.cny)} ¥</td>
+            </tr>
+          `;
+        });
+        
+        const rateLak = state.settings.exchange_rate_lak;
+        const rateCny = state.settings.exchange_rate_cny;
+        const dayCombinedLak = dayTotalLak + (dayTotalThb * rateLak) + (dayTotalCny * (rateLak / rateCny));
+        
+        posSummaryHTML += `
+          <div style="margin-bottom: 24px; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; background: #fff;">
+            <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 8px; color: var(--primary-accent); border-bottom: 1px solid var(--border-color); padding-bottom: 4px;">
+              <i class="fas fa-calendar-day"></i> ວັນທີ ${formattedDate}
+            </div>
+            <table class="report-table" style="width: 100%; font-size: 0.8rem; margin-bottom: 8px;">
+              <thead>
+                <tr style="background: #faf9f6;">
+                  <th style="padding: 6px 8px; font-size: 0.75rem;">ຈຸດຂາຍ (POS)</th>
+                  <th class="right" style="padding: 6px 8px; font-size: 0.75rem;">ກີບ (LAK)</th>
+                  <th class="right" style="padding: 6px 8px; font-size: 0.75rem;">ບາດ (THB)</th>
+                  <th class="right" style="padding: 6px 8px; font-size: 0.75rem;">ຢວນ (CNY)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+                <tr style="background: #f5f4f0; font-weight: 700;">
+                  <td style="padding: 6px 8px; font-size: 0.8rem;">ລວມຍອດ (Daily Total)</td>
+                  <td class="right" style="padding: 6px 8px; font-size: 0.8rem; color: var(--success-color);">${formatNumber(dayTotalLak)} ₭</td>
+                  <td class="right" style="padding: 6px 8px; font-size: 0.8rem; color: var(--success-color);">${formatNumber(dayTotalThb)} ฿</td>
+                  <td class="right" style="padding: 6px 8px; font-size: 0.8rem; color: var(--success-color);">${formatNumber(dayTotalCny)} ¥</td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); text-align: right; font-weight: 600; padding-top: 4px;">
+              ລວມທັງໝົດທຽບເທົ່າກີບ: <span style="color: var(--primary-accent);">${formatNumber(dayCombinedLak)} ₭</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    const posContainer = document.getElementById('pos-summary-container');
+    if (posContainer) {
+      posContainer.innerHTML = posSummaryHTML;
+    }
 
   // Global reprints helper
   window.reprintInvoice = async (txId) => {
@@ -1448,7 +1789,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         time: 'ເວລາ',
         cashier: 'ພະນັກງານຂາຍ',
         type: 'ປະເພດການຊຳລະ',
-        amount: 'ຍອດຊຳລະ'
+        amount: 'ຍອດຊຳລະ',
+        posSummaryTitle: 'ສະຫຼຸບລາຍຮັບແຍກຕາມຈຸດຂາຍລາຍວັນ',
+        posCol: 'ຈຸດຂາຍ',
+        lakCol: 'ກີບ (LAK)',
+        thbCol: 'ບາດ (THB)',
+        cnyCol: 'ຢວນ (CNY)',
+        dailyTotal: 'ລວມຍອດປະຈຳວັນ',
+        combinedLak: 'ລວມທັງໝົດທຽບເທົ່າກີບ'
       },
       cn: {
         title: '机场销售日结汇总报告',
@@ -1466,11 +1814,104 @@ document.addEventListener('DOMContentLoaded', async () => {
         time: '交易时间',
         cashier: '收银员',
         type: '结算方式',
-        amount: '实付金额'
+        amount: '实付金额',
+        posSummaryTitle: '各销售点日销售额汇总',
+        posCol: '销售点',
+        lakCol: '基普 (LAK)',
+        thbCol: '泰铢 (THB)',
+        cnyCol: '人民币 (CNY)',
+        dailyTotal: '日结总计',
+        combinedLak: '折合基普总额'
       }
     };
 
     const t = texts[lang];
+
+    // Generate Daily POS Summary table for PDF
+    const pdfPosDailyData = {};
+    dashboardTransactions.forEach(tx => {
+      const dateStr = tx.timestamp.split('T')[0];
+      const posName = tx.pos;
+      if (!pdfPosDailyData[dateStr]) {
+        pdfPosDailyData[dateStr] = {};
+      }
+      if (!pdfPosDailyData[dateStr][posName]) {
+        pdfPosDailyData[dateStr][posName] = { lak: 0, thb: 0, cny: 0 };
+      }
+      pdfPosDailyData[dateStr][posName].lak += tx.total_lak || 0;
+      pdfPosDailyData[dateStr][posName].thb += tx.total_thb || 0;
+      pdfPosDailyData[dateStr][posName].cny += tx.total_cny || 0;
+    });
+
+    const pdfSortedDates = Object.keys(pdfPosDailyData).sort().reverse();
+    let pdfPosSummaryHTML = '';
+
+    if (pdfSortedDates.length > 0) {
+      pdfPosSummaryHTML = `
+        <h3 style="font-size: 1.1rem; border-bottom: 2px solid #333; padding-bottom: 6px; margin-top: 24px; margin-bottom: 12px;">${t.posSummaryTitle}</h3>
+      `;
+      
+      pdfSortedDates.forEach(dateStr => {
+        const [y, m, d] = dateStr.split('-');
+        const formattedDate = `${d}/${m}/${y}`;
+        
+        let rowsHtml = '';
+        let dayTotalLak = 0;
+        let dayTotalThb = 0;
+        let dayTotalCny = 0;
+        
+        const posNames = Object.keys(pdfPosDailyData[dateStr]).sort();
+        posNames.forEach(posName => {
+          const metrics = pdfPosDailyData[dateStr][posName];
+          dayTotalLak += metrics.lak;
+          dayTotalThb += metrics.thb;
+          dayTotalCny += metrics.cny;
+          
+          rowsHtml += `
+            <tr>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem;">${posName}</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.lak)} ₭</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.thb)} ฿</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.cny)} ¥</td>
+            </tr>
+          `;
+        });
+        
+        const rateLak = state.settings.exchange_rate_lak;
+        const rateCny = state.settings.exchange_rate_cny;
+        const dayCombinedLak = dayTotalLak + (dayTotalThb * rateLak) + (dayTotalCny * (rateLak / rateCny));
+        
+        pdfPosSummaryHTML += `
+          <div style="margin-bottom: 16px;">
+            <div style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; color: #115e59;">
+              📅 ${formattedDate}
+            </div>
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.75rem; margin-bottom: 4px;">
+              <thead>
+                <tr style="background-color: #f2f2f2;">
+                  <th style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem; width: 40%;">${t.posCol}</th>
+                  <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${t.lakCol}</th>
+                  <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${t.thbCol}</th>
+                  <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${t.cnyCol}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+                <tr style="background-color: #fafafa; font-weight: 700;">
+                  <td style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem;">${t.dailyTotal}</td>
+                  <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem; color: #115e59;">${formatNumber(dayTotalLak)} ₭</td>
+                  <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem; color: #115e59;">${formatNumber(dayTotalThb)} ฿</td>
+                  <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem; color: #115e59;">${formatNumber(dayTotalCny)} ¥</td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="font-size: 0.75rem; color: #555; text-align: right; font-weight: 600; padding-top: 2px;">
+              ${t.combinedLak}: <span style="color: #0f766e;">${formatNumber(dayCombinedLak)} ₭</span>
+            </div>
+          </div>
+        `;
+      });
+    }
 
     // Create Report DOM for PDF conversion
     const reportDiv = document.createElement('div');
@@ -1511,7 +1952,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </div>
 
-      <h3 style="font-size: 1.1rem; border-bottom: 2px solid #333; padding-bottom: 6px; margin-bottom: 12px;">${t.txList}</h3>
+      ${pdfPosSummaryHTML}
+
+      <h3 style="font-size: 1.1rem; border-bottom: 2px solid #333; padding-bottom: 6px; margin-top: 24px; margin-bottom: 12px;">${t.txList}</h3>
       <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem;">
         <thead>
           <tr style="background-color: #f2f2f2;">
@@ -1999,17 +2442,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const alertHTML = renderAlertHTML(lowStockItems);
 
-    const dashAlert = document.getElementById('dash-low-stock-alert');
+    // Dashboard low-stock alert disabled per user request
+    // const dashAlert = document.getElementById('dash-low-stock-alert');
     const stockAlert = document.getElementById('stock-low-stock-alert');
-
-    if (dashAlert) {
-      if (alertHTML) {
-        dashAlert.innerHTML = alertHTML;
-        dashAlert.style.display = 'block';
-      } else {
-        dashAlert.style.display = 'none';
-      }
-    }
 
     if (stockAlert) {
       if (alertHTML) {
