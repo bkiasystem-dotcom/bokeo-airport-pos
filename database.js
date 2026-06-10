@@ -604,14 +604,17 @@ class BokeoPOSDB {
     try {
       console.log('Starting Google Sheets Sync...');
       
-      // 1. Fetch Prices Sheet CSV
-      const pricesRes = await fetch('https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=0');
+      const pricesUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=0';
+      const stockUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=756509904';
+
+      // 1. Fetch Prices Sheet CSV via CORS Proxy
+      const pricesRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(pricesUrl)}`);
       if (!pricesRes.ok) throw new Error('Failed to fetch prices sheet CSV');
       const pricesText = await pricesRes.text();
       const pricesRows = this._parseCSV(pricesText);
 
-      // 2. Fetch Stock Sheet CSV
-      const stockRes = await fetch('https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=756509904');
+      // 2. Fetch Stock Sheet CSV via CORS Proxy
+      const stockRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(stockUrl)}`);
       if (!stockRes.ok) throw new Error('Failed to fetch stock sheet CSV');
       const stockText = await stockRes.text();
       const stockRows = this._parseCSV(stockText);
