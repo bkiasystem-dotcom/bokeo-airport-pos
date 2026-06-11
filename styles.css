@@ -144,20 +144,68 @@ body {
   border-right: 1px solid var(--border-color);
 }
 
+/* Catalog Header Wrapper */
+.catalog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 24px;
+  gap: 16px;
+  flex-shrink: 0;
+  height: 72px;
+}
+
 /* Category Navigation (Lao: ໝວດໝູ່) */
 .category-nav {
   display: flex;
   gap: 8px;
-  padding: 16px 24px;
-  background-color: var(--surface-color);
-  border-bottom: 1px solid var(--border-color);
+  padding: 16px 0;
+  background-color: transparent;
   overflow-x: auto;
   white-space: nowrap;
   scrollbar-width: none;
+  flex: 1;
 }
 
 .category-nav::-webkit-scrollbar {
   display: none;
+}
+
+/* Catalog Search Bar (Micro-interactions & Premium styling) */
+.catalog-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.catalog-search-container .search-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
+#catalog-search {
+  width: 100%;
+  padding: 10px 16px 10px 38px;
+  border-radius: 24px;
+  border: 1px solid var(--border-color);
+  font-family: var(--font-family);
+  font-size: 0.9rem;
+  outline: none;
+  background-color: #fbfbf9;
+  transition: var(--transition);
+}
+
+#catalog-search:focus {
+  border-color: var(--primary-accent);
+  background-color: var(--surface-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-accent-rgb), 0.1);
 }
 
 .category-tab {
@@ -1270,9 +1318,7 @@ body {
 /* PRINT-ONLY CSS RECEIPT STYLING (80mm & 58mm Thermal Printers) */
 @media print {
   /* Hide all screen elements */
-  .app-header, .side-nav, .pos-main, .cart-header, .qty-controls, 
-  .remove-item-btn, .clear-cart-btn, .currency-select-container, 
-  .checkout-btn, .modal-overlay, .app-body, .view-panel, .setup-overlay {
+  .app-container, .setup-overlay, .modal-overlay {
     display: none !important;
   }
   

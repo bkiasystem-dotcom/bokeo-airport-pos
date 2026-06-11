@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentView: 'pos',
     pinTargetAction: null, // Callback to run on PIN success
     shiftStartTime: null,
+    lastTransaction: null,
   };
 
   // DOM Elements Cache
@@ -47,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     viewPanels: document.querySelectorAll('.view-panel'),
 
     categoryNav: document.getElementById('category-nav'),
+    catalogSearch: document.getElementById('catalog-search'),
     productGrid: document.getElementById('product-grid'),
     cartItems: document.getElementById('cart-items'),
     clearCartBtn: document.getElementById('clear-cart-btn'),
@@ -58,6 +60,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     equivThb: document.getElementById('equiv-thb'),
     equivCny: document.getElementById('equiv-cny'),
     checkoutBtn: document.getElementById('checkout-btn'),
+
+    // Receipt Preview Modal
+    receiptModal: document.getElementById('receipt-modal'),
+    receiptPreviewContent: document.getElementById('receipt-preview-content'),
+    receiptPrintBtn: document.getElementById('receipt-print-btn'),
+    receiptDownloadBtn: document.getElementById('receipt-download-btn'),
+    receiptDoneBtn: document.getElementById('receipt-done-btn'),
 
     // Checkout Modal
     checkoutModal: document.getElementById('checkout-modal'),
@@ -212,6 +221,79 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupFormattedInputListener(els.setupPettyThb);
     setupFormattedInputListener(els.setupPettyCny);
     setupFormattedInputListener(els.amountPaidInput);
+
+    // Bind catalog search input and key events
+    if (els.catalogSearch) {
+      els.catalogSearch.addEventListener('input', () => {
+        renderProducts();
+      });
+      els.catalogSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const searchQuery = els.catalogSearch.value.trim().toLowerCase();
+          if (searchQuery) {
+            const serviceType = state.currentPOS.serviceType;
+            let filtered = state.products.filter(p => p.category === serviceType);
+            if (state.activeCategory !== 'ທັງໝົດ') {
+              filtered = filtered.filter(p => (p.unit || 'ສິນຄ້າ') === state.activeCategory);
+            }
+            filtered = filtered.filter(p => {
+              const nameLo = (p.name_lo || '').toLowerCase();
+              const nameEn = (p.name_en || '').toLowerCase();
+              const code = (p.code || '').toLowerCase();
+              return nameLo.includes(searchQuery) || nameEn.includes(searchQuery) || code.includes(searchQuery);
+            });
+
+            if (filtered.length === 1 && filtered[0].stock !== 0) {
+              addToCart(filtered[0]);
+              els.catalogSearch.value = '';
+              renderProducts();
+              e.preventDefault();
+            }
+          }
+        }
+      });
+    }
+
+    // Bind modal currency toggle click events
+    const modalOpts = document.querySelectorAll('#checkout-modal .currency-opt');
+    modalOpts.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const curr = e.currentTarget.getAttribute('data-curr');
+        setCurrency(curr);
+      });
+    });
+
+    // Receipt Modal controls
+    if (els.receiptPrintBtn) {
+      els.receiptPrintBtn.addEventListener('click', () => {
+        if (state.lastTransaction) {
+          handlePDFAndPrintInvoice(state.lastTransaction);
+        }
+      });
+    }
+
+    if (els.receiptDownloadBtn) {
+      els.receiptDownloadBtn.addEventListener('click', () => {
+        if (state.lastTransaction) {
+          downloadReceiptPDF(state.lastTransaction);
+        }
+      });
+    }
+
+    const closeReceiptModal = () => {
+      els.receiptModal.classList.remove('active');
+      state.lastTransaction = null;
+      renderProducts();
+    };
+
+    if (els.receiptDoneBtn) {
+      els.receiptDoneBtn.addEventListener('click', closeReceiptModal);
+    }
+
+    const receiptCloseBtn = els.receiptModal.querySelector('.close-modal-btn');
+    if (receiptCloseBtn) {
+      receiptCloseBtn.addEventListener('click', closeReceiptModal);
+    }
   }
 
   function populateSetupOptions() {
@@ -530,6 +612,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       filtered = filtered.filter(p => (p.unit || 'ສິນຄ້າ') === state.activeCategory);
     }
 
+    // Filter by search query (Lao name, English name, or barcode)
+    const searchQuery = els.catalogSearch ? els.catalogSearch.value.trim().toLowerCase() : '';
+    if (searchQuery) {
+      filtered = filtered.filter(p => {
+        const nameLo = (p.name_lo || '').toLowerCase();
+        const nameEn = (p.name_en || '').toLowerCase();
+        const code = (p.code || '').toLowerCase();
+        return nameLo.includes(searchQuery) || nameEn.includes(searchQuery) || code.includes(searchQuery);
+      });
+    }
+
     // Render Grid
     els.productGrid.innerHTML = '';
     if (filtered.length === 0) {
@@ -649,14 +742,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateCartUI();
   });
 
+  // Set payment currency globally (updates both sidebar and modal displays)
+  function setCurrency(curr) {
+    state.currentCurrency = curr;
+
+    // Update active class on sidebar currency toggle
+    els.currencyOpts.forEach(btn => {
+      if (btn.getAttribute('data-curr') === curr) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    // Update active class on modal currency toggle
+    const modalOpts = document.querySelectorAll('#checkout-modal .currency-opt');
+    modalOpts.forEach(btn => {
+      if (btn.getAttribute('data-curr') === curr) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    updateCartUI();
+    renderProducts();
+
+    // If checkout modal is active, update modal displays
+    if (els.checkoutModal.classList.contains('active')) {
+      let grandTotal = 0;
+      state.cart.forEach(item => {
+        if (state.currentCurrency === 'LAK') grandTotal += item.product.price_lak * item.qty;
+        else if (state.currentCurrency === 'THB') grandTotal += item.product.price_thb * item.qty;
+        else if (state.currentCurrency === 'CNY') grandTotal += item.product.price_cny * item.qty;
+      });
+
+      const currencySymbol = state.currentCurrency === 'LAK' ? ' ₭' : state.currentCurrency === 'THB' ? ' ฿' : ' ¥';
+      els.checkoutTotalDisplay.textContent = formatNumber(grandTotal) + currencySymbol;
+
+      // Update cash input change due
+      const paid = getCleanFloat(els.amountPaidInput.value) || 0;
+      const change = Math.max(0, paid - grandTotal);
+      els.changeDueDisplay.textContent = formatNumber(change) + currencySymbol;
+
+      // Update QR code if transfer
+      if (activePaymentMethod === 'transfer') {
+        displayQR();
+      }
+    }
+  }
+
   // Toggle Sales currency
   els.currencyOpts.forEach(btn => {
     btn.addEventListener('click', (e) => {
-      els.currencyOpts.forEach(b => b.classList.remove('active'));
-      e.currentTarget.classList.add('active');
-      state.currentCurrency = e.currentTarget.getAttribute('data-curr');
-      updateCartUI();
-      renderProducts();
+      const curr = e.currentTarget.getAttribute('data-curr');
+      setCurrency(curr);
     });
   });
 
@@ -770,6 +910,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     currencySymbol = state.currentCurrency === 'LAK' ? ' ₭' : state.currentCurrency === 'THB' ? ' ฿' : ' ¥';
     els.checkoutTotalDisplay.textContent = formatNumber(grandTotal) + currencySymbol;
+
+    // Sync modal currency toggle buttons
+    const modalOpts = document.querySelectorAll('#checkout-modal .currency-opt');
+    modalOpts.forEach(btn => {
+      if (btn.getAttribute('data-curr') === state.currentCurrency) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
 
     // Reset Form
     els.amountPaidInput.value = '';
@@ -938,142 +1088,192 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Reload Products to get fresh stock counts
     state.products = await window.BokeoDB.getProducts();
 
-    // 4. Generate & Save PDF invoice (Google Drive / Download)
-    await handlePDFAndPrintInvoice(transaction);
+    // 4. Generate & Save PDF invoice to Google Drive in the background
+    if (typeof html2pdf !== 'undefined' && state.settings.gdrive_script_url) {
+      const printHTML = buildReceiptHTML(transaction);
+      els.billPrintBox.innerHTML = printHTML;
 
-    // 5. Reset Cart and Close Modal
+      const options = {
+        margin: 2,
+        filename: `${transaction.id}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: [76, 150], orientation: 'portrait' }
+      };
+
+      html2pdf().set(options).from(els.billPrintBox).output('blob').then(pdfBlob => {
+        const dateStr = new Date(transaction.timestamp).toISOString().split('T')[0];
+        const sanitizedPOS = transaction.pos.replace(/[\\\/:*?"<>|]/g, '_');
+        const sanitizedType = transaction.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
+        const filename = `${dateStr}/${sanitizedPOS}/${sanitizedType}/${transaction.id}.pdf`;
+        uploadPDFToGoogleDrive(pdfBlob, filename);
+      }).catch(err => {
+        console.error('Error generating PDF for Drive upload:', err);
+      });
+    }
+
+    // 5. Reset Cart and Close Checkout Modal
     state.cart = [];
     updateCartUI();
     els.checkoutModal.classList.remove('active');
     
-    // Redraw products catalog
-    renderProducts();
+    // Show the Receipt Modal for printing/local download
+    showReceiptModal(transaction);
   }
 
   /* =========================================================================
      INVOICE PRINTING & PDF EXPORT
      ========================================================================= */
 
-  async function handlePDFAndPrintInvoice(tx) {
-    // Construct Print elements
-    const printHTML = `
-      <div class="print-header">
-        <div class="print-logo-text">Bokeo International Airport</div>
-        <div class="print-sub-text">ພັດທະນາ ສະໜາມບິນສາກົນບໍ່ແກ້ວ</div>
-        <div>ຈຸດຂາຍ: ${tx.pos}</div>
-        <div>ພະນັກງານ: ${tx.cashier}</div>
+  function buildReceiptHTML(tx) {
+    const currency = tx.paid_currency;
+    const symbol = currency === 'LAK' ? '₭' : currency === 'THB' ? '฿' : '¥';
+    
+    let subtotal = 0;
+    if (currency === 'LAK') subtotal = tx.total_lak;
+    else if (currency === 'THB') subtotal = tx.total_thb;
+    else if (currency === 'CNY') subtotal = tx.total_cny;
+
+    const formattedSubtotal = formatNumber(subtotal);
+    const formattedTotal = formatNumber(subtotal);
+    const formattedPaid = formatNumber(tx.paid_amount);
+    const formattedChange = formatNumber(tx.change_amount);
+
+    const formattedDate = new Date(tx.timestamp).toLocaleString('lo-LA', {
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    const itemsHtml = tx.items.map(item => {
+      let itemPrice = 0;
+      if (currency === 'LAK') itemPrice = item.price_lak;
+      else if (currency === 'THB') itemPrice = item.price_thb;
+      else if (currency === 'CNY') itemPrice = item.price_cny;
+
+      return `
+        <div style="margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; font-weight: 600; color: #000; font-size: 11px;">
+            <span style="flex: 1; text-align: left;">${item.name_lo}</span>
+            <span style="width: 50px; text-align: center; color: #e11d48; font-weight: 700;">${item.qty}</span>
+            <span style="width: 90px; text-align: right;">${formatNumber(itemPrice * item.qty)}</span>
+          </div>
+          ${item.name_en ? `<div style="font-size: 10px; color: #666; margin-top: 1px; padding-left: 0; text-align: left;">${item.name_en}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div style="text-align: center; margin-bottom: 16px;">
+        <div style="font-size: 15px; font-weight: 800; text-transform: uppercase; color: #000; margin-bottom: 4px; letter-spacing: 0.5px;">${tx.pos}</div>
+        <div style="font-size: 11px; color: #666; margin-bottom: 2px; font-weight: 500;">ຈຸດບໍລິການ POS, ສະໜາມບິນສາກົນບໍ່ແກ້ວ</div>
+        <div style="font-size: 11px; color: #666; font-weight: 500;">ໂທ: 020 9999-8888</div>
       </div>
-      <div class="print-divider"></div>
-      <table class="print-meta-table">
-        <tr>
-          <td>ເລກທີບິນ: ${tx.id}</td>
-          <td class="right">${new Date(tx.timestamp).toLocaleString('lo-LA')}</td>
-        </tr>
-        <tr>
-          <td>ປະເພດຊຳລະ: ${tx.payment_type} ${tx.bank ? `(${tx.bank})` : ''}</td>
-          <td class="right">ສະກຸນເງິນ: ${tx.paid_currency}</td>
-        </tr>
-      </table>
-      <div class="print-divider"></div>
-      <table class="print-items-table">
-        <thead>
-          <tr>
-            <th>ລາຍການ</th>
-            <th class="right">ຈຳນວນ</th>
-            <th class="right">ລວມ</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${tx.items.map(item => `
-            <tr>
-              <td>${item.name_lo}</td>
-              <td class="right">x${item.qty}</td>
-              <td class="right">${formatNumber(state.currentCurrency === 'LAK' ? item.price_lak * item.qty : state.currentCurrency === 'THB' ? item.price_thb * item.qty : item.price_cny * item.qty)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-      <div class="print-divider"></div>
-      <table class="print-totals-table">
-        <tr>
-          <td>ຍອດລວມກີບ (LAK)</td>
-          <td class="right">${formatNumber(tx.total_lak)} ₭</td>
-        </tr>
-        <tr>
-          <td>ຍອດລວມບາດ (THB)</td>
-          <td class="right">${formatNumber(tx.total_thb)} ฿</td>
-        </tr>
-        <tr>
-          <td>ຍອດລວມຢວນ (CNY)</td>
-          <td class="right">${formatNumber(tx.total_cny)} ¥</td>
-        </tr>
-        <tr class="grand-total">
-          <td>ຍອດຊຳລະທັງໝົດ (${tx.paid_currency})</td>
-          <td class="right">${formatNumber(tx.paid_currency === 'LAK' ? tx.total_lak : tx.paid_currency === 'THB' ? tx.total_thb : tx.total_cny)} ${tx.paid_currency === 'LAK' ? '₭' : tx.paid_currency === 'THB' ? '฿' : '¥'}</td>
-        </tr>
-        ${tx.payment_type === 'ເງິນສົດ' ? `
-          <tr>
-            <td>ຮັບເງິນສົດ</td>
-            <td class="right">${formatNumber(tx.paid_amount)} ${tx.paid_currency === 'LAK' ? '₭' : tx.paid_currency === 'THB' ? '฿' : '¥'}</td>
-          </tr>
-          <tr>
-            <td>ເງິນທອນ</td>
-            <td class="right">${formatNumber(tx.change_amount)} ${tx.paid_currency === 'LAK' ? '₭' : tx.paid_currency === 'THB' ? '฿' : '¥'}</td>
-          </tr>
-        ` : ''}
-      </table>
-      <div class="print-footer">
-        <p>ຂໍຂອບໃຈທີ່ໃຊ້ບໍລິການ</p>
-        <p>Thank You For Your Visit</p>
+
+      <div style="font-size: 11px; color: #444; margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px dashed #ccc; padding-bottom: 10px; text-align: left;">
+        <div style="display: flex; justify-content: space-between;">
+          <span>ເລກບິນ: <strong style="color:#000;">${tx.id}</strong></span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>ວັນທີ: <strong style="color:#000;">${formattedDate}</strong></span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>ชຳລະໂດຍ: <strong style="color:#000;">${tx.payment_type} ${tx.bank ? `(${tx.bank})` : ''}</strong></span>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 11px; text-transform: uppercase; color: #666; border-bottom: 1px dashed #ccc; padding-bottom: 6px; margin-bottom: 8px;">
+        <span style="flex: 1; text-align: left;">ລາຍການ</span>
+        <span style="width: 50px; text-align: center;">ຈຳນວນ</span>
+        <span style="width: 90px; text-align: right;">ລາຄາ (${symbol})</span>
+      </div>
+
+      <div style="margin-bottom: 12px; border-bottom: 1px dashed #ccc; padding-bottom: 8px;">
+        ${itemsHtml}
+      </div>
+
+      <div style="font-size: 11px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px dashed #ccc; padding-bottom: 8px; margin-bottom: 8px; color: #444;">
+        <div style="display: flex; justify-content: space-between;">
+          <span>ລວມຍອດ (Subtotal)</span>
+          <span style="font-weight: 600; color: #000;">${formattedSubtotal} ${symbol}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>ສ່ວນຫຼຸດ (Discount)</span>
+          <span style="font-weight: 600; color: #000;">0 ${symbol}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>ອາກອນ (VAT 10%)</span>
+          <span style="font-weight: 600; color: #000;">0 ${symbol}</span>
+        </div>
+      </div>
+
+      <div style="font-size: 13px; font-weight: 800; color: #000; display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding-bottom: 8px; margin-bottom: 12px;">
+        <span>ລວມທັງໝົດ</span>
+        <span>${formattedTotal} ${symbol}</span>
+      </div>
+
+      ${tx.payment_type === 'ເງິນສົດ' ? `
+        <div style="font-size: 11px; display: flex; flex-direction: column; gap: 6px; color: #444; border-bottom: 1px dashed #ccc; padding-bottom: 8px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between;">
+            <span>ຮັບເງິນສົດ:</span>
+            <span style="font-weight: 600; color: #000;">${formattedPaid} ${symbol}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>ເງິນທອນ:</span>
+            <span style="font-weight: 700; color: #e11d48;">${formattedChange} ${symbol}</span>
+          </div>
+        </div>
+      ` : ''}
+
+      <div style="text-align: center; font-size: 11px; color: #666; line-height: 1.4; margin-top: 10px;">
+        <div style="font-weight: 600; color: #000;">ຂໍຂອບໃຈ ແລະ ຍິນດີຕ້ອນຮັບອີກເທື່ອໃໝ່</div>
+        <div>Thank you, Please visit again!</div>
       </div>
     `;
+  }
 
+  async function handlePDFAndPrintInvoice(tx) {
+    const printHTML = buildReceiptHTML(tx);
     els.billPrintBox.innerHTML = printHTML;
 
-    // Trigger Print
-    window.print();
+    // Trigger Print after a short delay to allow rendering/paint
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  }
 
-    // Generate PDF Blob using html2pdf
+  async function downloadReceiptPDF(tx) {
     if (typeof html2pdf !== 'undefined') {
+      const printHTML = buildReceiptHTML(tx);
+      els.billPrintBox.innerHTML = printHTML;
+
+      const dateStr = new Date(tx.timestamp).toISOString().split('T')[0];
+      const sanitizedPOS = tx.pos.replace(/[\\\/:*?"<>|]/g, '_');
+      const sanitizedType = tx.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
+
       const options = {
         margin: 2,
-        filename: `${tx.id}.pdf`,
+        filename: `${dateStr}_${sanitizedPOS}_${sanitizedType}_${tx.id}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
         jsPDF: { unit: 'mm', format: [76, 150], orientation: 'portrait' }
       };
 
-      const worker = html2pdf().set(options).from(els.billPrintBox);
-      const pdfBlob = await worker.output('blob');
-
-      // Structured Filename
-      const dateStr = new Date(tx.timestamp).toISOString().split('T')[0];
-      const sanitizedPOS = tx.pos.replace(/[\\\/:*?"<>|]/g, '_');
-      const sanitizedType = tx.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
-      const filename = `${dateStr}/${sanitizedPOS}/${sanitizedType}/${tx.id}.pdf`;
-
-      // 1. Direct download fallback
-      const fileUrl = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = fileUrl;
-      // Note: most browsers will replace / with _ in filename, but some respect folders or let extension write
-      a.download = `${dateStr}_${sanitizedPOS}_${sanitizedType}_${tx.id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      // 2. Sync to cloud Google Drive if configured
-      if (state.settings.gdrive_script_url) {
-        try {
-          await uploadPDFToGoogleDrive(pdfBlob, filename);
-        } catch (err) {
-          console.error('Failed to upload PDF to Google Drive:', err);
-        }
-      }
+      await html2pdf().set(options).from(els.billPrintBox).save();
     }
   }
 
-
+  function showReceiptModal(tx) {
+    state.lastTransaction = tx;
+    els.receiptPreviewContent.innerHTML = buildReceiptHTML(tx);
+    els.receiptModal.classList.add('active');
+    
+    // Automatically trigger printing
+    handlePDFAndPrintInvoice(tx);
+  }
 
   /**
    * Client-side Google Drive PDF Upload
@@ -1100,7 +1300,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const payload = {
         file: base64Data,
-        filename: fullPath
+        filename: fullPath,
+        folderId: '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC'
       };
 
       const response = await fetch(scriptUrl, {
