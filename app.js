@@ -124,6 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Google Drive script URL in Settings
     settingsGDriveScriptUrl: document.getElementById('settings-gdrive-script-url'),
+    settingsGDriveFolderId: document.getElementById('settings-gdrive-folder-id'),
 
     // Close Counter Modal bindings
     closeCounterModal: document.getElementById('close-counter-modal'),
@@ -161,6 +162,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         exchange_rate_lak: 700,
         exchange_rate_cny: 0.2,
         admin_pin: '1234',
+        gdrive_script_url: '',
+        gdrive_folder_id: '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC',
         pos_points: [
           { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
           { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
@@ -178,14 +181,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       };
       await window.BokeoDB.saveSettings(state.settings);
-    } else if (!state.settings.pos_points || !Array.isArray(state.settings.pos_points) || state.settings.pos_points.length === 0) {
-      state.settings.pos_points = [
-        { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-        { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
-        { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
-        { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' }
-      ];
-      await window.BokeoDB.saveSettings(state.settings);
+    } else {
+      let settingsUpdated = false;
+      if (!state.settings.pos_points || !Array.isArray(state.settings.pos_points) || state.settings.pos_points.length === 0) {
+        state.settings.pos_points = [
+          { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
+          { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
+          { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
+          { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' }
+        ];
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('gdrive_folder_id')) {
+        state.settings.gdrive_folder_id = '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC';
+        settingsUpdated = true;
+      }
+      if (settingsUpdated) {
+        await window.BokeoDB.saveSettings(state.settings);
+      }
     }
 
     state.cashiers = await window.BokeoDB.getCashiers();
@@ -1339,8 +1352,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       ` : ''}
 
       <div style="text-align: center; font-size: 11px; color: #666; line-height: 1.4; margin-top: 10px;">
-        <div style="font-weight: 600; color: #000;">ຂໍຂອບໃຈ ແລະ ຍິນດີຕ້ອນຮັບອີກເທື່ອໃໝ່</div>
-        <div>Thank you, Please visit again!</div>
+        <div style="font-weight: 600; color: #000;">ຂອບໃຈທີ່ໃຊ້ບໍລິການ</div>
+        <div style="font-weight: 600; color: #000;">Thank you for using our service</div>
+        <div style="margin-top: 4px; font-weight: 500; color: #444;">ບໍລິການດ້ວຍໃຈ ຫ່ວງໃຍທຸກການເດີນທາງ</div>
+        <div style="font-weight: 500; color: #444;">Service with heart, caring for every journey</div>
       </div>
     `;
   }
@@ -1408,11 +1423,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       reader.readAsDataURL(blob);
       const base64Data = await base64Promise;
 
+      const folderId = state.settings.gdrive_folder_id || '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC';
+
       const payload = {
         action: 'upload_invoice',
         file: base64Data,
         filename: fullPath,
-        folderId: '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC',
+        folderId: folderId,
         transaction: transaction
       };
 
@@ -2467,6 +2484,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.settingsAdminPin.value = s.admin_pin;
     els.settingsFirebaseConfig.value = s.firebase_config ? JSON.stringify(s.firebase_config, null, 2) : '';
     els.settingsGDriveScriptUrl.value = s.gdrive_script_url || '';
+    if (els.settingsGDriveFolderId) {
+      els.settingsGDriveFolderId.value = s.gdrive_folder_id || '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC';
+    }
 
     // Render QR Code Previews
     renderSettingsQRPreview('bcel_lak');
@@ -2623,6 +2643,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.settings.admin_pin = adminPin;
     state.settings.firebase_config = fbConfig;
     state.settings.gdrive_script_url = els.settingsGDriveScriptUrl.value.trim();
+    if (els.settingsGDriveFolderId) {
+      state.settings.gdrive_folder_id = els.settingsGDriveFolderId.value.trim();
+    }
 
     // Apply Rate Updates to Product lists
     state.products.forEach(p => {
