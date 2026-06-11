@@ -236,6 +236,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Populate Cashier and POS dropdowns in Setup Overlay
     populateSetupOptions();
+    await updateSetupStartingCash();
+    els.setupPOS.addEventListener('change', updateSetupStartingCash);
     checkLowStockAlerts();
 
     // Listen to Products changes and reload UI
@@ -359,6 +361,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  async function updateSetupStartingCash() {
+    if (!els.setupPOS.value) return;
+    try {
+      const posObj = JSON.parse(els.setupPOS.value);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const allPetty = await window.BokeoDB.getPettyCashSessions();
+      
+      // Filter sessions for this POS on the same calendar date
+      const todaySessions = allPetty.filter(p => p.date === todayStr && p.pos === posObj.name);
+      
+      // Find or create info element to show the tip
+      let infoDiv = document.getElementById('setup-petty-info');
+      if (!infoDiv) {
+        infoDiv = document.createElement('div');
+        infoDiv.id = 'setup-petty-info';
+        infoDiv.style.fontSize = '0.82rem';
+        infoDiv.style.marginTop = '8px';
+        infoDiv.style.color = '#0f766e';
+        infoDiv.style.fontWeight = '700';
+        infoDiv.style.padding = '8px 12px';
+        infoDiv.style.backgroundColor = '#f0fdf4';
+        infoDiv.style.border = '1px solid #bbf7d0';
+        infoDiv.style.borderRadius = '8px';
+        
+        const pettyGroup = els.setupPettyLak.closest('.form-group');
+        if (pettyGroup) {
+          pettyGroup.appendChild(infoDiv);
+        }
+      }
+      
+      if (todaySessions.length > 0) {
+        // Last session's remaining cash becomes starting cash
+        const lastSession = todaySessions[todaySessions.length - 1];
+        els.setupPettyLak.value = formatNumber(lastSession.lak_remaining);
+        els.setupPettyThb.value = formatNumber(lastSession.thb_remaining);
+        els.setupPettyCny.value = formatNumber(lastSession.cny_remaining);
+        
+        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເງິນທອນຄົງເຫຼືອຫຼ້າສຸດຂອງມື້ນີ້: <br> LAK: <span style="color:#0f766e">${formatNumber(lastSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(lastSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(lastSession.cny_remaining)} ¥</span>`;
+      } else {
+        // First cashier of the day: reset to 0
+        els.setupPettyLak.value = '0';
+        els.setupPettyThb.value = '0';
+        els.setupPettyCny.value = '0';
+        
+        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະທຳອິດຂອງມື້ນີ້ (ເລີ່ມຕົ້ນສະຕັອກເງິນທອນໃໝ່)`;
+      }
+    } catch (e) {
+      console.error('Error updating setup starting cash:', e);
+    }
+  }
+
   function populateSetupOptions() {
     // Cashiers Datalist
     const datalist = document.getElementById('cashier-list');
@@ -415,7 +468,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load or create petty cash session for today
     const todayStr = new Date().toISOString().split('T')[0];
-    const sessionId = `${todayStr}_${posObj.name.replace(/\s+/g, '_')}`;
+    const sessionId = `${todayStr}_${posObj.name.replace(/\s+/g, '_')}_${cashierName.replace(/\s+/g, '_')}_${Date.now()}`;
 
     let session = await window.BokeoDB.getPettyCashSession(sessionId);
     if (!session) {
@@ -474,12 +527,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Open Close Shift summary modal
     const allTx = await window.BokeoDB.getTransactions();
     
-    // Filter transactions made during this shift
+    // Filter transactions made today at this POS (accumulated sales on the same day)
+    const todayStr = new Date().toISOString().split('T')[0];
     const shiftTx = allTx.filter(tx => {
       const isThisPOS = tx.pos === state.currentPOS.name;
-      const isThisCashier = tx.cashier === state.currentCashier;
-      const isAfterStart = new Date(tx.timestamp) >= state.shiftStartTime;
-      return isThisPOS && isThisCashier && isAfterStart;
+      const txDate = tx.timestamp.split('T')[0];
+      return isThisPOS && txDate === todayStr;
     });
 
     // Sum up shift sales
@@ -503,10 +556,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.shiftReportPOS.textContent = state.currentPOS.name;
     els.shiftReportDate.textContent = new Date().toLocaleString('lo-LA');
 
+    // Find starting petty cash of the first session of today
+    const allPetty = await window.BokeoDB.getPettyCashSessions();
+    const posSessions = allPetty.filter(p => p.date === todayStr && p.pos === state.currentPOS.name);
+    const firstSession = posSessions[0] || state.pettyCashSession;
+
     // Starting Petty cash
-    els.shiftStartLak.textContent = formatNumber(state.pettyCashSession.lak_start) + ' ₭';
-    els.shiftStartThb.textContent = formatNumber(state.pettyCashSession.thb_start) + ' ฿';
-    els.shiftStartCny.textContent = formatNumber(state.pettyCashSession.cny_start) + ' ¥';
+    els.shiftStartLak.textContent = formatNumber(firstSession.lak_start) + ' ₭';
+    els.shiftStartThb.textContent = formatNumber(firstSession.thb_start) + ' ฿';
+    els.shiftStartCny.textContent = formatNumber(firstSession.cny_start) + ' ¥';
 
     // Cash sales
     els.shiftSalesCashLak.textContent = formatNumber(cashLAK) + ' ₭';
@@ -518,10 +576,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.shiftSalesTransThb.textContent = formatNumber(transTHB) + ' ฿';
     els.shiftSalesTransCny.textContent = formatNumber(transCNY) + ' ¥';
 
-    // Remaining Drawer Cash (Starting + Cash Sales)
-    els.shiftEndLak.textContent = formatNumber(state.pettyCashSession.lak_remaining) + ' ₭';
-    els.shiftEndThb.textContent = formatNumber(state.pettyCashSession.thb_remaining) + ' ฿';
-    els.shiftEndCny.textContent = formatNumber(state.pettyCashSession.cny_remaining) + ' ¥';
+    // Remaining Drawer Cash (Starting of the day + Day Cash Sales)
+    const endLakVal = firstSession.lak_start + cashLAK;
+    const endThbVal = firstSession.thb_start + cashTHB;
+    const endCnyVal = firstSession.cny_start + cashCNY;
+
+    els.shiftEndLak.textContent = formatNumber(endLakVal) + ' ₭';
+    els.shiftEndThb.textContent = formatNumber(endThbVal) + ' ฿';
+    els.shiftEndCny.textContent = formatNumber(endCnyVal) + ' ¥';
 
     els.closeCounterModal.classList.add('active');
   });
@@ -582,11 +644,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // Update UI & show overlay
       els.setupCashier.value = '';
-      els.setupPettyLak.value = '0';
-      els.setupPettyThb.value = '0';
-      els.setupPettyCny.value = '0';
       els.closeCounterModal.classList.remove('active');
       els.setupOverlay.style.display = 'flex';
+      await updateSetupStartingCash();
       
       updateCartUI();
     }
@@ -2418,20 +2478,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         combinedLak: 'ລວມທັງໝົດທຽບເທົ່າກີບ',
         deptTitle: 'ພະແນກ ບັນຊີ - ການເງິນ',
         deptSub: 'Accounting Department',
+        middleTitle: 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ',
+        middleSub: 'Terminal & Parking Lot Dept',
         cashierTitle: 'ພະນັກງານຂາຍຜູ້ສະຫຼຸບ',
         cashierSub: 'Cashier Signature'
       },
       cn: {
         title: '机场销售日结汇总报告',
-        sub: '波桥国际机场 - Bokeo International Airport',
+        sub: '博胶国际机场 - Bokeo International Airport',
         date: `报告周期: ${start} 至 ${end}`,
         pos: `销售点: ${friendlyPOSCn}`,
         totalSales: '总销售营业额',
         cashSales: '现金销售额',
         transSales: '银行转账额',
         bankCount: '转账交易笔数',
-        pettyStart: '期初备用金',
-        pettyRemain: '期末备用金',
+        pettyStart: '期初零花钱备用金',
+        pettyRemain: '期末零花钱备用金',
         txList: '交易流水明细',
         invNo: '账单号',
         time: '交易时间',
@@ -2447,6 +2509,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         combinedLak: '折合基普总额',
         deptTitle: '财务与会计部',
         deptSub: 'Accounting & Finance Dept',
+        middleTitle: '站楼与停车场部',
+        middleSub: 'Terminal & Parking Lot Dept',
         cashierTitle: '收银员签字',
         cashierSub: 'Cashier Signature'
       }
@@ -2563,9 +2627,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div style="border: 1px solid #ddd; padding: 16px; border-radius: 8px; background: #fafafa;">
           <h4 style="margin-bottom: 12px; border-bottom: 1px solid #ddd; padding-bottom: 6px;">${t.cashSales} & ${t.pettyRemain}</h4>
-          <p><strong>LAK (ເງິນສົດ/备用金):</strong> ${formatNumber(remainLAK)} ₭ (ເລີ່ມ: ${formatNumber(startLAK)})</p>
-          <p><strong>THB (ເງິນສົດ/备用金):</strong> ${formatNumber(remainTHB)} ฿ (ເລີ່ມ: ${formatNumber(startTHB)})</p>
-          <p><strong>CNY (ເງິນສົດ/备用金):</strong> ${formatNumber(remainCNY)} ¥ (ເລີ່ມ: ${formatNumber(startCNY)})</p>
+          <p><strong>LAK (ເງິນສົດ/零花钱备用金):</strong> ${formatNumber(remainLAK)} ₭ (ເລີ່ມ: ${formatNumber(startLAK)})</p>
+          <p><strong>THB (ເງິນສົດ/零花钱备用金):</strong> ${formatNumber(remainTHB)} ฿ (ເລີ່ມ: ${formatNumber(startTHB)})</p>
+          <p><strong>CNY (ເງິນສົດ/零花钱备用金):</strong> ${formatNumber(remainCNY)} ¥ (ເລີ່ມ: ${formatNumber(startCNY)})</p>
         </div>
         <div style="border: 1px solid #ddd; padding: 16px; border-radius: 8px; background: #fafafa;">
           <h4 style="margin-bottom: 12px; border-bottom: 1px solid #ddd; padding-bottom: 6px;">${t.transSales}</h4>
@@ -2631,6 +2695,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="text-align: center; width: 220px; page-break-inside: avoid; break-inside: avoid;">
           <p>${t.deptTitle}</p>
           <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">${t.deptSub}</p>
+        </div>
+        <div style="text-align: center; width: 220px; page-break-inside: avoid; break-inside: avoid;">
+          <p>${t.middleTitle}</p>
+          <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">${t.middleSub}</p>
         </div>
         <div style="text-align: center; width: 200px; page-break-inside: avoid; break-inside: avoid;">
           <p>${t.cashierTitle}</p>
