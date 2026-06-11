@@ -700,11 +700,29 @@ class BokeoPOSDB {
       }
 
       // Parse and update products
+      let currentCategory = 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ';
+      const categoriesList = ['ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', 'ຫ້ອງ VIP', 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', 'ບໍລິການແທັກຊີ່', 'ບໍລິການລານຈອດ'];
+
       pricesRows.forEach(row => {
-        if (row.length < 5) return;
-        const productId = row[0] ? row[0].trim() : '';
-        const nameEn = row[1] ? row[1].trim() : '';
-        const nameLo = row[2] ? row[2].trim() : '';
+        if (row.length < 3) return;
+        const colA = row[0] ? row[0].trim() : '';
+        const colB = row[1] ? row[1].trim() : '';
+        const colC = row[2] ? row[2].trim() : '';
+
+        // Check if this is a category header row
+        if (categoriesList.includes(colA) && !colB && !colC) {
+          currentCategory = colA;
+          return;
+        }
+
+        // Skip table header lines or empty rows
+        if (!colA || colA.toLowerCase().includes('id') || colA.toLowerCase().includes('product') || colA.includes('ລຳດັບ')) {
+          return;
+        }
+
+        const productId = colA;
+        const nameEn = colB;
+        const nameLo = colC;
         
         let costThb = parseFloat(row[3] ? row[3].replace(/[^\d\.]/g, '') : '0') || 0;
         let priceThb = parseFloat(row[4] ? row[4].replace(/[^\d\.]/g, '') : '0') || 0;
@@ -715,12 +733,10 @@ class BokeoPOSDB {
         if (!priceCny && priceThb) priceCny = parseFloat((priceThb * rateCny).toFixed(2));
 
         // Try to match product in our database
-        let matchedProduct = null;
+        let matchedProduct = localProducts.find(p => p.id === productId);
 
-        if (productId) {
-          matchedProduct = localProducts.find(p => p.id === productId);
-        } else if (nameLo) {
-          // Match by name keyword (specifically for wrapping service)
+        if (!matchedProduct && nameLo) {
+          // Fallback match by name
           matchedProduct = localProducts.find(p => {
             const cleanName = p.name_lo.toLowerCase();
             const cleanTarget = nameLo.toLowerCase();
@@ -735,7 +751,28 @@ class BokeoPOSDB {
           if (priceCny) matchedProduct.price_cny = priceCny;
           if (nameEn) matchedProduct.name_en = nameEn;
           if (nameLo) matchedProduct.name_lo = nameLo;
+          matchedProduct.category = currentCategory;
           if (!matchedProduct.max_stock) matchedProduct.max_stock = matchedProduct.stock;
+        } else {
+          // Create new product
+          const defaultStock = (currentCategory === 'ຫ້ອງ VIP' || currentCategory === 'ບໍລິການແທັກຊີ່' || currentCategory === 'ບໍລິການລານຈອດ') ? 9999 : 0;
+          const defaultUnit = (currentCategory === 'ບໍລິການແທັກຊີ່') ? 'ທ່ຽວ' : (currentCategory === 'ຫ້ອງ VIP' || currentCategory === 'ບໍລິການລານຈອດ' ? 'ຄັ້ງ' : 'ຊິ້ນ');
+          
+          const newProduct = {
+            id: productId,
+            code: productId, // default code to ID
+            name_en: nameEn || productId,
+            name_lo: nameLo || nameEn || productId,
+            category: currentCategory,
+            cost_thb: costThb,
+            price_thb: priceThb,
+            price_lak: priceLak,
+            price_cny: priceCny,
+            stock: defaultStock,
+            max_stock: defaultStock,
+            unit: defaultUnit
+          };
+          localProducts.push(newProduct);
         }
       });
 

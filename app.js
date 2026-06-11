@@ -255,11 +255,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       checkLowStockAlerts();
     });
 
-    // Auto-polling Google Sheets every 5 minutes
+    // Auto-polling Google Sheets every 30 seconds for real-time catalog & stock updates
     setInterval(async () => {
       console.log('Polling Google Sheets for updates...');
       await window.BokeoDB.syncWithGoogleSheets();
-    }, 300000);
+    }, 30000);
 
     // Setup format-as-you-type input formatters
     setupFormattedInputListener(els.setupPettyLak);
@@ -1657,7 +1657,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function syncProductStockToGoogleSheets(codeOrId, newStock) {
+  async function syncProductStockToGoogleSheets(codeOrId, addedQty, newStock) {
     const scriptUrl = state.settings.gdrive_script_url;
     if (!scriptUrl) {
       console.log('Google Drive script URL not configured. Skipping stock sync.');
@@ -1668,7 +1668,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const payload = {
         action: 'update_stock',
         code: codeOrId,
-        stock: newStock
+        addedQty: addedQty,
+        newStock: newStock
       };
 
       const response = await fetch(scriptUrl, {
@@ -2367,6 +2368,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       'ຫ້ອງ VIP': { lo: 'ຫ້ອງ VIP', cn: '贵宾厅' },
       'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ': { lo: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cn: '行李打包服务' },
       'ບໍລິການແທັກຊີ່': { lo: 'ບໍລິການແທັກຊີ່', cn: '出租车服务' },
+      'ບໍລິການລານຈອດ': { lo: 'ບໍລິການລານຈອດ', cn: '停车场服务' },
       // POS Names
       'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)': { lo: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', cn: '商品销售处 (Consumer Shop)' },
       'ຫ້ອງ VIP (VIP Lounge)': { lo: 'ຫ້ອງ VIP (VIP Lounge)', cn: '贵宾厅 (VIP Lounge)' },
@@ -2808,7 +2810,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Sync to Google Sheet in background
       if (state.settings.gdrive_script_url) {
-        syncProductStockToGoogleSheets(product.code || product.id, product.stock);
+        syncProductStockToGoogleSheets(product.code || product.id, qty, product.stock);
       }
       
       // reload
