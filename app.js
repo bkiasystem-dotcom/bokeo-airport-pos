@@ -1401,25 +1401,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function generateReceiptPDFBlob(tx) {
     if (typeof html2pdf === 'undefined') return null;
 
-    // Create a temporary element in the DOM
+    // Create an invisible wrapper in the DOM
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'fixed';
+    wrapper.style.left = '0';
+    wrapper.style.top = '0';
+    wrapper.style.width = '0';
+    wrapper.style.height = '0';
+    wrapper.style.overflow = 'hidden';
+    wrapper.style.opacity = '0';
+    wrapper.style.zIndex = '-9999';
+    
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = buildReceiptHTML(tx);
     
-    // Style it to be in the viewport but layered behind the modal overlays
-    tempDiv.style.width = '80mm';
+    // Style it with explicit pixel dimensions matching 80mm width
+    tempDiv.style.width = '300px';
     tempDiv.style.backgroundColor = '#fff';
     tempDiv.style.color = '#000';
     tempDiv.style.fontFamily = "'Outfit', 'Noto Sans Lao', system-ui, -apple-system, sans-serif";
     tempDiv.style.fontSize = '11px';
     tempDiv.style.boxSizing = 'border-box';
-    tempDiv.style.padding = '4mm';
+    tempDiv.style.padding = '15px';
     
-    tempDiv.style.position = 'fixed';
-    tempDiv.style.left = '0';
-    tempDiv.style.top = '0';
-    tempDiv.style.zIndex = '50'; // Behind modal overlay (which has z-index: 100)
-    
-    document.body.appendChild(tempDiv);
+    wrapper.appendChild(tempDiv);
+    document.body.appendChild(wrapper);
 
     // Calculate dynamic height based on content to match the receipt size
     const elementHeightMm = Math.ceil((tempDiv.scrollHeight * 25.4) / 96) + 2;
@@ -1435,31 +1441,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       return await html2pdf().set(options).from(tempDiv).output('blob');
     } finally {
-      // Clean up the temporary element immediately
-      document.body.removeChild(tempDiv);
+      // Clean up the wrapper from DOM immediately
+      document.body.removeChild(wrapper);
     }
   }
 
   async function downloadReceiptPDF(tx) {
     if (typeof html2pdf !== 'undefined') {
-      // Create a temporary element in the DOM
+      // Create an invisible wrapper in the DOM
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'fixed';
+      wrapper.style.left = '0';
+      wrapper.style.top = '0';
+      wrapper.style.width = '0';
+      wrapper.style.height = '0';
+      wrapper.style.overflow = 'hidden';
+      wrapper.style.opacity = '0';
+      wrapper.style.zIndex = '-9999';
+      
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = buildReceiptHTML(tx);
       
-      tempDiv.style.width = '80mm';
+      tempDiv.style.width = '300px';
       tempDiv.style.backgroundColor = '#fff';
       tempDiv.style.color = '#000';
       tempDiv.style.fontFamily = "'Outfit', 'Noto Sans Lao', system-ui, -apple-system, sans-serif";
       tempDiv.style.fontSize = '11px';
       tempDiv.style.boxSizing = 'border-box';
-      tempDiv.style.padding = '4mm';
+      tempDiv.style.padding = '15px';
       
-      tempDiv.style.position = 'fixed';
-      tempDiv.style.left = '0';
-      tempDiv.style.top = '0';
-      tempDiv.style.zIndex = '50';
-      
-      document.body.appendChild(tempDiv);
+      wrapper.appendChild(tempDiv);
+      document.body.appendChild(wrapper);
 
       const dateStr = new Date(tx.timestamp).toISOString().split('T')[0];
       const sanitizedPOS = tx.pos.replace(/[\\\/:*?"<>|]/g, '_');
@@ -1479,7 +1491,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         await html2pdf().set(options).from(tempDiv).save();
       } finally {
-        document.body.removeChild(tempDiv);
+        document.body.removeChild(wrapper);
       }
     }
   }
@@ -1585,6 +1597,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  async function syncProductStockToGoogleSheets(codeOrId, newStock) {
+    const scriptUrl = state.settings.gdrive_script_url;
+    if (!scriptUrl) {
+      console.log('Google Drive script URL not configured. Skipping stock sync.');
+      return;
+    }
+
+    try {
+      const payload = {
+        action: 'update_stock',
+        code: codeOrId,
+        stock: newStock
+      };
+
+      const response = await fetch(scriptUrl, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'text/plain'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const resData = await response.json();
+      if (resData.success) {
+        console.log('Stock sync successful via Apps Script.');
+      } else {
+        console.error('Apps Script stock sync failed:', resData.error);
+      }
+    } catch (err) {
+      console.error('Failed to sync stock via Apps Script:', err);
+    }
+  }
+
   /* =========================================================================
      ADMIN PIN SECURITY SYSTEM
      ========================================================================= */
@@ -1664,13 +1710,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.endDateFilter.value = today;
 
     // Populate POS Filters
-    els.dashPOSFilter.innerHTML = '<option value="all">ຈຸດຂາຍທັງໝົດ (All POS)</option>';
+    els.dashPOSFilter.innerHTML = '';
+    
+    const optAll = document.createElement('option');
+    optAll.value = 'all';
+    optAll.textContent = 'ຈຸດຂາຍທັງໝົດ (All POS)';
+    els.dashPOSFilter.appendChild(optAll);
+    
+    // Group 1: Service Types (ປະເພດບໍລິການ)
+    const optGroupService = document.createElement('optgroup');
+    optGroupService.label = 'ປະເພດບໍລິການ (Service Types)';
+    
+    const serviceTypes = [...new Set(state.settings.pos_points.map(p => p.serviceType).filter(Boolean))];
+    serviceTypes.forEach(st => {
+      const opt = document.createElement('option');
+      opt.value = `service:${st}`;
+      opt.textContent = `ປະເພດ: ${st}`;
+      optGroupService.appendChild(opt);
+    });
+    if (serviceTypes.length > 0) {
+      els.dashPOSFilter.appendChild(optGroupService);
+    }
+    
+    // Group 2: Individual POS Outlets (ຈຸດຂາຍ)
+    const optGroupPOS = document.createElement('optgroup');
+    optGroupPOS.label = 'ຈຸດຂາຍ (POS Outlets)';
     state.settings.pos_points.forEach(p => {
       const opt = document.createElement('option');
-      opt.value = p.name;
-      opt.textContent = p.name;
-      els.dashPOSFilter.appendChild(opt);
+      opt.value = `pos:${p.name}`;
+      opt.textContent = `ຈຸດຂາຍ: ${p.name}`;
+      optGroupPOS.appendChild(opt);
     });
+    els.dashPOSFilter.appendChild(optGroupPOS);
 
     if (!dashboardListenersBound) {
       els.startDateFilter.addEventListener('change', loadDashboardData);
@@ -1739,7 +1810,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     dashboardTransactions = allTx.filter(tx => {
       const txDate = tx.timestamp.split('T')[0];
       const matchDate = txDate >= start && txDate <= end;
-      const matchPOS = selectedPOS === 'all' || tx.pos === selectedPOS;
+      
+      let matchPOS = false;
+      if (selectedPOS === 'all') {
+        matchPOS = true;
+      } else if (selectedPOS.startsWith('service:')) {
+        const targetService = selectedPOS.substring(8);
+        const txServiceType = tx.serviceType || (state.settings.pos_points.find(p => p.name === tx.pos)?.serviceType);
+        matchPOS = txServiceType === targetService;
+      } else if (selectedPOS.startsWith('pos:')) {
+        const targetPOS = selectedPOS.substring(4);
+        matchPOS = tx.pos === targetPOS;
+      } else {
+        matchPOS = tx.pos === selectedPOS;
+      }
       return matchDate && matchPOS;
     });
 
@@ -1777,7 +1861,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Filter petty cash sessions inside selected ranges
     const rangePetty = allPetty.filter(p => {
       const matchDate = p.date >= start && p.date <= end;
-      const matchPOS = selectedPOS === 'all' || p.pos === selectedPOS;
+      
+      let matchPOS = false;
+      if (selectedPOS === 'all') {
+        matchPOS = true;
+      } else if (selectedPOS.startsWith('service:')) {
+        const targetService = selectedPOS.substring(8);
+        const matchingPOS = state.settings.pos_points.find(point => point.name === p.pos);
+        matchPOS = matchingPOS && matchingPOS.serviceType === targetService;
+      } else if (selectedPOS.startsWith('pos:')) {
+        const targetPOS = selectedPOS.substring(4);
+        matchPOS = p.pos === targetPOS;
+      } else {
+        matchPOS = p.pos === selectedPOS;
+      }
       return matchDate && matchPOS;
     });
 
@@ -1935,7 +2032,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       dataValues = labels.map(l => sums[l]);
     } else if (chartMode === 'allmonths') {
       const chartTxs = allTx.filter(tx => {
-        return selectedPOS === 'all' || tx.pos === selectedPOS;
+        let matchPOS = false;
+        if (selectedPOS === 'all') {
+          matchPOS = true;
+        } else if (selectedPOS.startsWith('service:')) {
+          const targetService = selectedPOS.substring(8);
+          const txServiceType = tx.serviceType || (state.settings.pos_points.find(p => p.name === tx.pos)?.serviceType);
+          matchPOS = txServiceType === targetService;
+        } else if (selectedPOS.startsWith('pos:')) {
+          const targetPOS = selectedPOS.substring(4);
+          matchPOS = tx.pos === targetPOS;
+        } else {
+          matchPOS = tx.pos === selectedPOS;
+        }
+        return matchPOS;
       });
       
       let minDate = new Date().toISOString().split('T')[0];
@@ -2191,6 +2301,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     const end = els.endDateFilter.value;
     const selectedPOS = els.dashPOSFilter.value;
 
+    const posTranslations = {
+      // Service Types
+      'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ': { lo: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cn: '零售商品店' },
+      'ຫ້ອງ VIP': { lo: 'ຫ້ອງ VIP', cn: '贵宾厅' },
+      'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ': { lo: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cn: '行李打包服务' },
+      'ບໍລິການແທັກຊີ່': { lo: 'ບໍລິການແທັກຊີ່', cn: '出租车服务' },
+      // POS Names
+      'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)': { lo: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', cn: '商品销售处 (Consumer Shop)' },
+      'ຫ້ອງ VIP (VIP Lounge)': { lo: 'ຫ້ອງ VIP (VIP Lounge)', cn: '贵宾厅 (VIP Lounge)' },
+      'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)': { lo: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', cn: '行李打包处 (Wrapping Counter)' },
+      'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)': { lo: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', cn: '出租车柜台 (Taxi Counter)' }
+    };
+
+    let friendlyPOSLao = '';
+    let friendlyPOSCn = '';
+
+    if (selectedPOS === 'all') {
+      friendlyPOSLao = 'ທັງໝົດ (All POS)';
+      friendlyPOSCn = '全部销售点 (All POS)';
+    } else if (selectedPOS.startsWith('service:')) {
+      const serviceVal = selectedPOS.substring(8);
+      const translatedService = posTranslations[serviceVal]?.cn || serviceVal;
+      friendlyPOSLao = `ປະເພດບໍລິການ: ${serviceVal}`;
+      friendlyPOSCn = `服务类型: ${translatedService}`;
+    } else if (selectedPOS.startsWith('pos:')) {
+      const posVal = selectedPOS.substring(4);
+      const translatedPOS = posTranslations[posVal]?.cn || posVal;
+      friendlyPOSLao = `ຈຸດຂາຍ: ${posVal}`;
+      friendlyPOSCn = `销售点: ${translatedPOS}`;
+    } else {
+      const translatedPOS = posTranslations[selectedPOS]?.cn || selectedPOS;
+      friendlyPOSLao = `ຈຸດຂາຍ: ${selectedPOS}`;
+      friendlyPOSCn = `销售点: ${translatedPOS}`;
+    }
+
     let totalLAK = 0, totalTHB = 0, totalCNY = 0;
     let transLAK = 0, transTHB = 0, transCNY = 0;
     let cashLAK = 0, cashTHB = 0, cashCNY = 0;
@@ -2221,7 +2366,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     allPetty.filter(p => {
       const matchDate = p.date >= start && p.date <= end;
-      const matchPOS = selectedPOS === 'all' || p.pos === selectedPOS;
+      
+      let matchPOS = false;
+      if (selectedPOS === 'all') {
+        matchPOS = true;
+      } else if (selectedPOS.startsWith('service:')) {
+        const targetService = selectedPOS.substring(8);
+        const matchingPOS = state.settings.pos_points.find(point => point.name === p.pos);
+        matchPOS = matchingPOS && matchingPOS.serviceType === targetService;
+      } else if (selectedPOS.startsWith('pos:')) {
+        const targetPOS = selectedPOS.substring(4);
+        matchPOS = p.pos === targetPOS;
+      } else {
+        matchPOS = p.pos === selectedPOS;
+      }
       return matchDate && matchPOS;
     }).forEach(p => {
       startLAK += p.lak_start;
@@ -2238,7 +2396,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         title: 'ລາຍງານສະຫຼຸບຍອດຂາຍປະຈຳວັນ',
         sub: 'ສະໜາມບິນສາກົນບໍ່ແກ້ວ - Bokeo International Airport',
         date: `ໄລຍະເວລາ: ວັນທີ ${start} ຫາ ${end}`,
-        pos: `ຈຸດຂາຍ: ${selectedPOS === 'all' ? 'ທັງໝົດ' : selectedPOS}`,
+        pos: `ຈຸດຂາຍ: ${friendlyPOSLao}`,
         totalSales: 'ຍອດຂາຍລວມທັງໝົດ',
         cashSales: 'ຍອດຂາຍເງິນສົດ',
         transSales: 'ຍອດຂາຍເງິນໂອນ',
@@ -2257,13 +2415,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         thbCol: 'ບາດ (THB)',
         cnyCol: 'ຢວນ (CNY)',
         dailyTotal: 'ລວມຍອດປະຈຳວັນ',
-        combinedLak: 'ລວມທັງໝົດທຽບເທົ່າກີບ'
+        combinedLak: 'ລວມທັງໝົດທຽບເທົ່າກີບ',
+        deptTitle: 'ພະແນກ ບັນຊີ - ການເງິນ',
+        deptSub: 'Accounting Department',
+        cashierTitle: 'ພະນັກງານຂາຍຜູ້ສະຫຼຸບ',
+        cashierSub: 'Cashier Signature'
       },
       cn: {
         title: '机场销售日结汇总报告',
         sub: '波桥国际机场 - Bokeo International Airport',
         date: `报告周期: ${start} 至 ${end}`,
-        pos: `销售点: ${selectedPOS === 'all' ? '全部' : selectedPOS}`,
+        pos: `销售点: ${friendlyPOSCn}`,
         totalSales: '总销售营业额',
         cashSales: '现金销售额',
         transSales: '银行转账额',
@@ -2282,7 +2444,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         thbCol: '泰铢 (THB)',
         cnyCol: '人民币 (CNY)',
         dailyTotal: '日结总计',
-        combinedLak: '折合基普总额'
+        combinedLak: '折合基普总额',
+        deptTitle: '财务与会计部',
+        deptSub: 'Accounting & Finance Dept',
+        cashierTitle: '收银员签字',
+        cashierSub: 'Cashier Signature'
       }
     };
 
@@ -2328,9 +2494,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           dayTotalThb += metrics.thb;
           dayTotalCny += metrics.cny;
           
+          const translatedPOSName = lang === 'cn' ? (posTranslations[posName]?.cn || posName) : posName;
           rowsHtml += `
             <tr>
-              <td style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem;">${posName}</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem;">${translatedPOSName}</td>
               <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.lak)} ₭</td>
               <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.thb)} ฿</td>
               <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.cny)} ¥</td>
@@ -2421,6 +2588,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <tr style="background-color: #f2f2f2;">
             <th style="padding: 8px; border: 1px solid #ddd;">${t.invNo}</th>
             <th style="padding: 8px; border: 1px solid #ddd;">${t.time}</th>
+            <th style="padding: 8px; border: 1px solid #ddd;">${lang === 'cn' ? '销售点' : 'ຈຸດຂາຍ'}</th>
             <th style="padding: 8px; border: 1px solid #ddd;">${t.cashier}</th>
             <th style="padding: 8px; border: 1px solid #ddd;">${t.type}</th>
             <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">${t.amount}</th>
@@ -2434,12 +2602,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             else if (tx.paid_currency === 'THB') { val = tx.total_thb; sym = '฿'; }
             else if (tx.paid_currency === 'CNY') { val = tx.total_cny; sym = '¥'; }
 
+            let displayPaymentType = tx.payment_type;
+            if (lang === 'cn') {
+              if (displayPaymentType === 'ເງິນສົດ') {
+                displayPaymentType = '现金';
+              } else if (displayPaymentType === 'ໂອນ') {
+                displayPaymentType = '转账';
+              }
+            }
+
+            const displayPOS = lang === 'cn' ? (posTranslations[tx.pos]?.cn || tx.pos) : tx.pos;
+
             return `
               <tr>
                 <td style="padding: 8px; border: 1px solid #ddd; font-weight: 700;">${tx.id}</td>
                 <td style="padding: 8px; border: 1px solid #ddd;">${new Date(tx.timestamp).toLocaleTimeString('lo-LA')}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">${displayPOS}</td>
                 <td style="padding: 8px; border: 1px solid #ddd;">${tx.cashier}</td>
-                <td style="padding: 8px; border: 1px solid #ddd;">${tx.payment_type} ${tx.bank ? `(${tx.bank})` : ''}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">${displayPaymentType} ${tx.bank ? `(${tx.bank})` : ''}</td>
                 <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: 700;">${formatNumber(val)} ${sym}</td>
               </tr>
             `;
@@ -2448,13 +2628,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       </table>
 
       <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 0.85rem;">
-        <div style="text-align: center; width: 200px;">
-          <p>ພະແນກ ບັນຊີ - ການເງິນ</p>
-          <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">Accounting Department</p>
+        <div style="text-align: center; width: 220px;">
+          <p>${t.deptTitle}</p>
+          <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">${t.deptSub}</p>
         </div>
         <div style="text-align: center; width: 200px;">
-          <p>ພະນັກງານຂາຍຜູ້ສະຫຼຸບ</p>
-          <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">Cashier Signature</p>
+          <p>${t.cashierTitle}</p>
+          <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">${t.cashierSub}</p>
         </div>
       </div>
     `;
@@ -2556,6 +2736,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       // replenishing stock
       product.stock += qty;
       await window.BokeoDB.saveProduct(product);
+      
+      // Sync to Google Sheet in background
+      if (state.settings.gdrive_script_url) {
+        syncProductStockToGoogleSheets(product.code || product.id, product.stock);
+      }
       
       // reload
       state.products = await window.BokeoDB.getProducts();
