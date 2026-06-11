@@ -1331,6 +1331,7 @@ body {
     background-color: #fff !important;
     color: #000 !important;
     height: auto !important;
+    width: 80mm !important;
     overflow: visible !important;
     font-family: 'Courier New', 'Noto Sans Lao', monospace !important;
     font-size: 11px !important;
@@ -1340,9 +1341,9 @@ body {
   
   .bill-print-container {
     display: block !important;
-    width: 74mm; /* Standard 80mm printable width */
-    margin: 0 auto;
-    padding: 2mm;
+    width: 80mm !important;
+    margin: 0 !important;
+    padding: 4mm !important;
     box-sizing: border-box;
   }
 
