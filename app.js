@@ -1189,7 +1189,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         margin: 2,
         filename: `${transaction.id}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          onclone: (clonedDoc) => {
+            const el = clonedDoc.getElementById('bill-print-box');
+            if (el) {
+              el.style.position = 'static';
+              el.style.left = '0';
+              el.style.top = '0';
+              el.style.zIndex = '99999';
+            }
+          }
+        },
         jsPDF: { unit: 'mm', format: [76, 150], orientation: 'portrait' }
       };
 
@@ -1383,7 +1395,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         margin: 2,
         filename: `${dateStr}_${sanitizedPOS}_${sanitizedType}_${tx.id}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          onclone: (clonedDoc) => {
+            const el = clonedDoc.getElementById('bill-print-box');
+            if (el) {
+              el.style.position = 'static';
+              el.style.left = '0';
+              el.style.top = '0';
+              el.style.zIndex = '99999';
+            }
+          }
+        },
         jsPDF: { unit: 'mm', format: [76, 150], orientation: 'portrait' }
       };
 
