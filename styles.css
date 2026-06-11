@@ -1317,6 +1317,11 @@ body {
 
 /* PRINT-ONLY CSS RECEIPT STYLING (80mm & 58mm Thermal Printers) */
 @media print {
+  @page {
+    margin: 0;
+    size: 80mm auto;
+  }
+
   /* Hide all screen elements */
   .app-container, .setup-overlay, .modal-overlay {
     display: none !important;
