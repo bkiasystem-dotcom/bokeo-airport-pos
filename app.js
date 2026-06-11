@@ -2496,7 +2496,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           
           const translatedPOSName = lang === 'cn' ? (posTranslations[posName]?.cn || posName) : posName;
           rowsHtml += `
-            <tr>
+            <tr style="page-break-inside: avoid; break-inside: avoid;">
               <td style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem;">${translatedPOSName}</td>
               <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.lak)} ₭</td>
               <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.thb)} ฿</td>
@@ -2510,7 +2510,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dayCombinedLak = dayTotalLak + (dayTotalThb * rateLak) + (dayTotalCny * (rateLak / rateCny));
         
         pdfPosSummaryHTML += `
-          <div style="margin-bottom: 16px;">
+          <div style="margin-bottom: 16px; page-break-inside: avoid; break-inside: avoid;">
             <div style="font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; color: #115e59;">
               📅 ${formattedDate}
             </div>
@@ -2525,7 +2525,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               </thead>
               <tbody>
                 ${rowsHtml}
-                <tr style="background-color: #fafafa; font-weight: 700;">
+                <tr style="background-color: #fafafa; font-weight: 700; page-break-inside: avoid; break-inside: avoid;">
                   <td style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem;">${t.dailyTotal}</td>
                   <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem; color: #115e59;">${formatNumber(dayTotalLak)} ₭</td>
                   <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem; color: #115e59;">${formatNumber(dayTotalThb)} ฿</td>
@@ -2554,7 +2554,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <p style="font-size: 0.85rem; color: #555;">${t.date} | ${t.pos}</p>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; page-break-inside: avoid; break-inside: avoid;">
         <div style="border: 1px solid #ddd; padding: 16px; border-radius: 8px; background: #fafafa;">
           <h4 style="margin-bottom: 12px; border-bottom: 1px solid #ddd; padding-bottom: 6px;">${t.totalSales}</h4>
           <p><strong>LAK:</strong> ${formatNumber(totalLAK)} ₭</p>
@@ -2582,7 +2582,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       ${pdfPosSummaryHTML}
 
-      <h3 style="font-size: 1.1rem; border-bottom: 2px solid #333; padding-bottom: 6px; margin-top: 24px; margin-bottom: 12px;">${t.txList}</h3>
+      <h3 style="font-size: 1.1rem; border-bottom: 2px solid #333; padding-bottom: 6px; margin-top: 24px; margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid;">${t.txList}</h3>
       <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem;">
         <thead>
           <tr style="background-color: #f2f2f2;">
@@ -2614,7 +2614,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const displayPOS = lang === 'cn' ? (posTranslations[tx.pos]?.cn || tx.pos) : tx.pos;
 
             return `
-              <tr>
+              <tr style="page-break-inside: avoid; break-inside: avoid;">
                 <td style="padding: 8px; border: 1px solid #ddd; font-weight: 700;">${tx.id}</td>
                 <td style="padding: 8px; border: 1px solid #ddd;">${new Date(tx.timestamp).toLocaleTimeString('lo-LA')}</td>
                 <td style="padding: 8px; border: 1px solid #ddd;">${displayPOS}</td>
@@ -2627,12 +2627,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         </tbody>
       </table>
 
-      <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 0.85rem;">
-        <div style="text-align: center; width: 220px;">
+      <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 0.85rem; page-break-inside: avoid; break-inside: avoid;">
+        <div style="text-align: center; width: 220px; page-break-inside: avoid; break-inside: avoid;">
           <p>${t.deptTitle}</p>
           <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">${t.deptSub}</p>
         </div>
-        <div style="text-align: center; width: 200px;">
+        <div style="text-align: center; width: 200px; page-break-inside: avoid; break-inside: avoid;">
           <p>${t.cashierTitle}</p>
           <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">${t.cashierSub}</p>
         </div>
@@ -2647,7 +2647,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         filename: `Sales_Report_${lang.toUpperCase()}_${start}_to_${end}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
       };
 
       await html2pdf().set(options).from(reportDiv).save();
