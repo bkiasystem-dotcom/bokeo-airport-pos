@@ -1247,11 +1247,12 @@ body {
   gap: 12px;
 }
 
-/* Bill Print Container (Hidden off-screen so html2pdf can render it) */
+/* Bill Print Container (Hidden behind screen so html2pdf can render it at (0,0)) */
 .bill-print-container {
   position: absolute;
-  left: -9999px;
-  top: -9999px;
+  left: 0;
+  top: 0;
+  z-index: -9999;
   width: 80mm;
   background-color: #fff;
   color: #000;

@@ -1445,6 +1445,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const resData = await response.json();
       if (resData.success) {
         console.log('PDF uploaded and transaction logged successfully via Apps Script. File ID:', resData.fileId);
+        if (resData.sheetError) {
+          console.error('Google Sheet log error:', resData.sheetError);
+          alert('ລະບົບບັນທຶກບິນໄປ Google Drive ສຳເລັດ ແຕ່ບໍ່ສາມາດບັນທຶກລົງ Google Sheet ໄດ້: ' + resData.sheetError);
+        }
       } else {
         console.error('Apps Script upload/logging failed:', resData.error);
         throw new Error(resData.error);
