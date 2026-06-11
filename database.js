@@ -52,7 +52,7 @@ const DEFAULT_PRODUCTS = [
 
   // 2. ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Service)
   { id: 'WRP-001', code: '200029', name_en: 'Box (C+8)', name_lo: 'ແກັດ (C+8)', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 7.00, price_thb: 80.00, price_lak: 56000, price_cny: 16.00, stock: 200, unit: 'ກ່ອງ' },
-  { id: 'WRP-002', code: '200030', name_en: 'Box (H)', name_lo: 'ແກັດ (H)', category: 'ບໍລິการຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 21.00, price_thb: 100.00, price_lak: 70000, price_cny: 20.00, stock: 173, unit: 'ກ່ອງ' },
+  { id: 'WRP-002', code: '200030', name_en: 'Box (H)', name_lo: 'ແກັດ (H)', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 21.00, price_thb: 100.00, price_lak: 70000, price_cny: 20.00, stock: 173, unit: 'ກ່ອງ' },
   { id: 'WRP-003', code: '200039', name_en: 'Box (E)', name_lo: 'ແກັດ (E)', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 9.00, price_thb: 85.00, price_lak: 59500, price_cny: 17.00, stock: 306, unit: 'ກ່ອງ' },
   { id: 'WRP-004', code: '200035', name_en: 'Document Envelope 6*9', name_lo: '6*9 ຊອງເອກະສານ', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 1.90, price_thb: 25.00, price_lak: 17500, price_cny: 5.00, stock: 61, unit: 'ຊອງ' },
   { id: 'WRP-005', code: '200036', name_en: 'Document Envelope 7*10', name_lo: '7*10 ຊອງເອກະສານ', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 2.20, price_thb: 30.00, price_lak: 21000, price_cny: 6.00, stock: 10, unit: 'ຊອງ' },

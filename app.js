@@ -263,6 +263,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     });
 
+    // Bind Discount and VAT input change events
+    const discountInput = document.getElementById('checkout-discount-input');
+    const vatInput = document.getElementById('checkout-vat-input');
+    if (discountInput) {
+      discountInput.addEventListener('input', () => {
+        let val = parseFloat(discountInput.value);
+        if (val < 0) discountInput.value = '0';
+        if (val > 100) discountInput.value = '100';
+        recalculateCheckoutTotals();
+      });
+    }
+    if (vatInput) {
+      vatInput.addEventListener('input', () => {
+        let val = parseFloat(vatInput.value);
+        if (val < 0) vatInput.value = '0';
+        if (val > 100) vatInput.value = '100';
+        recalculateCheckoutTotals();
+      });
+    }
+
     // Receipt Modal controls
     if (els.receiptPrintBtn) {
       els.receiptPrintBtn.addEventListener('click', () => {
@@ -770,25 +790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // If checkout modal is active, update modal displays
     if (els.checkoutModal.classList.contains('active')) {
-      let grandTotal = 0;
-      state.cart.forEach(item => {
-        if (state.currentCurrency === 'LAK') grandTotal += item.product.price_lak * item.qty;
-        else if (state.currentCurrency === 'THB') grandTotal += item.product.price_thb * item.qty;
-        else if (state.currentCurrency === 'CNY') grandTotal += item.product.price_cny * item.qty;
-      });
-
-      const currencySymbol = state.currentCurrency === 'LAK' ? ' ₭' : state.currentCurrency === 'THB' ? ' ฿' : ' ¥';
-      els.checkoutTotalDisplay.textContent = formatNumber(grandTotal) + currencySymbol;
-
-      // Update cash input change due
-      const paid = getCleanFloat(els.amountPaidInput.value) || 0;
-      const change = Math.max(0, paid - grandTotal);
-      els.changeDueDisplay.textContent = formatNumber(change) + currencySymbol;
-
-      // Update QR code if transfer
-      if (activePaymentMethod === 'transfer') {
-        displayQR();
-      }
+      recalculateCheckoutTotals();
     }
   }
 
@@ -898,18 +900,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   function openCheckoutModal() {
-    let grandTotal = 0;
-    let currencySymbol = '';
-    
-    // Calculate total based on selected currency
-    state.cart.forEach(item => {
-      if (state.currentCurrency === 'LAK') grandTotal += item.product.price_lak * item.qty;
-      else if (state.currentCurrency === 'THB') grandTotal += item.product.price_thb * item.qty;
-      else if (state.currentCurrency === 'CNY') grandTotal += item.product.price_cny * item.qty;
-    });
+    // Reset Discount and VAT inputs
+    const discountInput = document.getElementById('checkout-discount-input');
+    const vatInput = document.getElementById('checkout-vat-input');
+    if (discountInput) discountInput.value = '0';
+    if (vatInput) vatInput.value = '0';
 
-    currencySymbol = state.currentCurrency === 'LAK' ? ' ₭' : state.currentCurrency === 'THB' ? ' ฿' : ' ¥';
-    els.checkoutTotalDisplay.textContent = formatNumber(grandTotal) + currencySymbol;
+    recalculateCheckoutTotals();
 
     // Sync modal currency toggle buttons
     const modalOpts = document.querySelectorAll('#checkout-modal .currency-opt');
@@ -923,12 +920,42 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Reset Form
     els.amountPaidInput.value = '';
-    els.changeDueDisplay.textContent = '0' + currencySymbol;
     els.qrContainer.classList.remove('active');
     
     selectPaymentMethod('cash');
 
     els.checkoutModal.classList.add('active');
+  }
+
+  function recalculateCheckoutTotals() {
+    let subtotal = 0;
+    state.cart.forEach(item => {
+      if (state.currentCurrency === 'LAK') subtotal += item.product.price_lak * item.qty;
+      else if (state.currentCurrency === 'THB') subtotal += item.product.price_thb * item.qty;
+      else if (state.currentCurrency === 'CNY') subtotal += item.product.price_cny * item.qty;
+    });
+
+    const discountInput = document.getElementById('checkout-discount-input');
+    const vatInput = document.getElementById('checkout-vat-input');
+    const discountPercent = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
+    const vatPercent = vatInput ? (parseFloat(vatInput.value) || 0) : 0;
+
+    const discountAmount = subtotal * (discountPercent / 100);
+    const vatAmount = (subtotal - discountAmount) * (vatPercent / 100);
+    const grandTotal = subtotal - discountAmount + vatAmount;
+
+    const currencySymbol = state.currentCurrency === 'LAK' ? ' ₭' : state.currentCurrency === 'THB' ? ' ฿' : ' ¥';
+    els.checkoutTotalDisplay.textContent = formatNumber(grandTotal) + currencySymbol;
+
+    // Recalculate change due
+    const paid = getCleanFloat(els.amountPaidInput.value) || 0;
+    const change = Math.max(0, paid - grandTotal);
+    els.changeDueDisplay.textContent = formatNumber(change) + currencySymbol;
+
+    // Update QR code if transfer
+    if (activePaymentMethod === 'transfer') {
+      displayQR();
+    }
   }
 
   // Handle Payment Method Selection
@@ -959,17 +986,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Handle Cash Calculator Change input
   els.amountPaidInput.addEventListener('input', () => {
-    let grandTotal = 0;
-    state.cart.forEach(item => {
-      if (state.currentCurrency === 'LAK') grandTotal += item.product.price_lak * item.qty;
-      else if (state.currentCurrency === 'THB') grandTotal += item.product.price_thb * item.qty;
-      else if (state.currentCurrency === 'CNY') grandTotal += item.product.price_cny * item.qty;
-    });
-
-    const paid = getCleanFloat(els.amountPaidInput.value) || 0;
-    const change = Math.max(0, paid - grandTotal);
-    const symbol = state.currentCurrency === 'LAK' ? ' ₭' : state.currentCurrency === 'THB' ? ' ฿' : ' ¥';
-    els.changeDueDisplay.textContent = formatNumber(change) + symbol;
+    recalculateCheckoutTotals();
   });
 
   // Display QR Code depending on selected Bank (BCEL/LDB) and Currency
@@ -993,12 +1010,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       els.qrText.textContent = `ສະແດງຄິວອາໂຄດ ${bank} (${currency})`;
     } else {
       // Dynamic fallback placeholder QR generator using API
-      let grandTotal = 0;
+      let subtotal = 0;
       state.cart.forEach(item => {
-        if (state.currentCurrency === 'LAK') grandTotal += item.product.price_lak * item.qty;
-        else if (state.currentCurrency === 'THB') grandTotal += item.product.price_thb * item.qty;
-        else if (state.currentCurrency === 'CNY') grandTotal += item.product.price_cny * item.qty;
+        if (state.currentCurrency === 'LAK') subtotal += item.product.price_lak * item.qty;
+        else if (state.currentCurrency === 'THB') subtotal += item.product.price_thb * item.qty;
+        else if (state.currentCurrency === 'CNY') subtotal += item.product.price_cny * item.qty;
       });
+
+      const discountInput = document.getElementById('checkout-discount-input');
+      const vatInput = document.getElementById('checkout-vat-input');
+      const discountPercent = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
+      const vatPercent = vatInput ? (parseFloat(vatInput.value) || 0) : 0;
+
+      const discountAmount = subtotal * (discountPercent / 100);
+      const vatAmount = (subtotal - discountAmount) * (vatPercent / 100);
+      const grandTotal = subtotal - discountAmount + vatAmount;
 
       const qrPayload = `bokeoairport-${bank}-${currency}-total-${grandTotal}`;
       els.qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrPayload)}`;
@@ -1026,10 +1052,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       grandTotalCNY += item.product.price_cny * item.qty;
     });
 
+    const discountInput = document.getElementById('checkout-discount-input');
+    const vatInput = document.getElementById('checkout-vat-input');
+    const discountPercent = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
+    const vatPercent = vatInput ? (parseFloat(vatInput.value) || 0) : 0;
+
+    const discountLAK = grandTotalLAK * (discountPercent / 100);
+    const discountTHB = grandTotalTHB * (discountPercent / 100);
+    const discountCNY = grandTotalCNY * (discountPercent / 100);
+
+    const vatLAK = (grandTotalLAK - discountLAK) * (vatPercent / 100);
+    const vatTHB = (grandTotalTHB - discountTHB) * (vatPercent / 100);
+    const vatCNY = (grandTotalCNY - discountCNY) * (vatPercent / 100);
+
+    const finalTotalLAK = grandTotalLAK - discountLAK + vatLAK;
+    const finalTotalTHB = grandTotalTHB - discountTHB + vatTHB;
+    const finalTotalCNY = grandTotalCNY - discountCNY + vatCNY;
+
     const paidStr = els.amountPaidInput.value;
-    const paid = activePaymentMethod === 'cash' ? (getCleanFloat(paidStr) || 0) : (state.currentCurrency === 'LAK' ? grandTotalLAK : state.currentCurrency === 'THB' ? grandTotalTHB : grandTotalCNY);
+    const paid = activePaymentMethod === 'cash' ? (getCleanFloat(paidStr) || 0) : (state.currentCurrency === 'LAK' ? finalTotalLAK : state.currentCurrency === 'THB' ? finalTotalTHB : finalTotalCNY);
     
-    let targetTotal = state.currentCurrency === 'LAK' ? grandTotalLAK : state.currentCurrency === 'THB' ? grandTotalTHB : grandTotalCNY;
+    let targetTotal = state.currentCurrency === 'LAK' ? finalTotalLAK : state.currentCurrency === 'THB' ? finalTotalTHB : finalTotalCNY;
     if (activePaymentMethod === 'cash' && paid < targetTotal) {
       alert('ຈຳນວນເງິນທີ່ຈ່າຍບໍ່ພຽງພໍ');
       return;
@@ -1055,9 +1098,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         price_cny: item.product.price_cny,
         qty: item.qty
       })),
-      total_lak: grandTotalLAK,
-      total_thb: grandTotalTHB,
-      total_cny: grandTotalCNY,
+      subtotal_lak: grandTotalLAK,
+      subtotal_thb: grandTotalTHB,
+      subtotal_cny: grandTotalCNY,
+      discount_percent: discountPercent,
+      discount_amount_lak: discountLAK,
+      discount_amount_thb: discountTHB,
+      discount_amount_cny: discountCNY,
+      vat_percent: vatPercent,
+      vat_amount_lak: vatLAK,
+      vat_amount_thb: vatTHB,
+      vat_amount_cny: vatCNY,
+      total_lak: finalTotalLAK,
+      total_thb: finalTotalTHB,
+      total_cny: finalTotalCNY,
       paid_currency: state.currentCurrency,
       paid_amount: paid,
       change_amount: change,
@@ -1130,12 +1184,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const symbol = currency === 'LAK' ? '₭' : currency === 'THB' ? '฿' : '¥';
     
     let subtotal = 0;
-    if (currency === 'LAK') subtotal = tx.total_lak;
-    else if (currency === 'THB') subtotal = tx.total_thb;
-    else if (currency === 'CNY') subtotal = tx.total_cny;
+    let discountAmount = 0;
+    let vatAmount = 0;
+    let finalTotal = 0;
+
+    if (currency === 'LAK') {
+      subtotal = tx.subtotal_lak !== undefined ? tx.subtotal_lak : tx.total_lak;
+      discountAmount = tx.discount_amount_lak || 0;
+      vatAmount = tx.vat_amount_lak || 0;
+      finalTotal = tx.total_lak;
+    } else if (currency === 'THB') {
+      subtotal = tx.subtotal_thb !== undefined ? tx.subtotal_thb : tx.total_thb;
+      discountAmount = tx.discount_amount_thb || 0;
+      vatAmount = tx.vat_amount_thb || 0;
+      finalTotal = tx.total_thb;
+    } else if (currency === 'CNY') {
+      subtotal = tx.subtotal_cny !== undefined ? tx.subtotal_cny : tx.total_cny;
+      discountAmount = tx.discount_amount_cny || 0;
+      vatAmount = tx.vat_amount_cny || 0;
+      finalTotal = tx.total_cny;
+    }
 
     const formattedSubtotal = formatNumber(subtotal);
-    const formattedTotal = formatNumber(subtotal);
+    const formattedTotal = formatNumber(finalTotal);
     const formattedPaid = formatNumber(tx.paid_amount);
     const formattedChange = formatNumber(tx.change_amount);
 
@@ -1166,6 +1237,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
     }).join('');
 
+    let discountRowHtml = '';
+    if (tx.discount_percent > 0) {
+      discountRowHtml = `
+        <div style="display: flex; justify-content: space-between;">
+          <span>ສ່ວນຫຼຸດ (Discount ${tx.discount_percent}%)</span>
+          <span style="font-weight: 600; color: #000;">-${formatNumber(discountAmount)} ${symbol}</span>
+        </div>
+      `;
+    }
+
+    let vatRowHtml = '';
+    if (tx.vat_percent > 0) {
+      vatRowHtml = `
+        <div style="display: flex; justify-content: space-between;">
+          <span>ອາກອນ (VAT ${tx.vat_percent}%)</span>
+          <span style="font-weight: 600; color: #000;">+${formatNumber(vatAmount)} ${symbol}</span>
+        </div>
+      `;
+    }
+
     return `
       <div style="text-align: center; margin-bottom: 16px;">
         <div style="font-size: 15px; font-weight: 800; text-transform: uppercase; color: #000; margin-bottom: 4px; letter-spacing: 0.5px;">${tx.pos}</div>
@@ -1181,7 +1272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span>ວັນທີ: <strong style="color:#000;">${formattedDate}</strong></span>
         </div>
         <div style="display: flex; justify-content: space-between;">
-          <span>ชຳລະໂດຍ: <strong style="color:#000;">${tx.payment_type} ${tx.bank ? `(${tx.bank})` : ''}</strong></span>
+          <span>ຊຳລະໂດຍ: <strong style="color:#000;">${tx.payment_type} ${tx.bank ? `(${tx.bank})` : ''}</strong></span>
         </div>
       </div>
 
@@ -1200,14 +1291,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span>ລວມຍອດ (Subtotal)</span>
           <span style="font-weight: 600; color: #000;">${formattedSubtotal} ${symbol}</span>
         </div>
-        <div style="display: flex; justify-content: space-between;">
-          <span>ສ່ວນຫຼຸດ (Discount)</span>
-          <span style="font-weight: 600; color: #000;">0 ${symbol}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-          <span>ອາກອນ (VAT 10%)</span>
-          <span style="font-weight: 600; color: #000;">0 ${symbol}</span>
-        </div>
+        ${discountRowHtml}
+        ${vatRowHtml}
       </div>
 
       <div style="font-size: 13px; font-weight: 800; color: #000; display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding-bottom: 8px; margin-bottom: 12px;">
@@ -2488,7 +2573,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     await window.BokeoDB.saveSettings(state.settings);
-    alert('บันทึกการตั้งค่าเรียบร้อยแล้ว (ປ່ຽນແປງຂໍ້ມູນສຳເລັດ)');
+    alert('ບັນທຶກການຕັ້ງຄ່າສຳເລັດແລ້ວ');
     
     // Refresh products in memory
     state.products = await window.BokeoDB.getProducts();

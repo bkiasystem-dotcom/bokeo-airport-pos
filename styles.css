@@ -1247,9 +1247,17 @@ body {
   gap: 12px;
 }
 
-/* Bill Print Container (Only visible during print) */
+/* Bill Print Container (Hidden off-screen so html2pdf can render it) */
 .bill-print-container {
-  display: none;
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 80mm;
+  background-color: #fff;
+  color: #000;
+  font-family: 'Courier New', 'Noto Sans Lao', monospace;
+  font-size: 11px;
+  box-sizing: border-box;
 }
 
 /* Screen Resolution Responsiveness */
@@ -1341,6 +1349,7 @@ body {
   
   .bill-print-container {
     display: block !important;
+    position: static !important;
     width: 80mm !important;
     margin: 0 !important;
     padding: 4mm !important;
