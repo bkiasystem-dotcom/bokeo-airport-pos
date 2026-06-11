@@ -1193,7 +1193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         jsPDF: { unit: 'mm', format: [76, 150], orientation: 'portrait' }
       };
 
-      generatePDF(els.billPrintBox, options, true).then(pdfBlob => {
+      html2pdf().set(options).from(els.billPrintBox).output('blob').then(pdfBlob => {
         const dateStr = new Date(transaction.timestamp).toISOString().split('T')[0];
         const sanitizedPOS = transaction.pos.replace(/[\\\/:*?"<>|]/g, '_');
         const sanitizedType = transaction.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
@@ -1370,35 +1370,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 150);
   }
 
-  async function generatePDF(element, options, isBlob = false) {
-    // Keep reference to original styles
-    const originalPos = element.style.position;
-    const originalLeft = element.style.left;
-    const originalTop = element.style.top;
-    const originalZIndex = element.style.zIndex;
-
-    // Temporarily style element so it is positioned inside visible bounds (positive values)
-    // but placed below the current viewport bottom so it is 100% hidden from view.
-    element.style.position = 'fixed';
-    element.style.left = '0';
-    element.style.top = '100vh';
-    element.style.zIndex = '99999';
-
-    try {
-      if (isBlob) {
-        return await html2pdf().set(options).from(element).output('blob');
-      } else {
-        return await html2pdf().set(options).from(element).save();
-      }
-    } finally {
-      // Revert styles to stylesheet defaults
-      element.style.position = originalPos;
-      element.style.left = originalLeft;
-      element.style.top = originalTop;
-      element.style.zIndex = originalZIndex;
-    }
-  }
-
   async function downloadReceiptPDF(tx) {
     if (typeof html2pdf !== 'undefined') {
       const printHTML = buildReceiptHTML(tx);
@@ -1416,7 +1387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         jsPDF: { unit: 'mm', format: [76, 150], orientation: 'portrait' }
       };
 
-      await generatePDF(els.billPrintBox, options, false);
+      await html2pdf().set(options).from(els.billPrintBox).save();
     }
   }
 

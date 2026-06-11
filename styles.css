@@ -48,6 +48,9 @@ body {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
+  position: relative;
+  z-index: 5;
+  background-color: var(--bg-color);
 }
 
 /* Header */
@@ -1247,11 +1250,12 @@ body {
   gap: 12px;
 }
 
-/* Bill Print Container (Positioned off-screen so html2canvas can measure it, but onclone resets it to static) */
+/* Bill Print Container (Positioned fixed at 0,0 with z-index:1 so it sits behind the app-container) */
 .bill-print-container {
-  position: absolute;
-  left: -9999px;
-  top: -9999px;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1;
   width: 76mm;
   background-color: #fff;
   color: #000;
