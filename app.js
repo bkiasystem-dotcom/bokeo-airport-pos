@@ -527,6 +527,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.pettyCashSession.closed = true;
       await window.BokeoDB.savePettyCashSession(state.pettyCashSession);
 
+      // Sync daily petty cash drawer balance to Google Sheet
+      syncPettyCashToGoogleSheets(state.pettyCashSession);
+
       // Clear state
       state.currentCashier = null;
       state.currentPOS = null;
@@ -1078,6 +1081,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    let costTHB = 0;
+    state.cart.forEach(item => {
+      costTHB += (item.product.cost_thb || 0) * item.qty;
+    });
+
+    const rateLak = state.settings.exchange_rate_lak;
+    const rateCny = state.settings.exchange_rate_cny;
+
+    const costLAK = costTHB * rateLak;
+    const costCNY = costTHB * rateCny;
+
+    const profitLAK = finalTotalLAK - costLAK;
+    const profitTHB = finalTotalTHB - costTHB;
+    const profitCNY = finalTotalCNY - costCNY;
+
     const change = activePaymentMethod === 'cash' ? (paid - targetTotal) : 0;
     const invoiceNo = `INV-${Date.now().toString().slice(-6)}`;
     const timestamp = new Date().toISOString();
@@ -1096,6 +1114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         price_lak: item.product.price_lak,
         price_thb: item.product.price_thb,
         price_cny: item.product.price_cny,
+        cost_thb: item.product.cost_thb || 0,
         qty: item.qty
       })),
       subtotal_lak: grandTotalLAK,
@@ -1112,6 +1131,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       total_lak: finalTotalLAK,
       total_thb: finalTotalTHB,
       total_cny: finalTotalCNY,
+      cost_lak: costLAK,
+      cost_thb: costTHB,
+      cost_cny: costCNY,
+      profit_lak: profitLAK,
+      profit_thb: profitTHB,
+      profit_cny: profitCNY,
       paid_currency: state.currentCurrency,
       paid_amount: paid,
       change_amount: change,
@@ -1160,7 +1185,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const sanitizedPOS = transaction.pos.replace(/[\\\/:*?"<>|]/g, '_');
         const sanitizedType = transaction.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
         const filename = `${dateStr}/${sanitizedPOS}/${sanitizedType}/${transaction.id}.pdf`;
-        uploadPDFToGoogleDrive(pdfBlob, filename);
+        uploadPDFToGoogleDrive(pdfBlob, filename, transaction);
       }).catch(err => {
         console.error('Error generating PDF for Drive upload:', err);
       });
@@ -1364,7 +1389,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * Client-side Google Drive PDF Upload
    * Recreates folder structures: YYYY-MM-DD -> POS Name -> Payment Type -> File
    */
-  async function uploadPDFToGoogleDrive(blob, fullPath) {
+  async function uploadPDFToGoogleDrive(blob, fullPath, transaction) {
     const scriptUrl = state.settings.gdrive_script_url;
     if (!scriptUrl) {
       console.log('Google Drive script URL not configured. Skipping upload.');
@@ -1384,9 +1409,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const base64Data = await base64Promise;
 
       const payload = {
+        action: 'upload_invoice',
         file: base64Data,
         filename: fullPath,
-        folderId: '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC'
+        folderId: '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC',
+        transaction: transaction
       };
 
       const response = await fetch(scriptUrl, {
@@ -1400,14 +1427,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const resData = await response.json();
       if (resData.success) {
-        console.log('PDF uploaded successfully via Apps Script. File ID:', resData.fileId);
+        console.log('PDF uploaded and transaction logged successfully via Apps Script. File ID:', resData.fileId);
       } else {
-        console.error('Apps Script upload failed:', resData.error);
+        console.error('Apps Script upload/logging failed:', resData.error);
         throw new Error(resData.error);
       }
     } catch (err) {
-      console.error('Failed to upload PDF via Apps Script:', err);
+      console.error('Failed to upload PDF and log transaction via Apps Script:', err);
       throw err;
+    }
+  }
+
+  async function syncPettyCashToGoogleSheets(session) {
+    const scriptUrl = state.settings.gdrive_script_url;
+    if (!scriptUrl) {
+      console.log('Google Drive script URL not configured. Skipping petty cash sync.');
+      return;
+    }
+
+    try {
+      const payload = {
+        action: 'sync_petty_cash',
+        session: session
+      };
+
+      const response = await fetch(scriptUrl, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'text/plain'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const resData = await response.json();
+      if (resData.success) {
+        console.log('Petty cash session logged successfully via Apps Script.');
+      } else {
+        console.error('Apps Script petty cash sync failed:', resData.error);
+      }
+    } catch (err) {
+      console.error('Failed to sync petty cash session via Apps Script:', err);
     }
   }
 
