@@ -48,9 +48,6 @@ body {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  position: relative;
-  z-index: 5;
-  background-color: var(--bg-color);
 }
 
 /* Header */
@@ -1250,19 +1247,9 @@ body {
   gap: 12px;
 }
 
-/* Bill Print Container (Positioned fixed at 0,0 with z-index:1 so it sits behind the app-container) */
+/* Bill Print Container (Only used for physical window.print() and styled in @media print) */
 .bill-print-container {
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 1;
-  width: 76mm;
-  background-color: #fff;
-  color: #000;
-  font-family: 'Courier New', 'Noto Sans Lao', monospace;
-  font-size: 11px;
-  box-sizing: border-box;
-  padding: 4mm;
+  display: none;
 }
 
 /* Screen Resolution Responsiveness */
@@ -1346,7 +1333,7 @@ body {
     height: auto !important;
     width: 80mm !important;
     overflow: visible !important;
-    font-family: 'Courier New', 'Noto Sans Lao', monospace !important;
+    font-family: 'Outfit', 'Noto Sans Lao', system-ui, -apple-system, sans-serif !important;
     font-size: 11px !important;
     margin: 0 !important;
     padding: 0 !important;

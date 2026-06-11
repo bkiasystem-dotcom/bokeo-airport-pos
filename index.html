@@ -6,7 +6,7 @@
   <title>Bokeo International Airport POS - ລະບົບຈຸດຂາຍ</title>
   
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=2.6">
+  <link rel="stylesheet" href="styles.css?v=2.7">
   
   <!-- FontAwesome for Premium Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -363,6 +363,35 @@
                   <div class="form-group" style="margin-top: 12px;">
                     <label for="settings-gdrive-folder-id">Google Drive Folder ID (ໂຟນເດີເກັບ PDF ບິນ)</label>
                     <input type="text" class="form-input" id="settings-gdrive-folder-id" placeholder="1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC">
+                  </div>
+                </div>
+
+                <!-- Receipt Customization Setup -->
+                <div class="settings-card">
+                  <h3><i class="fas fa-file-invoice"></i> ຕັ້ງຄ່າຂໍ້ມູນ ແລະ ຂໍ້ຄວາມເທິງໃບບິນ (Receipt Template Settings)</h3>
+                  <div class="form-group">
+                    <label for="settings-receipt-address">ທີ່ຢູ່ຮ້ານໃນບິນ (Receipt Address)</label>
+                    <input type="text" class="form-input" id="settings-receipt-address" placeholder="ຈຸດບໍລິການ POS, ສະໜາມບິນສາກົນບໍ່ແກ້ວ">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-phone">ເບີໂທລະສັບໃນບິນ (Receipt Phone)</label>
+                    <input type="text" class="form-input" id="settings-receipt-phone" placeholder="020 9999-8888">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-footer-lao">ຂໍ້ຄວາມຂອບໃຈພາສາລາວ (Lao Footer)</label>
+                    <input type="text" class="form-input" id="settings-receipt-footer-lao" placeholder="ຂໍຂອບໃຈ ແລະ ຍິນດີຕ້ອນຮັບອີກຄັ້ງ">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-footer-eng">ຂໍ້ຄວາມຂອບໃຈພາສາອັງກິດ (English Footer)</label>
+                    <input type="text" class="form-input" id="settings-receipt-footer-eng" placeholder="Thank you, Please visit again!">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-slogan-lao">ຄຳຂວັນ / ສະໂລແກນພາສາລາວ (Lao Slogan)</label>
+                    <input type="text" class="form-input" id="settings-receipt-slogan-lao" placeholder="ບໍລິການດ້ວຍໃຈ ຫ່ວງໃຍທຸກການເດີນທາງ">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-slogan-eng">ຄຳຂວັນ / ສະໂລແກນພາສາອັງກິດ (English Slogan)</label>
+                    <input type="text" class="form-input" id="settings-receipt-slogan-eng" placeholder="Service with heart, caring for every journey">
                   </div>
                 </div>
 
@@ -740,7 +769,7 @@
 
   <!-- Load Database and Application Logic scripts -->
   <script src="database.js?v=2.2"></script>
-  <script src="app.js?v=2.5"></script>
+  <script src="app.js?v=2.6"></script>
 
 </body>
 </html>

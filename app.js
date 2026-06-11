@@ -125,6 +125,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Google Drive script URL in Settings
     settingsGDriveScriptUrl: document.getElementById('settings-gdrive-script-url'),
     settingsGDriveFolderId: document.getElementById('settings-gdrive-folder-id'),
+    settingsReceiptAddress: document.getElementById('settings-receipt-address'),
+    settingsReceiptPhone: document.getElementById('settings-receipt-phone'),
+    settingsReceiptFooterLao: document.getElementById('settings-receipt-footer-lao'),
+    settingsReceiptFooterEng: document.getElementById('settings-receipt-footer-eng'),
+    settingsReceiptSloganLao: document.getElementById('settings-receipt-slogan-lao'),
+    settingsReceiptSloganEng: document.getElementById('settings-receipt-slogan-eng'),
 
     // Close Counter Modal bindings
     closeCounterModal: document.getElementById('close-counter-modal'),
@@ -194,6 +200,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       if (!state.settings.hasOwnProperty('gdrive_folder_id')) {
         state.settings.gdrive_folder_id = '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('receipt_address')) {
+        state.settings.receipt_address = 'ຈຸດບໍລິການ POS, ສະໜາມບິນສາກົນບໍ່ແກ້ວ';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('receipt_phone')) {
+        state.settings.receipt_phone = '020 9999-8888';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('receipt_footer_lao')) {
+        state.settings.receipt_footer_lao = 'ຂໍຂອບໃຈ ແລະ ຍິນດີຕ້ອນຮັບອີກຄັ້ງ';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('receipt_footer_eng')) {
+        state.settings.receipt_footer_eng = 'Thank you, Please visit again!';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('receipt_slogan_lao')) {
+        state.settings.receipt_slogan_lao = 'ບໍລິການດ້ວຍໃຈ ຫ່ວງໃຍທຸກການເດີນທາງ';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('receipt_slogan_eng')) {
+        state.settings.receipt_slogan_eng = 'Service with heart, caring for every journey';
         settingsUpdated = true;
       }
       if (settingsUpdated) {
@@ -1182,34 +1212,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 4. Generate & Save PDF invoice to Google Drive in the background
     if (typeof html2pdf !== 'undefined' && state.settings.gdrive_script_url) {
-      const printHTML = buildReceiptHTML(transaction);
-      els.billPrintBox.innerHTML = printHTML;
-
-      const options = {
-        margin: 2,
-        filename: `${transaction.id}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true,
-          onclone: (clonedDoc, element) => {
-            if (element) {
-              element.style.position = 'relative';
-              element.style.left = '0';
-              element.style.top = '0';
-              element.style.zIndex = '99999';
-            }
-          }
-        },
-        jsPDF: { unit: 'mm', format: [76, 150], orientation: 'portrait' }
-      };
-
-      html2pdf().set(options).from(els.billPrintBox).output('blob').then(pdfBlob => {
-        const dateStr = new Date(transaction.timestamp).toISOString().split('T')[0];
-        const sanitizedPOS = transaction.pos.replace(/[\\\/:*?"<>|]/g, '_');
-        const sanitizedType = transaction.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
-        const filename = `${dateStr}/${sanitizedPOS}/${sanitizedType}/${transaction.id}.pdf`;
-        uploadPDFToGoogleDrive(pdfBlob, filename, transaction);
+      generateReceiptPDFBlob(transaction).then(pdfBlob => {
+        if (pdfBlob) {
+          const dateStr = new Date(transaction.timestamp).toISOString().split('T')[0];
+          const sanitizedPOS = transaction.pos.replace(/[\\\/:*?"<>|]/g, '_');
+          const sanitizedType = transaction.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
+          const filename = `${dateStr}/${sanitizedPOS}/${sanitizedType}/${transaction.id}.pdf`;
+          uploadPDFToGoogleDrive(pdfBlob, filename, transaction);
+        }
       }).catch(err => {
         console.error('Error generating PDF for Drive upload:', err);
       });
@@ -1278,7 +1288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div style="margin-bottom: 8px;">
           <div style="display: flex; justify-content: space-between; font-weight: 600; color: #000; font-size: 11px;">
             <span style="flex: 1; text-align: left;">${item.name_lo}</span>
-            <span style="width: 50px; text-align: center; color: #e11d48; font-weight: 700;">${item.qty}</span>
+            <span style="width: 50px; text-align: center; color: #000; font-weight: 500;">${item.qty}</span>
             <span style="width: 90px; text-align: right;">${formatNumber(itemPrice * item.qty)}</span>
           </div>
           ${item.name_en ? `<div style="font-size: 10px; color: #666; margin-top: 1px; padding-left: 0; text-align: left;">${item.name_en}</div>` : ''}
@@ -1306,11 +1316,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
     }
 
+    const addr = state.settings.receipt_address || 'ຈຸດບໍລິການ POS, ສະໜາມບິນສາກົນບໍ່ແກ້ວ';
+    const phone = state.settings.receipt_phone || '020 9999-8888';
+    const footerLao = state.settings.receipt_footer_lao || 'ຂໍຂອບໃຈ ແລະ ຍິນດີຕ້ອນຮັບອີກຄັ້ງ';
+    const footerEng = state.settings.receipt_footer_eng || 'Thank you, Please visit again!';
+    const sloganLao = state.settings.receipt_slogan_lao || '';
+    const sloganEng = state.settings.receipt_slogan_eng || '';
+
     return `
       <div style="text-align: center; margin-bottom: 16px;">
         <div style="font-size: 15px; font-weight: 800; text-transform: uppercase; color: #000; margin-bottom: 4px; letter-spacing: 0.5px;">${tx.pos}</div>
-        <div style="font-size: 11px; color: #666; margin-bottom: 2px; font-weight: 500;">ຈຸດບໍລິການ POS, ສະໜາມບິນສາກົນບໍ່ແກ້ວ</div>
-        <div style="font-size: 11px; color: #666; font-weight: 500;">ໂທ: 020 9999-8888</div>
+        <div style="font-size: 11px; color: #666; margin-bottom: 2px; font-weight: 500;">${addr}</div>
+        <div style="font-size: 11px; color: #666; font-weight: 500;">ໂທ: ${phone}</div>
       </div>
 
       <div style="font-size: 11px; color: #444; margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px dashed #ccc; padding-bottom: 10px; text-align: left;">
@@ -1363,10 +1380,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       ` : ''}
 
       <div style="text-align: center; font-size: 11px; color: #666; line-height: 1.4; margin-top: 10px;">
-        <div style="font-weight: 600; color: #000;">ຂອບໃຈທີ່ໃຊ້ບໍລິການ</div>
-        <div style="font-weight: 600; color: #000;">Thank you for using our service</div>
-        <div style="margin-top: 4px; font-weight: 500; color: #444;">ບໍລິການດ້ວຍໃຈ ຫ່ວງໃຍທຸກການເດີນທາງ</div>
-        <div style="font-weight: 500; color: #444;">Service with heart, caring for every journey</div>
+        <div style="font-weight: 600; color: #000;">${footerLao}</div>
+        ${footerEng ? `<div style="font-weight: 600; color: #000;">${footerEng}</div>` : ''}
+        ${sloganLao ? `<div style="margin-top: 4px; font-weight: 500; color: #444;">${sloganLao}</div>` : ''}
+        ${sloganEng ? `<div style="font-weight: 500; color: #444;">${sloganEng}</div>` : ''}
       </div>
     `;
   }
@@ -1381,35 +1398,89 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 150);
   }
 
+  async function generateReceiptPDFBlob(tx) {
+    if (typeof html2pdf === 'undefined') return null;
+
+    // Create a temporary element in the DOM
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = buildReceiptHTML(tx);
+    
+    // Style it to be in the viewport but layered behind the modal overlays
+    tempDiv.style.width = '80mm';
+    tempDiv.style.backgroundColor = '#fff';
+    tempDiv.style.color = '#000';
+    tempDiv.style.fontFamily = "'Outfit', 'Noto Sans Lao', system-ui, -apple-system, sans-serif";
+    tempDiv.style.fontSize = '11px';
+    tempDiv.style.boxSizing = 'border-box';
+    tempDiv.style.padding = '4mm';
+    
+    tempDiv.style.position = 'fixed';
+    tempDiv.style.left = '0';
+    tempDiv.style.top = '0';
+    tempDiv.style.zIndex = '50'; // Behind modal overlay (which has z-index: 100)
+    
+    document.body.appendChild(tempDiv);
+
+    // Calculate dynamic height based on content to match the receipt size
+    const elementHeightMm = Math.ceil((tempDiv.scrollHeight * 25.4) / 96) + 2;
+
+    const options = {
+      margin: 0,
+      filename: `${tx.id}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: [80, elementHeightMm], orientation: 'portrait' }
+    };
+
+    try {
+      return await html2pdf().set(options).from(tempDiv).output('blob');
+    } finally {
+      // Clean up the temporary element immediately
+      document.body.removeChild(tempDiv);
+    }
+  }
+
   async function downloadReceiptPDF(tx) {
     if (typeof html2pdf !== 'undefined') {
-      const printHTML = buildReceiptHTML(tx);
-      els.billPrintBox.innerHTML = printHTML;
+      // Create a temporary element in the DOM
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = buildReceiptHTML(tx);
+      
+      tempDiv.style.width = '80mm';
+      tempDiv.style.backgroundColor = '#fff';
+      tempDiv.style.color = '#000';
+      tempDiv.style.fontFamily = "'Outfit', 'Noto Sans Lao', system-ui, -apple-system, sans-serif";
+      tempDiv.style.fontSize = '11px';
+      tempDiv.style.boxSizing = 'border-box';
+      tempDiv.style.padding = '4mm';
+      
+      tempDiv.style.position = 'fixed';
+      tempDiv.style.left = '0';
+      tempDiv.style.top = '0';
+      tempDiv.style.zIndex = '50';
+      
+      document.body.appendChild(tempDiv);
 
       const dateStr = new Date(tx.timestamp).toISOString().split('T')[0];
       const sanitizedPOS = tx.pos.replace(/[\\\/:*?"<>|]/g, '_');
       const sanitizedType = tx.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
+      const filename = `${dateStr}_${sanitizedPOS}_${sanitizedType}_${tx.id}.pdf`;
+
+      const elementHeightMm = Math.ceil((tempDiv.scrollHeight * 25.4) / 96) + 2;
 
       const options = {
-        margin: 2,
-        filename: `${dateStr}_${sanitizedPOS}_${sanitizedType}_${tx.id}.pdf`,
+        margin: 0,
+        filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true,
-          onclone: (clonedDoc, element) => {
-            if (element) {
-              element.style.position = 'relative';
-              element.style.left = '0';
-              element.style.top = '0';
-              element.style.zIndex = '99999';
-            }
-          }
-        },
-        jsPDF: { unit: 'mm', format: [76, 150], orientation: 'portrait' }
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: [80, elementHeightMm], orientation: 'portrait' }
       };
 
-      await html2pdf().set(options).from(els.billPrintBox).save();
+      try {
+        await html2pdf().set(options).from(tempDiv).save();
+      } finally {
+        document.body.removeChild(tempDiv);
+      }
     }
   }
 
@@ -2513,6 +2584,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (els.settingsGDriveFolderId) {
       els.settingsGDriveFolderId.value = s.gdrive_folder_id || '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC';
     }
+    if (els.settingsReceiptAddress) {
+      els.settingsReceiptAddress.value = s.receipt_address || 'ຈຸດບໍລິການ POS, ສະໜາມບິນສາກົນບໍ່ແກ້ວ';
+    }
+    if (els.settingsReceiptPhone) {
+      els.settingsReceiptPhone.value = s.receipt_phone || '020 9999-8888';
+    }
+    if (els.settingsReceiptFooterLao) {
+      els.settingsReceiptFooterLao.value = s.receipt_footer_lao || 'ຂໍຂອບໃຈ ແລະ ຍິນດີຕ້ອນຮັບອີກຄັ້ງ';
+    }
+    if (els.settingsReceiptFooterEng) {
+      els.settingsReceiptFooterEng.value = s.receipt_footer_eng || 'Thank you, Please visit again!';
+    }
+    if (els.settingsReceiptSloganLao) {
+      els.settingsReceiptSloganLao.value = s.receipt_slogan_lao || 'ບໍລິການດ້ວຍໃຈ ຫ່ວງໃຍທຸກການເດີນທາງ';
+    }
+    if (els.settingsReceiptSloganEng) {
+      els.settingsReceiptSloganEng.value = s.receipt_slogan_eng || 'Service with heart, caring for every journey';
+    }
 
     // Render QR Code Previews
     renderSettingsQRPreview('bcel_lak');
@@ -2671,6 +2760,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.settings.gdrive_script_url = els.settingsGDriveScriptUrl.value.trim();
     if (els.settingsGDriveFolderId) {
       state.settings.gdrive_folder_id = els.settingsGDriveFolderId.value.trim();
+    }
+    if (els.settingsReceiptAddress) {
+      state.settings.receipt_address = els.settingsReceiptAddress.value.trim();
+    }
+    if (els.settingsReceiptPhone) {
+      state.settings.receipt_phone = els.settingsReceiptPhone.value.trim();
+    }
+    if (els.settingsReceiptFooterLao) {
+      state.settings.receipt_footer_lao = els.settingsReceiptFooterLao.value.trim();
+    }
+    if (els.settingsReceiptFooterEng) {
+      state.settings.receipt_footer_eng = els.settingsReceiptFooterEng.value.trim();
+    }
+    if (els.settingsReceiptSloganLao) {
+      state.settings.receipt_slogan_lao = els.settingsReceiptSloganLao.value.trim();
+    }
+    if (els.settingsReceiptSloganEng) {
+      state.settings.receipt_slogan_eng = els.settingsReceiptSloganEng.value.trim();
     }
 
     // Apply Rate Updates to Product lists

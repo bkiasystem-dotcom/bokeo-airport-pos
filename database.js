@@ -206,6 +206,13 @@ class BokeoPOSDB {
         exchange_rate_cny: DEFAULT_CNY_RATE,
         admin_pin: '1234',
         gdrive_script_url: '',
+        gdrive_folder_id: '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC',
+        receipt_address: 'ຈຸດບໍລິການ POS, ສະໜາມບິນສາກົນບໍ່ແກ້ວ',
+        receipt_phone: '020 9999-8888',
+        receipt_footer_lao: 'ຂໍຂອບໃຈ ແລະ ຍິນດີຕ້ອນຮັບອີກຄັ້ງ',
+        receipt_footer_eng: 'Thank you, Please visit again!',
+        receipt_slogan_lao: 'ບໍລິການດ້ວຍໃຈ ຫ່ວງໃຍທຸກການເດີນທາງ',
+        receipt_slogan_eng: 'Service with heart, caring for every journey',
         pos_points: [
           { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
           { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
