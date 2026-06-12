@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Bokeo International Airport POS - Database Manager
  * Handles local IndexedDB storage and optional Firebase Firestore synchronization.
  */
@@ -42,13 +42,13 @@ const DEFAULT_PRODUCTS = [
   { id: 'TMN-VIPL-020', code: '200021', name_en: 'Instant Noodles', name_lo: 'ຫມີ່ກ່ອງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 15.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 264, unit: 'ຖ້ວຍ' },
   { id: 'DK-0041', code: '200027', name_en: 'Croissant Ordinaire', name_lo: 'ຂະຫນົມຄົວຊອງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 20.29, price_thb: 60.00, price_lak: 42000, price_cny: 12.00, stock: 16, unit: 'ຊອງ' },
   { id: 'DK-0043', code: '200043', name_en: 'Vitamilk', name_lo: 'ນົມໄວຕາມິວ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 15.83, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 124, unit: 'ກ່ອງ' },
+  { id: 'TMN-VIPL-024', code: 'TMN-VIPL-024', name_en: 'Birdy Coffee', name_lo: 'ກາເຟກະປ໋ອງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 0.00, price_thb: 40.00, price_lak: 28000, price_cny: 8.00, stock: 143, unit: 'ກະປ໋ອງ' },
+  { id: 'TMN-VIPL-025', code: 'TMN-VIPL-025', name_en: 'Herbal Tea', name_lo: 'ຫວາງລາວຈີ ຊາຈີນ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 0.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 128, unit: 'ກະປ໋ອງ' },
+  { id: 'DK-064', code: 'DK-064', name_en: 'Dutch Mill', name_lo: 'ນົມປ້ຽວ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 0.00, price_thb: 0.00, price_lak: 0, price_cny: 0.00, stock: 49, unit: 'ກ່ອງ' },
   { id: 'DK-0044', code: '200044', name_en: 'Homey', name_lo: 'ຂະໜົມໂຮມມີ້', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 8.81, price_thb: 30.00, price_lak: 21000, price_cny: 6.00, stock: 160, unit: 'ຊອງ' },
   { id: 'DK-0045', code: '200045', name_en: 'Cookies', name_lo: 'ຄຸກກີ້ເດັນມາກ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 70.00, price_thb: 200.00, price_lak: 140000, price_cny: 40.00, stock: 10, unit: 'ກ່ອງ' },
   { id: 'DK-049', code: '200127', name_en: 'Singha soda', name_lo: 'ໂຊດາສິງ Singha soda', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 15.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 51, unit: 'ຕຸກ' },
   { id: 'DK-050', code: '200128', name_en: 'Chewing gum', name_lo: 'ໜາກຝຣັງແທັງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 5.50, price_thb: 20.00, price_lak: 14000, price_cny: 4.00, stock: 136, unit: 'ອັນ' },
-  { id: 'DK-051', code: '200024', name_en: 'Birdy Coffee', name_lo: 'ກາເຟປ໋ອງ Birdy', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 12.00, price_thb: 40.00, price_lak: 28000, price_cny: 8.00, stock: 143, unit: 'ປ໋ອງ' },
-  { id: 'DK-052', code: '200025', name_en: 'Wong Lo Kat Tea', name_lo: 'ຊາຈີນ ຫວັງເລົ່າຈີ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 15.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 128, unit: 'ປ໋ອງ' },
-  { id: 'DK-053', code: '200064', name_en: 'Dutch Mill', name_lo: 'ນົມດັດຊ໌ມິວ', category: 'ຮ້ានຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 10.00, price_thb: 30.00, price_lak: 21000, price_cny: 6.00, stock: 49, unit: 'ກ່ອງ' },
 
   // 2. ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Service)
   { id: 'WRP-001', code: '200029', name_en: 'Box (C+8)', name_lo: 'ແກັດ (C+8)', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 7.00, price_thb: 80.00, price_lak: 56000, price_cny: 16.00, stock: 200, unit: 'ກ່ອງ' },
@@ -609,7 +609,7 @@ class BokeoPOSDB {
       console.log('Starting Google Sheets Sync...');
       
       const pricesUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=0';
-      const stockUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=756509904';
+      const stockUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=778238622';
 
       let pricesText = '';
       let stockText = '';
@@ -638,7 +638,7 @@ class BokeoPOSDB {
         try {
           console.log('Attempting direct Google Sheets Gviz fetch...');
           const pricesGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&gid=0';
-          const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&gid=756509904';
+          const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&gid=778238622';
 
           const pricesRes = await fetch(pricesGvizUrl);
           if (!pricesRes.ok) throw new Error('Failed to fetch prices from direct Gviz endpoint');
@@ -702,6 +702,7 @@ class BokeoPOSDB {
       // Parse and update products
       let currentCategory = 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ';
       const categoriesList = ['ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', 'ຫ້ອງ VIP', 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', 'ບໍລິການແທັກຊີ່', 'ບໍລິການລານຈອດ'];
+      const importedIds = new Set();
 
       pricesRows.forEach(row => {
         if (row.length < 3) return;
@@ -721,6 +722,7 @@ class BokeoPOSDB {
         }
 
         const productId = colA;
+        importedIds.add(productId);
         const nameEn = colB;
         const nameLo = colC;
         
@@ -778,13 +780,13 @@ class BokeoPOSDB {
 
       // Parse and update stock
       stockRows.forEach(row => {
-        if (row.length < 8) return;
-        const code = row[1] ? row[1].trim() : '';
+        if (row.length < 5) return;
+        const code = row[0] ? row[0].trim() : '';
         const name = row[2] ? row[2].trim() : '';
-        const stockVal = Math.round(parseFloat(row[7] ? row[7].replace(/[^\d\.]/g, '') : '0') || 0);
+        const stockVal = Math.round(parseFloat(row[4] ? row[4].replace(/[^\d\.]/g, '') : '0') || 0);
 
         if (code) {
-          const matchedProduct = localProducts.find(p => p.code === code);
+          const matchedProduct = localProducts.find(p => p.code === code || p.id === code);
           if (matchedProduct) {
             matchedProduct.stock = stockVal;
             matchedProduct.max_stock = Math.max(matchedProduct.max_stock || 0, stockVal);
@@ -802,20 +804,48 @@ class BokeoPOSDB {
         }
       });
 
-      // Save all products back to IndexedDB
-      const tx = this.db.transaction('products', 'readwrite');
-      const store = tx.objectStore('products');
-      localProducts.forEach(p => store.put(p));
-      await new Promise(resolve => tx.oncomplete = resolve);
-
-      // Sync with Firebase Firestore if online
-      if (this.isFirebaseEnabled && this.firestore) {
-        const batch = this.firestore.batch();
+      if (importedIds.size > 0) {
+        // Filter out obsolete products that are not present in the spreadsheet
+        const updatedProducts = [];
+        const idsToDelete = [];
+        
         localProducts.forEach(p => {
-          const docRef = this.firestore.collection('products').doc(p.id);
-          batch.set(docRef, p);
+          if (importedIds.has(p.id)) {
+            updatedProducts.push(p);
+          } else {
+            idsToDelete.push(p.id);
+          }
         });
-        await batch.commit();
+
+        // Save all products back to IndexedDB and delete obsolete ones
+        const tx = this.db.transaction('products', 'readwrite');
+        const store = tx.objectStore('products');
+        updatedProducts.forEach(p => store.put(p));
+        idsToDelete.forEach(id => {
+          console.log('Deleting obsolete product from local DB:', id);
+          store.delete(id);
+        });
+        await new Promise(resolve => tx.oncomplete = resolve);
+
+        // Sync with Firebase Firestore if online
+        if (this.isFirebaseEnabled && this.firestore) {
+          const batch = this.firestore.batch();
+          updatedProducts.forEach(p => {
+            const docRef = this.firestore.collection('products').doc(p.id);
+            batch.set(docRef, p);
+          });
+          idsToDelete.forEach(id => {
+            const docRef = this.firestore.collection('products').doc(id);
+            batch.delete(docRef);
+          });
+          await batch.commit();
+        }
+      } else {
+        // Fallback safety if no products imported (should not happen since we return earlier on error)
+        const tx = this.db.transaction('products', 'readwrite');
+        const store = tx.objectStore('products');
+        localProducts.forEach(p => store.put(p));
+        await new Promise(resolve => tx.oncomplete = resolve);
       }
 
       this._notifyListener('products');
