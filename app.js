@@ -234,6 +234,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.cashiers = await window.BokeoDB.getCashiers();
     state.products = await window.BokeoDB.getProducts();
 
+    // Sync from Google Sheets on startup to get the latest prices, stock, and petty cash sessions
+    try {
+      await window.BokeoDB.syncWithGoogleSheets();
+      // Reload products and cashiers after sync
+      state.products = await window.BokeoDB.getProducts();
+      state.cashiers = await window.BokeoDB.getCashiers();
+    } catch (e) {
+      console.warn('Startup sync failed, using local database:', e);
+    }
+
     // Populate Cashier and POS dropdowns in Setup Overlay
     populateSetupOptions();
     await updateSetupStartingCash();

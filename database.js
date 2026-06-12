@@ -614,6 +614,7 @@ class BokeoPOSDB {
 
       let pricesText = '';
       let stockText = '';
+      let pettyText = '';
       const settings = await this.getSettings();
 
       if (settings && settings.gdrive_script_url) {
@@ -628,11 +629,21 @@ class BokeoPOSDB {
           if (!stockRes.ok) throw new Error('Failed to fetch stock from Apps Script');
           stockText = await stockRes.text();
           if (stockText.trim().startsWith('Error:')) throw new Error(stockText);
+          
+          const pettyRes = await fetch(`${settings.gdrive_script_url}?sheet=petty_cash&t=${cacheBust}`);
+          if (pettyRes.ok) {
+            pettyText = await pettyRes.text();
+            if (pettyText.trim().startsWith('Error:')) {
+              console.warn('Apps Script petty_cash fetch returned error:', pettyText);
+              pettyText = '';
+            }
+          }
           console.log('Apps Script Web App fetch successful.');
         } catch (err) {
           console.warn('Apps Script Web App fetch failed, falling back to direct Gviz fetch:', err);
           pricesText = '';
           stockText = '';
+          pettyText = '';
         }
       }
 
@@ -858,6 +869,42 @@ class BokeoPOSDB {
       }
 
       this._notifyListener('products');
+
+      // Sync petty cash sessions from Google Sheets if available
+      if (pettyText) {
+        try {
+          console.log('Parsing and updating petty cash sessions from Google Sheets...');
+          const pettyRows = this._parseCSV(pettyText);
+          const txSess = this.db.transaction('petty_cash', 'readwrite');
+          const storeSess = txSess.objectStore('petty_cash');
+          
+          pettyRows.forEach((row, idx) => {
+            if (idx === 0 || row.length < 11) return; // Skip header or invalid rows
+            const sessionId = row[10] ? row[10].trim() : '';
+            if (!sessionId) return;
+            
+            const sessionObj = {
+              id: sessionId,
+              date: row[0] ? row[0].trim() : '',
+              pos: row[1] ? row[1].trim() : '',
+              cashier: row[2] ? row[2].trim() : '',
+              lak_start: parseFloat(row[3] ? row[3].replace(/[^\d\.]/g, '') : '0') || 0,
+              thb_start: parseFloat(row[4] ? row[4].replace(/[^\d\.]/g, '') : '0') || 0,
+              cny_start: parseFloat(row[5] ? row[5].replace(/[^\d\.]/g, '') : '0') || 0,
+              lak_remaining: parseFloat(row[6] ? row[6].replace(/[^\d\.]/g, '') : '0') || 0,
+              thb_remaining: parseFloat(row[7] ? row[7].replace(/[^\d\.]/g, '') : '0') || 0,
+              cny_remaining: parseFloat(row[8] ? row[8].replace(/[^\d\.]/g, '') : '0') || 0,
+              closed: row[11] ? row[11].trim().toUpperCase() === 'TRUE' : true
+            };
+            storeSess.put(sessionObj);
+          });
+          await new Promise(resolve => txSess.oncomplete = resolve);
+          console.log('Petty cash sessions synced successfully from Google Sheets.');
+        } catch (err) {
+          console.error('Failed to parse or save synced petty cash sessions:', err);
+        }
+      }
+
       console.log('Google Sheets Sync Completed Successfully!');
       return true;
     } catch (error) {
