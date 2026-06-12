@@ -345,10 +345,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    const closeReceiptModal = () => {
+    const closeReceiptModal = async () => {
       els.receiptModal.classList.remove('active');
       state.lastTransaction = null;
       renderProducts();
+      
+      // Real-time Petty Cash Sync to Google Sheets
+      if (state.pettyCashSession) {
+        await syncPettyCashToGoogleSheets(state.pettyCashSession);
+      }
     };
 
     if (els.receiptDoneBtn) {
@@ -1268,6 +1273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.pettyCashSession.cny_remaining += (paid - change);
       }
       await window.BokeoDB.savePettyCashSession(state.pettyCashSession);
+      syncPettyCashToGoogleSheets(state.pettyCashSession);
     }
 
     // Reload Products to get fresh stock counts
