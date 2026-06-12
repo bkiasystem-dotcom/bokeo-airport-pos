@@ -174,7 +174,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
           { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
           { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
-          { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' }
+          { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
+          { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
+          { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
+          { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
         ],
         firebase_config: null,
         qr_codes: {
@@ -189,15 +192,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       await window.BokeoDB.saveSettings(state.settings);
     } else {
       let settingsUpdated = false;
-      if (!state.settings.pos_points || !Array.isArray(state.settings.pos_points) || state.settings.pos_points.length === 0) {
-        state.settings.pos_points = [
-          { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-          { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
-          { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
-          { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' }
-        ];
-        settingsUpdated = true;
+      if (!state.settings.pos_points || !Array.isArray(state.settings.pos_points)) {
+        state.settings.pos_points = [];
       }
+      
+      const defaultPOSPoints = [
+        { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
+        { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
+        { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
+        { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
+        { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
+        { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
+        { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
+      ];
+
+      defaultPOSPoints.forEach(p => {
+        const exists = state.settings.pos_points.some(existing => existing.name === p.name);
+        if (!exists) {
+          state.settings.pos_points.push(p);
+          settingsUpdated = true;
+        }
+      });
       if (!state.settings.hasOwnProperty('gdrive_folder_id')) {
         state.settings.gdrive_folder_id = '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC';
         settingsUpdated = true;
