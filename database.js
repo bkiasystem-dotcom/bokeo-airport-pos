@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Bokeo International Airport POS - Database Manager
  * Handles local IndexedDB storage and optional Firebase Firestore synchronization.
  */
@@ -783,7 +783,13 @@ class BokeoPOSDB {
         if (row.length < 5) return;
         const code = row[0] ? row[0].trim() : '';
         const name = row[2] ? row[2].trim() : '';
-        const stockVal = Math.round(parseFloat(row[4] ? row[4].replace(/[^\d\.]/g, '') : '0') || 0);
+        
+        // Use remaining stock (index 6, "ຈຳນວນລວມ"), fallback to starting stock (index 4, "ຈຳນວນຄັງສາງ")
+        let stockStr = row[6] ? row[6].trim() : '';
+        if (!stockStr || stockStr === '') {
+          stockStr = row[4] ? row[4].trim() : '0';
+        }
+        const stockVal = Math.round(parseFloat(stockStr.replace(/[^\d\.]/g, '')) || 0);
 
         if (code) {
           const matchedProduct = localProducts.find(p => p.code === code || p.id === code);

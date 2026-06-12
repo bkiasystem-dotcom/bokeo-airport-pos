@@ -1247,9 +1247,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       bank: activePaymentMethod === 'transfer' ? els.bankSelect.value : null
     };
 
-    // 1. Deduct Stock Locally
+    // 1. Deduct Stock Locally & Sync Sales to Google Sheets
     for (const item of state.cart) {
       await window.BokeoDB.deductStock(item.product.id, item.qty);
+      if (state.settings.gdrive_script_url) {
+        syncSaleToGoogleSheets(item.product.code || item.product.id, item.qty);
+      }
     }
 
     // 2. Save Transaction to database
@@ -1689,6 +1692,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (err) {
       console.error('Failed to sync stock via Apps Script:', err);
+    }
+  }
+
+  async function syncSaleToGoogleSheets(codeOrId, qty) {
+    const scriptUrl = state.settings.gdrive_script_url;
+    if (!scriptUrl) return;
+
+    try {
+      const payload = {
+        action: 'update_sales',
+        code: codeOrId,
+        qty: qty
+      };
+
+      const response = await fetch(scriptUrl, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'text/plain'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const resData = await response.json();
+      if (resData.success) {
+        console.log('Sales sync successful via Apps Script.');
+      } else {
+        console.error('Apps Script sales sync failed:', resData.error);
+      }
+    } catch (err) {
+      console.error('Failed to sync sales via Apps Script:', err);
     }
   }
 
