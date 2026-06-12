@@ -234,19 +234,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.cashiers = await window.BokeoDB.getCashiers();
     state.products = await window.BokeoDB.getProducts();
 
+    // Populate Cashier and POS dropdowns in Setup Overlay first so they are visible while syncing
+    populateSetupOptions();
+
+    // Show loading status and disable "Start POS" button during startup sync
+    let infoDiv = document.getElementById('setup-petty-info');
+    if (!infoDiv) {
+      infoDiv = document.createElement('div');
+      infoDiv.id = 'setup-petty-info';
+      infoDiv.style.fontSize = '0.82rem';
+      infoDiv.style.marginTop = '8px';
+      infoDiv.style.color = '#025c8a'; // Darker blue for readability
+      infoDiv.style.fontWeight = '700';
+      infoDiv.style.padding = '8px 12px';
+      infoDiv.style.backgroundColor = '#f0f9ff';
+      infoDiv.style.border = '1px solid #bae6fd';
+      infoDiv.style.borderRadius = '8px';
+      
+      const pettyGroup = els.setupPettyLak.closest('.form-group');
+      if (pettyGroup) {
+        pettyGroup.appendChild(infoDiv);
+      }
+    }
+    infoDiv.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ກຳລັງດຶງຂໍ້ມູນເງິນທອນຫຼ້າສຸດຈາກ Google Sheets, ກະລຸນາລໍຖ້າ...`;
+    
+    if (els.setupBtn) {
+      els.setupBtn.disabled = true;
+      els.setupBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ກຳລັງອັບເດດຂໍ້ມູນ... ກະລຸນາລໍຖ້າ`;
+      els.setupBtn.style.backgroundColor = '#9ca3af'; // Gray disabled style
+    }
+
     // Sync from Google Sheets on startup to get the latest prices, stock, and petty cash sessions
     try {
       await window.BokeoDB.syncWithGoogleSheets();
       // Reload products and cashiers after sync
       state.products = await window.BokeoDB.getProducts();
       state.cashiers = await window.BokeoDB.getCashiers();
+      // Repopulate options with the freshly synced cashier list
+      populateSetupOptions();
     } catch (e) {
       console.warn('Startup sync failed, using local database:', e);
+    } finally {
+      // Re-enable "Start POS" button
+      if (els.setupBtn) {
+        els.setupBtn.disabled = false;
+        els.setupBtn.innerHTML = `<i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)`;
+        els.setupBtn.style.backgroundColor = ''; // Restore original style
+      }
+      await updateSetupStartingCash();
     }
 
-    // Populate Cashier and POS dropdowns in Setup Overlay
-    populateSetupOptions();
-    await updateSetupStartingCash();
     els.setupPOS.addEventListener('change', updateSetupStartingCash);
     checkLowStockAlerts();
 
@@ -383,8 +420,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const todayStr = new Date().toISOString().split('T')[0];
       const allPetty = await window.BokeoDB.getPettyCashSessions();
       
-      // Filter sessions for this POS on the same calendar date
-      const todaySessions = allPetty.filter(p => p.date === todayStr && p.pos === posObj.name);
+      // Filter sessions for this POS on the same calendar date safely
+      const todaySessions = allPetty.filter(p => isSameDay(p.date, todayStr) && p.pos === posObj.name);
       
       // Find or create info element to show the tip
       let infoDiv = document.getElementById('setup-petty-info');
@@ -555,14 +592,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!state.currentPOS || !state.currentCashier) return;
 
     // Open Close Shift summary modal
+    const todayStr = new Date().toISOString().split('T')[0];
     const allTx = await window.BokeoDB.getTransactions();
     
     // Filter transactions made today at this POS (accumulated sales on the same day)
-    const todayStr = new Date().toISOString().split('T')[0];
     const shiftTx = allTx.filter(tx => {
       const isThisPOS = tx.pos === state.currentPOS.name;
       const txDate = tx.timestamp.split('T')[0];
-      return isThisPOS && txDate === todayStr;
+      return isThisPOS && isSameDay(txDate, todayStr);
     });
 
     // Sum up shift sales
@@ -586,9 +623,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.shiftReportPOS.textContent = state.currentPOS.name;
     els.shiftReportDate.textContent = new Date().toLocaleString('lo-LA');
 
-    // Find starting petty cash of the first session of today
+    // Find starting petty cash of the first session of today safely
     const allPetty = await window.BokeoDB.getPettyCashSessions();
-    const posSessions = allPetty.filter(p => p.date === todayStr && p.pos === state.currentPOS.name);
+    const posSessions = allPetty.filter(p => isSameDay(p.date, todayStr) && p.pos === state.currentPOS.name);
     const firstSession = posSessions[0] || state.pettyCashSession;
 
     // Starting Petty cash
@@ -3134,6 +3171,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!val) return 0;
     const clean = String(val).replace(/[^\d\.]/g, '');
     return parseFloat(clean) || 0;
+  }
+
+  function isSameDay(d1Str, d2Str) {
+    if (!d1Str || !d2Str) return false;
+    const parse = (s) => {
+      s = String(s).trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const p = s.split('-');
+        return new Date(p[0], p[1] - 1, p[2]);
+      }
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)) {
+        const p = s.split('/');
+        return new Date(p[2], p[1] - 1, p[0]);
+      }
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const date1 = parse(d1Str);
+    const date2 = parse(d2Str);
+    if (!date1 || !date2) return false;
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
   }
 
   function setupFormattedInputListener(inputEl) {
