@@ -622,10 +622,12 @@ class BokeoPOSDB {
           const pricesRes = await fetch(`${settings.gdrive_script_url}?sheet=prices&t=${cacheBust}`);
           if (!pricesRes.ok) throw new Error('Failed to fetch prices from Apps Script');
           pricesText = await pricesRes.text();
+          if (pricesText.trim().startsWith('Error:')) throw new Error(pricesText);
 
           const stockRes = await fetch(`${settings.gdrive_script_url}?sheet=stock&t=${cacheBust}`);
           if (!stockRes.ok) throw new Error('Failed to fetch stock from Apps Script');
           stockText = await stockRes.text();
+          if (stockText.trim().startsWith('Error:')) throw new Error(stockText);
           console.log('Apps Script Web App fetch successful.');
         } catch (err) {
           console.warn('Apps Script Web App fetch failed, falling back to direct Gviz fetch:', err);
