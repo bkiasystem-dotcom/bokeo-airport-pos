@@ -314,8 +314,9 @@ class BokeoPOSDB {
       req.onsuccess = async () => {
         const product = req.result;
         if (product) {
-          // Do not deduct if product is service package with arbitrary large stock
-          if (product.stock < 9999) {
+          // Do not deduct stock if it's a service package
+          const serviceCategories = ['ຫ້ອງ VIP', 'ບໍລິການແທັກຊີ່', 'ບໍລິການລານຈອດ'];
+          if (!serviceCategories.includes(product.category) && product.stock < 9999) {
             product.stock = Math.max(0, product.stock - qty);
             store.put(product);
           }
@@ -805,11 +806,17 @@ class BokeoPOSDB {
         }
         const stockVal = Math.round(parseFloat(stockStr.replace(/[^\d\.]/g, '')) || 0);
 
+        const serviceCategories = ['ຫ້ອງ VIP', 'ບໍລິການແທັກຊີ່', 'ບໍລິການລານຈອດ'];
         if (code) {
           const matchedProduct = localProducts.find(p => p.code === code || p.id === code);
           if (matchedProduct) {
-            matchedProduct.stock = stockVal;
-            matchedProduct.max_stock = Math.max(matchedProduct.max_stock || 0, stockVal);
+            if (!serviceCategories.includes(matchedProduct.category)) {
+              matchedProduct.stock = stockVal;
+              matchedProduct.max_stock = Math.max(matchedProduct.max_stock || 0, stockVal);
+            } else {
+              matchedProduct.stock = 9999;
+              matchedProduct.max_stock = 9999;
+            }
           }
         } else if (name) {
           const matchedProduct = localProducts.find(p => {
@@ -817,9 +824,14 @@ class BokeoPOSDB {
             const cleanTarget = name.toLowerCase();
             return cleanName.includes(cleanTarget) || cleanTarget.includes(cleanName);
           });
-          if (matchedProduct && matchedProduct.stock < 9999) {
-            matchedProduct.stock = stockVal;
-            matchedProduct.max_stock = Math.max(matchedProduct.max_stock || 0, stockVal);
+          if (matchedProduct) {
+            if (!serviceCategories.includes(matchedProduct.category)) {
+              matchedProduct.stock = stockVal;
+              matchedProduct.max_stock = Math.max(matchedProduct.max_stock || 0, stockVal);
+            } else {
+              matchedProduct.stock = 9999;
+              matchedProduct.max_stock = 9999;
+            }
           }
         }
       });

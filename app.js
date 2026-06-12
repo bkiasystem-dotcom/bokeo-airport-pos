@@ -830,7 +830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Stock Status
       let stockHtml = '';
       let isOutOfStock = false;
-      if (p.stock < 9999) {
+      if (p.category === 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' || p.category === 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ') {
         if (p.stock === 0) {
           stockHtml = `<span class="stock-badge out">ໝົດສາງ</span>`;
           isOutOfStock = true;
@@ -898,7 +898,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function addToCart(product) {
     const existing = state.cart.find(item => item.product.id === product.id);
     if (existing) {
-      if (product.stock >= 9999 || existing.qty < product.stock) {
+      if ((product.category !== 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' && product.category !== 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ') || product.stock >= 9999 || existing.qty < product.stock) {
         existing.qty++;
       } else {
         alert('ບໍ່ສາມາດເພີ່ມໄດ້ເນື່ອງຈາກສິນຄ້າໃນສະຕັອກບໍ່ພໍ');
@@ -917,7 +917,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const newQty = item.qty + delta;
     if (newQty <= 0) {
       state.cart = state.cart.filter(i => i.product.id !== productId);
-    } else if (item.product.stock >= 9999 || newQty <= item.product.stock) {
+    } else if ((item.product.category !== 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' && item.product.category !== 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ') || item.product.stock >= 9999 || newQty <= item.product.stock) {
       item.qty = newQty;
     } else {
       alert('ບໍ່ສາມາດເພີ່ມໄດ້ເນື່ອງຈາກສິນຄ້າໃນສະຕັອກບໍ່ພໍ');
