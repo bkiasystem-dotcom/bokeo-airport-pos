@@ -1251,7 +1251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (const item of state.cart) {
       await window.BokeoDB.deductStock(item.product.id, item.qty);
       if (state.settings.gdrive_script_url) {
-        syncSaleToGoogleSheets(item.product.code || item.product.id, item.qty);
+        syncSaleToGoogleSheets(item.product.id, item.qty);
       }
     }
 
@@ -2844,7 +2844,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Sync to Google Sheet in background
       if (state.settings.gdrive_script_url) {
-        syncProductStockToGoogleSheets(product.code || product.id, qty, product.stock);
+        syncProductStockToGoogleSheets(product.id, qty, product.stock);
       }
       
       // reload
