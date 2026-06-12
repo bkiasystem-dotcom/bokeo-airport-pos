@@ -1243,12 +1243,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const finalTotalCNY = grandTotalCNY - discountCNY + vatCNY;
 
     const paidStr = els.amountPaidInput.value;
-    const paid = activePaymentMethod === 'cash' ? (getCleanFloat(paidStr) || 0) : (state.currentCurrency === 'LAK' ? finalTotalLAK : state.currentCurrency === 'THB' ? finalTotalTHB : finalTotalCNY);
+    const targetTotal = state.currentCurrency === 'LAK' ? finalTotalLAK : state.currentCurrency === 'THB' ? finalTotalTHB : finalTotalCNY;
+    const paid = activePaymentMethod === 'cash' ? (getCleanFloat(paidStr) || 0) : targetTotal;
     
-    let targetTotal = state.currentCurrency === 'LAK' ? finalTotalLAK : state.currentCurrency === 'THB' ? finalTotalTHB : finalTotalCNY;
     if (activePaymentMethod === 'cash' && paid < targetTotal) {
       alert('ຈຳນວນເງິນທີ່ຈ່າຍບໍ່ພຽງພໍ');
       return;
+    }
+
+    const change = activePaymentMethod === 'cash' ? (paid - targetTotal) : 0;
+    if (activePaymentMethod === 'cash' && change > 0) {
+      let availableChange = 0;
+      if (state.currentCurrency === 'LAK') {
+        availableChange = state.pettyCashSession ? state.pettyCashSession.lak_remaining : 0;
+      } else if (state.currentCurrency === 'THB') {
+        availableChange = state.pettyCashSession ? state.pettyCashSession.thb_remaining : 0;
+      } else if (state.currentCurrency === 'CNY') {
+        availableChange = state.pettyCashSession ? state.pettyCashSession.cny_remaining : 0;
+      }
+      
+      if (change > availableChange) {
+        alert(`ເງິນທອນໃນລີ້ນຊັກບໍ່ພໍ! ຕ້ອງການທອນ ${formatNumber(change)} ${state.currentCurrency} ແຕ່ມີເຫຼືອພຽງ ${formatNumber(availableChange)} ${state.currentCurrency}`);
+        return;
+      }
     }
 
     let costTHB = 0;
@@ -1266,7 +1283,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const profitTHB = finalTotalTHB - costTHB;
     const profitCNY = finalTotalCNY - costCNY;
 
-    const change = activePaymentMethod === 'cash' ? (paid - targetTotal) : 0;
     const invoiceNo = `INV-${Date.now().toString().slice(-6)}`;
     const timestamp = new Date().toISOString();
 
