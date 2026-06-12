@@ -900,12 +900,12 @@ class BokeoPOSDB {
               date: row[0] ? row[0].trim() : '',
               pos: row[1] ? row[1].trim() : '',
               cashier: row[2] ? row[2].trim() : '',
-              lak_start: parseFloat(row[3] ? row[3].replace(/[^\d\.]/g, '') : '0') || 0,
-              thb_start: parseFloat(row[4] ? row[4].replace(/[^\d\.]/g, '') : '0') || 0,
-              cny_start: parseFloat(row[5] ? row[5].replace(/[^\d\.]/g, '') : '0') || 0,
-              lak_remaining: parseFloat(row[6] ? row[6].replace(/[^\d\.]/g, '') : '0') || 0,
-              thb_remaining: parseFloat(row[7] ? row[7].replace(/[^\d\.]/g, '') : '0') || 0,
-              cny_remaining: parseFloat(row[8] ? row[8].replace(/[^\d\.]/g, '') : '0') || 0,
+              lak_start: parseFloat(row[3] ? row[3].replace(/[^\d\.\-]/g, '') : '0') || 0,
+              thb_start: parseFloat(row[4] ? row[4].replace(/[^\d\.\-]/g, '') : '0') || 0,
+              cny_start: parseFloat(row[5] ? row[5].replace(/[^\d\.\-]/g, '') : '0') || 0,
+              lak_remaining: parseFloat(row[6] ? row[6].replace(/[^\d\.\-]/g, '') : '0') || 0,
+              thb_remaining: parseFloat(row[7] ? row[7].replace(/[^\d\.\-]/g, '') : '0') || 0,
+              cny_remaining: parseFloat(row[8] ? row[8].replace(/[^\d\.\-]/g, '') : '0') || 0,
               closed: row[11] ? row[11].trim().toUpperCase() === 'TRUE' : true
             };
             storeSess.put(sessionObj);

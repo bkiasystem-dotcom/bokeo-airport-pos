@@ -1125,6 +1125,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     const change = Math.max(0, paid - grandTotal);
     els.changeDueDisplay.textContent = formatNumber(change) + currencySymbol;
 
+    // Real-time petty cash warning
+    let warnEl = document.getElementById('checkout-change-warning');
+    if (activePaymentMethod === 'cash' && change > 0) {
+      let availableChange = 0;
+      if (state.currentCurrency === 'LAK') {
+        availableChange = state.pettyCashSession ? state.pettyCashSession.lak_remaining : 0;
+      } else if (state.currentCurrency === 'THB') {
+        availableChange = state.pettyCashSession ? state.pettyCashSession.thb_remaining : 0;
+      } else if (state.currentCurrency === 'CNY') {
+        availableChange = state.pettyCashSession ? state.pettyCashSession.cny_remaining : 0;
+      }
+
+      if (change > availableChange) {
+        els.changeDueDisplay.style.color = 'var(--danger-color)';
+        if (!warnEl) {
+          warnEl = document.createElement('div');
+          warnEl.id = 'checkout-change-warning';
+          warnEl.style.color = 'var(--danger-color)';
+          warnEl.style.fontSize = '0.8rem';
+          warnEl.style.marginTop = '4px';
+          warnEl.style.fontWeight = 'bold';
+          warnEl.style.textAlign = 'right';
+          els.changeDueDisplay.parentNode.appendChild(warnEl);
+        }
+        warnEl.textContent = `⚠️ ເງິນທອນບໍ່ພໍ (ມີພຽງ ${formatNumber(availableChange)} ${state.currentCurrency})! ກະລຸນາເລືອກວິທີຊຳລະແບບອື່ນ`;
+        els.confirmPaymentBtn.disabled = true;
+        els.confirmPaymentBtn.style.opacity = '0.5';
+      } else {
+        if (warnEl) warnEl.remove();
+        els.changeDueDisplay.style.color = 'var(--text-primary)';
+        els.confirmPaymentBtn.disabled = false;
+        els.confirmPaymentBtn.style.opacity = '';
+      }
+    } else {
+      if (warnEl) warnEl.remove();
+      els.changeDueDisplay.style.color = 'var(--text-primary)';
+      els.confirmPaymentBtn.disabled = false;
+      els.confirmPaymentBtn.style.opacity = '';
+    }
+
     // Update QR code if transfer
     if (activePaymentMethod === 'transfer') {
       displayQR();
@@ -1155,6 +1195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       els.transferPaymentSection.style.display = 'block';
       displayQR();
     }
+    recalculateCheckoutTotals();
   }
 
   // Handle Cash Calculator Change input
@@ -1263,7 +1304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       if (change > availableChange) {
-        alert(`ເງິນທອນໃນລີ້ນຊັກບໍ່ພໍ! ຕ້ອງການທອນ ${formatNumber(change)} ${state.currentCurrency} ແຕ່ມີເຫຼືອພຽງ ${formatNumber(availableChange)} ${state.currentCurrency}`);
+        alert(`ເງິນທອນບໍ່ພໍ! ຕ້ອງການທອນ ${formatNumber(change)} ${state.currentCurrency} ແຕ່ມີເຫຼືອພຽງ ${formatNumber(availableChange)} ${state.currentCurrency}.\nກະລຸນາເລືອກປະເພດການຊຳລະແບບອື່ນແທນ.`);
         return;
       }
     }
@@ -3185,7 +3226,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function getCleanFloat(val) {
     if (!val) return 0;
-    const clean = String(val).replace(/[^\d\.]/g, '');
+    const clean = String(val).replace(/[^\d\.\-]/g, '');
     return parseFloat(clean) || 0;
   }
 
