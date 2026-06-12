@@ -403,12 +403,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         els.setupPettyThb.value = formatNumber(lastSession.thb_remaining);
         els.setupPettyCny.value = formatNumber(lastSession.cny_remaining);
         
-        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເງິນທອນຄົງເຫຼືອຫຼ້າສຸດຂອງມື້ນີ້: <br> LAK: <span style="color:#0f766e">${formatNumber(lastSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(lastSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(lastSession.cny_remaining)} ¥</span>`;
+        // Disable editing for subsequent shifts of the day
+        els.setupPettyLak.readOnly = true;
+        els.setupPettyThb.readOnly = true;
+        els.setupPettyCny.readOnly = true;
+        els.setupPettyLak.style.backgroundColor = '#f3f4f6';
+        els.setupPettyThb.style.backgroundColor = '#f3f4f6';
+        els.setupPettyCny.style.backgroundColor = '#f3f4f6';
+        
+        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເງິນທອນຄົງເຫຼືອຫຼ້າສຸດຂອງມື້ນີ້ (ບໍ່ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(lastSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(lastSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(lastSession.cny_remaining)} ¥</span>`;
       } else {
-        // First cashier of the day: reset to 0
+        // First cashier of the day: reset to 0 and allow editing
         els.setupPettyLak.value = '0';
         els.setupPettyThb.value = '0';
         els.setupPettyCny.value = '0';
+        
+        els.setupPettyLak.readOnly = false;
+        els.setupPettyThb.readOnly = false;
+        els.setupPettyCny.readOnly = false;
+        els.setupPettyLak.style.backgroundColor = '';
+        els.setupPettyThb.style.backgroundColor = '';
+        els.setupPettyCny.style.backgroundColor = '';
         
         infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະທຳອິດຂອງມື້ນີ້ (ເລີ່ມຕົ້ນສະຕັອກເງິນທອນໃໝ່)`;
       }
@@ -581,10 +596,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.shiftSalesTransThb.textContent = formatNumber(transTHB) + ' ฿';
     els.shiftSalesTransCny.textContent = formatNumber(transCNY) + ' ¥';
 
-    // Remaining Drawer Cash (Starting of the day + Day Cash Sales)
-    const endLakVal = firstSession.lak_start + cashLAK;
-    const endThbVal = firstSession.thb_start + cashTHB;
-    const endCnyVal = firstSession.cny_start + cashCNY;
+    // Remaining Drawer Cash (Starting Petty Cash - Total Change Given)
+    const endLakVal = state.pettyCashSession.lak_remaining;
+    const endThbVal = state.pettyCashSession.thb_remaining;
+    const endCnyVal = state.pettyCashSession.cny_remaining;
 
     els.shiftEndLak.textContent = formatNumber(endLakVal) + ' ₭';
     els.shiftEndThb.textContent = formatNumber(endThbVal) + ' ฿';
@@ -1263,14 +1278,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 2. Save Transaction to database
     await window.BokeoDB.saveTransaction(transaction);
 
-    // 3. Update Remaining Petty Cash Session (only cash affects drawer)
+    // 3. Update Remaining Petty Cash Session (only cash change reduces petty float)
     if (activePaymentMethod === 'cash') {
       if (state.currentCurrency === 'LAK') {
-        state.pettyCashSession.lak_remaining += (paid - change);
+        state.pettyCashSession.lak_remaining -= change;
       } else if (state.currentCurrency === 'THB') {
-        state.pettyCashSession.thb_remaining += (paid - change);
+        state.pettyCashSession.thb_remaining -= change;
       } else if (state.currentCurrency === 'CNY') {
-        state.pettyCashSession.cny_remaining += (paid - change);
+        state.pettyCashSession.cny_remaining -= change;
       }
       await window.BokeoDB.savePettyCashSession(state.pettyCashSession);
       syncPettyCashToGoogleSheets(state.pettyCashSession);
