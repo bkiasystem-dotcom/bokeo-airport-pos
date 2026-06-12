@@ -744,9 +744,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Check permission for admin areas (Dashboard, Stock, Settings)
       if (targetView === 'dashboard' || targetView === 'stock' || targetView === 'settings') {
-        promptPIN(() => {
+        const isAdminPOS = state.currentPOS && [
+          'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
+          'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
+          'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
+        ].includes(state.currentPOS.name);
+
+        if (isAdminPOS) {
           switchView(targetView);
-        });
+        } else {
+          promptPIN(() => {
+            switchView(targetView);
+          });
+        }
       } else {
         switchView(targetView);
       }
@@ -2502,7 +2512,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Delete invoice with passcode PIN confirmation
   window.deleteInvoice = (txId) => {
-    promptPIN(async () => {
+    const isAdminPOS = state.currentPOS && [
+      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
+      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
+      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
+    ].includes(state.currentPOS.name);
+
+    const performDelete = async () => {
       const confirmDelete = confirm(`ທ່ານຕ້ອງການລຶບບິນ ${txId} ແທ້ຫຼືບໍ່?`);
       if (confirmDelete) {
         await window.BokeoDB.deleteTransaction(txId);
@@ -2511,7 +2527,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadDashboardData();
         renderProducts();
       }
-    });
+    };
+
+    if (isAdminPOS) {
+      performDelete();
+    } else {
+      promptPIN(performDelete);
+    }
   };
 
   /* =========================================================================
