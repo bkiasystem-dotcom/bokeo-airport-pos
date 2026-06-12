@@ -69,7 +69,11 @@ const DEFAULT_PRODUCTS = [
   // 4. ບໍລິການແທັກຊີ່ (Taxi Counter)
   { id: 'TAX-001', code: 'TAX01', name_en: 'Taxi to Bokeo Town', name_lo: 'ແທັກຊີ່ ໄປເທດສະບານເມືອງຫ້ວຍຊາຍ', category: 'ບໍລິການແທັກຊີ່', cost_thb: 100.00, price_thb: 300.00, price_lak: 210000, price_cny: 60.00, stock: 9999, unit: 'ທ່ຽວ' },
   { id: 'TAX-002', code: 'TAX02', name_en: 'Taxi to Lao-Thai Border', name_lo: 'ແທັກຊີ່ ໄປດ່ານຊາຍແດນ ລາວ-ໄທ', category: 'ບໍລິການແທັກຊີ່', cost_thb: 150.00, price_thb: 500.00, price_lak: 350000, price_cny: 100.00, stock: 9999, unit: 'ທ່ຽວ' },
-  { id: 'TAX-003', code: 'TAX03', name_en: 'Taxi to Golden Triangle SEZ', name_lo: 'ແທັກຊີ່ ໄປເຂດເສດຖະກິດພິເສດ ສາມຫຼ່ຽມຄຳ', category: 'ບໍລິການແທັກຊີ່', cost_thb: 120.00, price_thb: 400.00, price_lak: 280000, price_cny: 80.00, stock: 9999, unit: 'ທ່ຽວ' }
+  { id: 'TAX-003', code: 'TAX03', name_en: 'Taxi to Golden Triangle SEZ', name_lo: 'ແທັກຊີ່ ໄປເຂດເສດຖະກິດພິເສດ ສາມຫຼ່ຽມຄຳ', category: 'ບໍລິການແທັກຊີ່', cost_thb: 120.00, price_thb: 400.00, price_lak: 280000, price_cny: 80.00, stock: 9999, unit: 'ທ່ຽວ' },
+
+  // 5. ບໍລິການລານຈອດ (Parking Lot Service)
+  { id: 'TMN-PK-001', code: 'TMN-PK-001', name_en: 'Car', name_lo: 'ລົດໃຫ່ຍ', category: 'ບໍລິການລານຈອດ', cost_thb: 0.00, price_thb: 50.00, price_lak: 30000, price_cny: 10.00, stock: 9999, unit: 'ຄັ້ງ' },
+  { id: 'TMN-PK-002', code: 'TMN-PK-002', name_en: 'Motorcycle', name_lo: 'ລົດຈັກ', category: 'ບໍລິການລານຈອດ', cost_thb: 0.00, price_thb: 25.00, price_lak: 15000, price_cny: 5.00, stock: 9999, unit: 'ຄັ້ງ' }
 ];
 
 class BokeoPOSDB {
@@ -217,7 +221,10 @@ class BokeoPOSDB {
           { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
           { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
           { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
-          { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' }
+          { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
+          { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
+          { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
+          { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
         ],
         firebase_config: null,
         qr_codes: {

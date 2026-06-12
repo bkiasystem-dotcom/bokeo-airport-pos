@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupPettyLak: document.getElementById('setup-petty-lak'),
     setupPettyThb: document.getElementById('setup-petty-thb'),
     setupPettyCny: document.getElementById('setup-petty-cny'),
+    setupPettyGroup: document.getElementById('setup-petty-group'),
     setupBtn: document.getElementById('setup-btn'),
 
     headerPOSName: document.getElementById('header-pos-name'),
@@ -432,6 +433,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!els.setupPOS.value) return;
     try {
       const posObj = JSON.parse(els.setupPOS.value);
+      const isAdminPOS = posObj && [
+        'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
+        'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
+        'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
+      ].includes(posObj.name);
+
+      if (isAdminPOS) {
+        if (els.setupPettyGroup) els.setupPettyGroup.style.display = 'none';
+        els.setupPettyLak.value = '0';
+        els.setupPettyThb.value = '0';
+        els.setupPettyCny.value = '0';
+        
+        let infoDiv = document.getElementById('setup-petty-info');
+        if (infoDiv) infoDiv.style.display = 'none';
+        
+        if (els.setupBtn) {
+          els.setupBtn.innerHTML = `<i class="fas fa-user-shield"></i> ເຂົ້າສູ່ລະບົບແອດມິນ (Enter Admin)`;
+        }
+        return;
+      }
+
+      // Restore elements for cashier
+      if (els.setupPettyGroup) els.setupPettyGroup.style.display = '';
+      if (els.setupBtn) {
+        els.setupBtn.innerHTML = `<i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)`;
+      }
+
       const todayStr = new Date().toISOString().split('T')[0];
       const allPetty = await window.BokeoDB.getPettyCashSessions();
       
@@ -457,6 +485,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           pettyGroup.appendChild(infoDiv);
         }
       }
+      infoDiv.style.display = ''; // Ensure it's shown for cashiers
       
       if (todaySessions.length > 0) {
         // Last session's remaining cash becomes starting cash
@@ -534,6 +563,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const isAdminPOS = [
+      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
+      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
+      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
+    ].includes(posObj.name);
+
     // Save Cashier if new
     const cashierExists = state.cashiers.some(c => c.name.toLowerCase() === cashierName.toLowerCase());
     if (!cashierExists) {
@@ -565,7 +600,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         lak_remaining: pettyLak,
         thb_remaining: pettyThb,
         cny_remaining: pettyCny,
-        closed: false
+        closed: isAdminPOS ? true : false
       };
       await window.BokeoDB.savePettyCashSession(session);
     }
@@ -577,6 +612,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Close setup screen
     els.setupOverlay.style.display = 'none';
+
+    // Apply role UI adjustments
+    applyRoleUI();
+
+    // Redirect to view
+    if (isAdminPOS) {
+      switchView('dashboard');
+    } else {
+      switchView('pos');
+    }
 
     // Load view
     renderProducts();
@@ -605,6 +650,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Close Counter Button click handler
   els.headerCloseCounterBtn.addEventListener('click', async () => {
     if (!state.currentPOS || !state.currentCashier) return;
+
+    const isAdminPOS = [
+      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
+      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
+      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
+    ].includes(state.currentPOS.name);
+
+    if (isAdminPOS) {
+      const confirmLogout = confirm('ທ່ານຕ້ອງການອອກຈາກລະບົບແທ້ຫຼືບໍ່?');
+      if (confirmLogout) {
+        state.currentCashier = null;
+        state.currentPOS = null;
+        state.pettyCashSession = null;
+        state.shiftStartTime = null;
+        state.cart = [];
+
+        els.setupCashier.value = '';
+        els.setupOverlay.style.display = 'flex';
+        await updateSetupStartingCash();
+        updateCartUI();
+      }
+      return;
+    }
 
     // Open Close Shift summary modal
     const todayStr = new Date().toISOString().split('T')[0];
@@ -793,6 +861,45 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderStockTable();
     } else if (viewName === 'settings') {
       renderSettingsPage();
+    }
+  }
+
+  function applyRoleUI() {
+    if (!state.currentPOS) return;
+    
+    const isAdminPOS = [
+      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
+      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
+      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
+    ].includes(state.currentPOS.name);
+
+    els.navItems.forEach(item => {
+      const view = item.getAttribute('data-view');
+      if (isAdminPOS) {
+        if (view === 'pos') {
+          item.style.display = 'none';
+        } else {
+          item.style.display = 'flex';
+        }
+      } else {
+        if (view === 'pos') {
+          item.style.display = 'flex';
+        } else {
+          item.style.display = 'none';
+        }
+      }
+    });
+
+    if (els.headerCloseCounterBtn) {
+      if (isAdminPOS) {
+        els.headerCloseCounterBtn.innerHTML = `<i class="fas fa-sign-out-alt"></i> ອອກຈາກລະບົບ`;
+        els.headerCloseCounterBtn.style.color = 'var(--text-secondary)';
+        els.headerCloseCounterBtn.style.borderColor = 'var(--border-color)';
+      } else {
+        els.headerCloseCounterBtn.innerHTML = `<i class="fas fa-power-off"></i> ປິດເຄົາເຕີ້`;
+        els.headerCloseCounterBtn.style.color = 'var(--danger-color)';
+        els.headerCloseCounterBtn.style.borderColor = '#fca5a5';
+      }
     }
   }
 
