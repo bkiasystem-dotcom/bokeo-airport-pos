@@ -608,8 +608,9 @@ class BokeoPOSDB {
     try {
       console.log('Starting Google Sheets Sync...');
       
-      const pricesUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=0';
-      const stockUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=778238622';
+      const cacheBust = Date.now();
+      const pricesUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=0&t=' + cacheBust;
+      const stockUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/export?format=csv&gid=778238622&t=' + cacheBust;
 
       let pricesText = '';
       let stockText = '';
@@ -618,11 +619,11 @@ class BokeoPOSDB {
       if (settings && settings.gdrive_script_url) {
         try {
           console.log('Attempting fetch via Apps Script Web App...');
-          const pricesRes = await fetch(`${settings.gdrive_script_url}?sheet=prices`);
+          const pricesRes = await fetch(`${settings.gdrive_script_url}?sheet=prices&t=${cacheBust}`);
           if (!pricesRes.ok) throw new Error('Failed to fetch prices from Apps Script');
           pricesText = await pricesRes.text();
 
-          const stockRes = await fetch(`${settings.gdrive_script_url}?sheet=stock`);
+          const stockRes = await fetch(`${settings.gdrive_script_url}?sheet=stock&t=${cacheBust}`);
           if (!stockRes.ok) throw new Error('Failed to fetch stock from Apps Script');
           stockText = await stockRes.text();
           console.log('Apps Script Web App fetch successful.');
@@ -637,8 +638,8 @@ class BokeoPOSDB {
       if (!pricesText || !stockText) {
         try {
           console.log('Attempting direct Google Sheets Gviz fetch...');
-          const pricesGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&gid=0';
-          const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&gid=778238622';
+          const pricesGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&gid=0&t=' + cacheBust;
+          const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&gid=778238622&t=' + cacheBust;
 
           const pricesRes = await fetch(pricesGvizUrl);
           if (!pricesRes.ok) throw new Error('Failed to fetch prices from direct Gviz endpoint');
