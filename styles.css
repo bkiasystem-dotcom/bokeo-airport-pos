@@ -1470,3 +1470,75 @@ body {
   align-items: center;
   gap: 6px;
 }
+
+/* =========================================================================
+   MEMBERSHIP & POINTS SYSTEM STYLING
+   ========================================================================= */
+
+.cart-member-section {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: #fcfbfa; /* Soft warm background to highlight member zone */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.member-search-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.member-search-results {
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  max-height: 200px;
+  overflow-y: auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 105%;
+  z-index: 1000;
+}
+
+.member-result-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f6f5f3;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.member-result-item:hover {
+  background-color: #f5f2eb;
+}
+
+.member-result-item:last-child {
+  border-bottom: none;
+}
+
+.selected-member-card {
+  background: #ffffff;
+  border: 1px solid #ddd6fe; /* Light violet border to match premium theme */
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 6px rgba(124, 58, 237, 0.04);
+  animation: slideDownFade 0.25s ease-out;
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

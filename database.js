@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'BokeoAirportPOS_DB_v2';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 // Default Exchange Rates (1 THB = LAK / 1 THB = CNY)
 const DEFAULT_LAK_RATE = 700;
@@ -132,6 +132,11 @@ class BokeoPOSDB {
         if (!db.objectStoreNames.contains('petty_cash')) {
           db.createObjectStore('petty_cash', { keyPath: 'id' });
         }
+
+        // Members Store
+        if (!db.objectStoreNames.contains('members')) {
+          db.createObjectStore('members', { keyPath: 'id' });
+        }
       };
     });
   }
@@ -226,6 +231,9 @@ class BokeoPOSDB {
           { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
           { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
         ],
+        member_points_threshold: 500,
+        member_points_below: 1,
+        member_points_above: 10,
         firebase_config: null,
         qr_codes: {
           bcel_lak: '',
@@ -446,6 +454,51 @@ class BokeoPOSDB {
   }
 
   /* =========================================================================
+     MEMBERS MANAGEMENT
+     ========================================================================= */
+
+  async getMembers() {
+    return new Promise((resolve) => {
+      const tx = this.db.transaction('members', 'readonly');
+      const store = tx.objectStore('members');
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve([]);
+    });
+  }
+
+  async getMember(id) {
+    return new Promise((resolve) => {
+      const tx = this.db.transaction('members', 'readonly');
+      const store = tx.objectStore('members');
+      const req = store.get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  }
+
+  async saveMember(member) {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('members', 'readwrite');
+      const store = tx.objectStore('members');
+      const req = store.put(member);
+
+      req.onsuccess = async () => {
+        if (this.isFirebaseEnabled && this.firestore) {
+          try {
+            await this.firestore.collection('members').doc(member.id).set(member);
+          } catch (e) {
+            console.error('Firestore saveMember error:', e);
+          }
+        }
+        this._notifyListener('members');
+        resolve(member);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  /* =========================================================================
      PETTY CASH (ເງິນທອນເລີ່ມຕົ້ນ)
      ========================================================================= */
 
@@ -557,6 +610,17 @@ class BokeoPOSDB {
       this._notifyListener('cashiers');
     });
 
+    // Listen to Members Changes
+    this.firestore.collection('members').onSnapshot((snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        const data = change.doc.data();
+        if (change.type === 'added' || change.type === 'modified') {
+          await this._saveMemberLocalOnly(data);
+        }
+      });
+      this._notifyListener('members');
+    });
+
     // Listen to Transactions (For cross-terminal dashboard update)
     this.firestore.collection('transactions').onSnapshot((snapshot) => {
       snapshot.docChanges().forEach(async (change) => {
@@ -596,6 +660,14 @@ class BokeoPOSDB {
     });
   }
 
+  _saveMemberLocalOnly(member) {
+    return new Promise((resolve) => {
+      const tx = this.db.transaction('members', 'readwrite');
+      tx.objectStore('members').put(member);
+      tx.oncomplete = resolve;
+    });
+  }
+
   _saveTransactionLocalOnly(txData) {
     return new Promise((resolve) => {
       const tx = this.db.transaction('transactions', 'readwrite');
@@ -623,6 +695,7 @@ class BokeoPOSDB {
       let pricesText = '';
       let stockText = '';
       let pettyText = '';
+      let membersText = '';
       const settings = await this.getSettings();
 
       if (settings && settings.gdrive_script_url) {
@@ -646,12 +719,22 @@ class BokeoPOSDB {
               pettyText = '';
             }
           }
+          
+          const membersRes = await fetch(`${settings.gdrive_script_url}?sheet=members&t=${cacheBust}`);
+          if (membersRes.ok) {
+            membersText = await membersRes.text();
+            if (membersText.trim().startsWith('Error:')) {
+              console.warn('Apps Script members fetch returned error:', membersText);
+              membersText = '';
+            }
+          }
           console.log('Apps Script Web App fetch successful.');
         } catch (err) {
           console.warn('Apps Script Web App fetch failed, falling back to direct Gviz fetch:', err);
           pricesText = '';
           stockText = '';
           pettyText = '';
+          membersText = '';
         }
       }
 
@@ -889,7 +972,37 @@ class BokeoPOSDB {
 
       this._notifyListener('products');
 
-      // Sync petty cash sessions from Google Sheets if available
+      // Sync members from Google Sheets if available
+      if (membersText) {
+        try {
+          console.log('Parsing and updating members from Google Sheets...');
+          const memberRows = this._parseCSV(membersText);
+          const txSess = this.db.transaction('members', 'readwrite');
+          const storeSess = txSess.objectStore('members');
+          
+          memberRows.forEach((row, idx) => {
+            if (idx === 0 || row.length < 6) return; // Skip header or invalid rows
+            const memberId = row[0] ? row[0].trim() : '';
+            if (!memberId) return;
+            
+            const memberObj = {
+              id: memberId,
+              name: row[1] ? row[1].trim() : '',
+              surname: row[2] ? row[2].trim() : '',
+              phone: row[3] ? row[3].trim() : '',
+              email: row[4] ? row[4].trim() : '',
+              points: parseFloat(row[5] ? row[5].toString().replace(/[^\d\.]/g, '') : '0') || 0,
+              date_registered: row[6] ? row[6].trim() : ''
+            };
+            storeSess.put(memberObj);
+          });
+          await new Promise(resolve => txSess.oncomplete = resolve);
+          console.log('Members synced successfully from Google Sheets.');
+          this._notifyListener('members');
+        } catch (err) {
+          console.error('Failed to parse or save synced members:', err);
+        }
+      }
       if (pettyText) {
         try {
           console.log('Parsing and updating petty cash sessions from Google Sheets...');

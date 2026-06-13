@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     cart: [],
     cashiers: [],
     products: [],
+    members: [],
+    selectedMember: null,
     settings: {},
     currentCashier: null,
     currentPOS: null,
@@ -151,7 +153,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     shiftEndThb: document.getElementById('shift-end-thb'),
     shiftEndCny: document.getElementById('shift-end-cny'),
     btnPrintShiftReport: document.getElementById('btn-print-shift-report'),
-    confirmCloseShiftBtn: document.getElementById('confirm-close-shift-btn')
+    confirmCloseShiftBtn: document.getElementById('confirm-close-shift-btn'),
+
+    // Membership DOM Elements
+    cartMemberSection: document.getElementById('cart-member-section'),
+    memberSearchContainer: document.getElementById('member-search-container'),
+    cartMemberSearch: document.getElementById('cart-member-search'),
+    memberSearchResults: document.getElementById('member-search-results'),
+    btnOpenRegisterModal: document.getElementById('btn-open-register-modal'),
+    selectedMemberCard: document.getElementById('selected-member-card'),
+    selectedMemberName: document.getElementById('selected-member-name'),
+    selectedMemberId: document.getElementById('selected-member-id'),
+    btnClearMember: document.getElementById('btn-clear-member'),
+    selectedMemberPoints: document.getElementById('selected-member-points'),
+    selectedMemberEarned: document.getElementById('selected-member-earned'),
+    registerMemberModal: document.getElementById('register-member-modal'),
+    regMemberName: document.getElementById('reg-member-name'),
+    regMemberSurname: document.getElementById('reg-member-surname'),
+    regMemberPhone: document.getElementById('reg-member-phone'),
+    regMemberEmail: document.getElementById('reg-member-email'),
+    confirmRegisterMemberBtn: document.getElementById('confirm-register-member-btn'),
+    registerCloseBtn: document.getElementById('register-close-btn'),
+    settingsMemberThreshold: document.getElementById('settings-member-threshold'),
+    settingsMemberBelow: document.getElementById('settings-member-below'),
+    settingsMemberAbove: document.getElementById('settings-member-above'),
+    btnSyncMembersSettings: document.getElementById('btn-sync-members-settings'),
+    settingsMemberSearch: document.getElementById('settings-member-search'),
+    settingsMembersTableBody: document.getElementById('settings-members-table-body')
   };
 
 
@@ -249,6 +277,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     state.cashiers = await window.BokeoDB.getCashiers();
     state.products = await window.BokeoDB.getProducts();
+    state.members = await window.BokeoDB.getMembers();
 
     // Populate Cashier and POS dropdowns in Setup Overlay first so they are visible while syncing
     populateSetupOptions();
@@ -309,6 +338,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (state.currentView === 'pos') renderProducts();
       else if (state.currentView === 'stock') renderStockTable();
       checkLowStockAlerts();
+    });
+
+    // Listen to Members changes and reload UI
+    window.BokeoDB.on('members', async () => {
+      state.members = await window.BokeoDB.getMembers();
+      if (state.currentView === 'settings') {
+        renderSettingsMembersTable();
+      }
     });
 
     // Initial Google Sheets Auto-Sync on startup
@@ -1064,6 +1101,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   els.clearCartBtn.addEventListener('click', () => {
     state.cart = [];
+    state.selectedMember = null;
+    if (els.selectedMemberCard) els.selectedMemberCard.style.display = 'none';
+    if (els.memberSearchContainer) els.memberSearchContainer.style.display = 'flex';
     updateCartUI();
   });
 
@@ -1188,6 +1228,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.equivLak.textContent = formatNumber(totalLAK) + ' ₭';
     els.equivThb.textContent = formatNumber(totalTHB) + ' ฿';
     els.equivCny.textContent = formatNumber(totalCNY) + ' ¥';
+
+    // Update member details display
+    if (state.selectedMember) {
+      if (els.memberSearchContainer) els.memberSearchContainer.style.display = 'none';
+      if (els.selectedMemberCard) {
+        els.selectedMemberCard.style.display = 'block';
+        if (els.selectedMemberName) els.selectedMemberName.textContent = `${state.selectedMember.name} ${state.selectedMember.surname}`;
+        if (els.selectedMemberId) els.selectedMemberId.textContent = `ID: ${state.selectedMember.id} | ເບີໂທ: ${state.selectedMember.phone}`;
+        if (els.selectedMemberPoints) els.selectedMemberPoints.textContent = formatNumber(state.selectedMember.points);
+      }
+      updateEarnedPointsDisplay();
+    } else {
+      if (els.selectedMemberCard) els.selectedMemberCard.style.display = 'none';
+      if (els.memberSearchContainer) els.memberSearchContainer.style.display = 'flex';
+    }
   }
 
   // Global bindings so inline HTML click attributes work
@@ -1301,6 +1356,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (activePaymentMethod === 'transfer') {
       displayQR();
     }
+
+    // Update pending points if a member is selected
+    updateEarnedPointsDisplay();
   }
 
   // Handle Payment Method Selection
@@ -1500,7 +1558,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       paid_amount: paid,
       change_amount: change,
       payment_type: activePaymentMethod === 'cash' ? 'ເງິນສົດ' : 'ໂອນ',
-      bank: activePaymentMethod === 'transfer' ? els.bankSelect.value : null
+      bank: activePaymentMethod === 'transfer' ? els.bankSelect.value : null,
+      member_id: state.selectedMember ? state.selectedMember.id : '-',
+      earned_points: state.selectedMember ? calculateEarnedPoints(finalTotalTHB) : 0
     };
 
     // 1. Deduct Stock Locally & Sync Sales to Google Sheets
@@ -1513,6 +1573,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 2. Save Transaction to database
     await window.BokeoDB.saveTransaction(transaction);
+
+    // Update local member points in IndexedDB
+    if (state.selectedMember) {
+      state.selectedMember.points += transaction.earned_points;
+      await window.BokeoDB.saveMember(state.selectedMember);
+    }
 
     // 3. Update Remaining Petty Cash Session (only cash change reduces petty float)
     if (activePaymentMethod === 'cash') {
@@ -1547,6 +1613,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 5. Reset Cart and Close Checkout Modal
     state.cart = [];
+    state.selectedMember = null;
+    if (els.selectedMemberCard) els.selectedMemberCard.style.display = 'none';
+    if (els.memberSearchContainer) els.memberSearchContainer.style.display = 'flex';
     updateCartUI();
     els.checkoutModal.classList.remove('active');
     
@@ -1695,6 +1764,19 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div style="display: flex; justify-content: space-between;">
             <span>ເງິນທອນ:</span>
             <span style="font-weight: 700; color: #e11d48;">${formattedChange} ${symbol}</span>
+          </div>
+        </div>
+      ` : ''}
+
+      ${tx.member_id && tx.member_id !== '-' ? `
+        <div style="font-size: 11px; display: flex; flex-direction: column; gap: 6px; color: #444; border-bottom: 1px dashed #ccc; padding-bottom: 8px; margin-bottom: 12px; text-align: left;">
+          <div style="display: flex; justify-content: space-between;">
+            <span>ລະຫັດສະມາຊິກ (Member ID):</span>
+            <span style="font-weight: 600; color: #000;">${tx.member_id}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>ແຕ້ມສະສົມໃນບິນ (Earned Points):</span>
+            <span style="font-weight: 700; color: #10b981;">+${tx.earned_points || 0}</span>
           </div>
         </div>
       ` : ''}
@@ -3175,6 +3257,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Render POS List
     renderSettingsPOSList();
+
+    // Load and render membership settings
+    if (els.settingsMemberThreshold) {
+      els.settingsMemberThreshold.value = s.member_points_threshold !== undefined ? s.member_points_threshold : 500;
+    }
+    if (els.settingsMemberBelow) {
+      els.settingsMemberBelow.value = s.member_points_below !== undefined ? s.member_points_below : 1;
+    }
+    if (els.settingsMemberAbove) {
+      els.settingsMemberAbove.value = s.member_points_above !== undefined ? s.member_points_above : 10;
+    }
+    renderSettingsMembersTable();
   }
 
   function renderSettingsQRPreview(key) {
@@ -3317,6 +3411,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.settings.admin_pin = adminPin;
     state.settings.firebase_config = fbConfig;
     state.settings.gdrive_script_url = els.settingsGDriveScriptUrl.value.trim();
+
+    if (els.settingsMemberThreshold) {
+      state.settings.member_points_threshold = parseFloat(els.settingsMemberThreshold.value) || 500;
+    }
+    if (els.settingsMemberBelow) {
+      state.settings.member_points_below = parseFloat(els.settingsMemberBelow.value) || 1;
+    }
+    if (els.settingsMemberAbove) {
+      state.settings.member_points_above = parseFloat(els.settingsMemberAbove.value) || 10;
+    }
     if (els.settingsGDriveFolderId) {
       state.settings.gdrive_folder_id = els.settingsGDriveFolderId.value.trim();
     }
@@ -3539,6 +3643,258 @@ document.addEventListener('DOMContentLoaded', async () => {
         stockAlert.style.display = 'none';
       }
     }
+  }
+
+  /* =========================================================================
+     MEMBERSHIP & POINTS SYSTEM
+     ========================================================================= */
+
+  function calculateEarnedPoints(totalThb) {
+    const threshold = parseFloat(state.settings.member_points_threshold) || 500;
+    const below = parseFloat(state.settings.member_points_below) || 1;
+    const above = parseFloat(state.settings.member_points_above) || 10;
+    return totalThb < threshold ? below : above;
+  }
+
+  function calculateGrandTotalThb() {
+    let subtotalThb = 0;
+    state.cart.forEach(item => {
+      subtotalThb += item.product.price_thb * item.qty;
+    });
+    const discountInput = document.getElementById('checkout-discount-input');
+    const vatInput = document.getElementById('checkout-vat-input');
+    const discountPercent = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
+    const vatPercent = vatInput ? (parseFloat(vatInput.value) || 0) : 0;
+
+    const discountAmount = subtotalThb * (discountPercent / 100);
+    const vatAmount = (subtotalThb - discountAmount) * (vatPercent / 100);
+    return subtotalThb - discountAmount + vatAmount;
+  }
+
+  function updateEarnedPointsDisplay() {
+    if (!state.selectedMember) return;
+    const finalTotalThb = calculateGrandTotalThb();
+    const earnedPoints = calculateEarnedPoints(finalTotalThb);
+    if (els.selectedMemberEarned) {
+      els.selectedMemberEarned.textContent = `+${earnedPoints}`;
+    }
+  }
+
+  function selectCartMember(member) {
+    state.selectedMember = member;
+    if (els.cartMemberSearch) els.cartMemberSearch.value = '';
+    if (els.memberSearchResults) els.memberSearchResults.style.display = 'none';
+    if (els.memberSearchContainer) els.memberSearchContainer.style.display = 'none';
+    if (els.selectedMemberCard) {
+      els.selectedMemberCard.style.display = 'block';
+      if (els.selectedMemberName) els.selectedMemberName.textContent = `${member.name} ${member.surname}`;
+      if (els.selectedMemberId) els.selectedMemberId.textContent = `ID: ${member.id} | ເບີໂທ: ${member.phone}`;
+      if (els.selectedMemberPoints) els.selectedMemberPoints.textContent = formatNumber(member.points);
+      updateEarnedPointsDisplay();
+    }
+  }
+
+  async function registerMemberToGoogleSheets(member) {
+    const scriptUrl = state.settings.gdrive_script_url;
+    if (!scriptUrl) {
+      throw new Error('ກະລຸນາຕັ້ງຄ່າ Apps Script Web App URL ໃນການຕັ້ງຄ່າກ່ອນ');
+    }
+    const payload = {
+      action: 'register_member',
+      member: member
+    };
+    const response = await fetch(scriptUrl, {
+      method: 'POST',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    const resData = await response.json();
+    if (resData.success) {
+      return resData.member;
+    } else {
+      throw new Error(resData.error || 'Failed to register member on Google Sheets.');
+    }
+  }
+
+  function renderSettingsMembersTable() {
+    if (!els.settingsMembersTableBody) return;
+    els.settingsMembersTableBody.innerHTML = '';
+    
+    const query = els.settingsMemberSearch ? els.settingsMemberSearch.value.trim().toLowerCase() : '';
+    
+    let filtered = state.members || [];
+    if (query) {
+      filtered = filtered.filter(m => {
+        const id = (m.id || '').toLowerCase();
+        const fullName = `${m.name || ''} ${m.surname || ''}`.toLowerCase();
+        const phone = (m.phone || '').toLowerCase();
+        const email = (m.email || '').toLowerCase();
+        return id.includes(query) || fullName.includes(query) || phone.includes(query) || email.includes(query);
+      });
+    }
+
+    if (filtered.length === 0) {
+      els.settingsMembersTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-secondary);">ບໍ່ມີຂໍ້ມູນສະມາຊິກ</td></tr>`;
+      return;
+    }
+
+    filtered.forEach(m => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${m.id}</strong></td>
+        <td>${m.name || ''} ${m.surname || ''}</td>
+        <td>${m.phone || ''}</td>
+        <td style="text-align:center; font-weight:bold; color:var(--primary-accent);">${formatNumber(m.points || 0)}</td>
+      `;
+      els.settingsMembersTableBody.appendChild(tr);
+    });
+  }
+
+  // Bind Membership events
+  if (els.cartMemberSearch) {
+    els.cartMemberSearch.addEventListener('input', () => {
+      const query = els.cartMemberSearch.value.trim().toLowerCase();
+      if (!query) {
+        els.memberSearchResults.style.display = 'none';
+        return;
+      }
+      
+      const filtered = (state.members || []).filter(m => {
+        const id = (m.id || '').toLowerCase();
+        const fullName = `${m.name || ''} ${m.surname || ''}`.toLowerCase();
+        const phone = (m.phone || '').toLowerCase();
+        return id.includes(query) || fullName.includes(query) || phone.includes(query);
+      });
+
+      if (filtered.length === 0) {
+        els.memberSearchResults.innerHTML = `<div style="padding: 10px; text-align: center; color: var(--text-secondary); font-size: 0.8rem;">ບໍ່ພົບສະມາຊິກ</div>`;
+      } else {
+        els.memberSearchResults.innerHTML = filtered.map(m => `
+          <div class="search-result-item" data-id="${m.id}" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border-color); font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong style="color: var(--text-primary);">${m.name} ${m.surname}</strong>
+              <div style="font-size: 0.7rem; color: var(--text-secondary);">${m.id}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 0.72rem; color: var(--text-secondary);">${m.phone}</div>
+              <div style="font-size: 0.72rem; color: var(--primary-accent); font-weight: bold;">${m.points} ແຕ້ມ</div>
+            </div>
+          </div>
+        `).join('');
+
+        els.memberSearchResults.querySelectorAll('.search-result-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const id = item.getAttribute('data-id');
+            const member = state.members.find(m => m.id === id);
+            if (member) {
+              selectCartMember(member);
+            }
+          });
+        });
+      }
+      els.memberSearchResults.style.display = 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (els.memberSearchResults && !els.memberSearchResults.contains(e.target) && e.target !== els.cartMemberSearch) {
+        els.memberSearchResults.style.display = 'none';
+      }
+    });
+  }
+
+  if (els.btnClearMember) {
+    els.btnClearMember.addEventListener('click', () => {
+      state.selectedMember = null;
+      els.selectedMemberCard.style.display = 'none';
+      els.memberSearchContainer.style.display = 'flex';
+    });
+  }
+
+  if (els.btnOpenRegisterModal) {
+    els.btnOpenRegisterModal.addEventListener('click', () => {
+      els.regMemberName.value = '';
+      els.regMemberSurname.value = '';
+      els.regMemberPhone.value = '';
+      els.regMemberEmail.value = '';
+      els.registerMemberModal.classList.add('active');
+    });
+  }
+
+  if (els.registerCloseBtn) {
+    els.registerCloseBtn.addEventListener('click', () => {
+      els.registerMemberModal.classList.remove('active');
+    });
+  }
+
+  if (els.confirmRegisterMemberBtn) {
+    els.confirmRegisterMemberBtn.addEventListener('click', async () => {
+      const name = els.regMemberName.value.trim();
+      const surname = els.regMemberSurname.value.trim();
+      const phone = els.regMemberPhone.value.trim();
+      const email = els.regMemberEmail.value.trim();
+
+      if (!name || !surname || !phone) {
+        alert('ກະລຸນາປ້ອນຂໍ້ມູນ ຊື່, ນາມສະກຸນ ແລະ ເບີໂທ ໃຫ້ຄົບຖ້ວນ');
+        return;
+      }
+
+      els.confirmRegisterMemberBtn.disabled = true;
+      els.confirmRegisterMemberBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ກຳລັງລົງທະບຽນ...`;
+
+      try {
+        const tempMember = {
+          name: name,
+          surname: surname,
+          phone: phone,
+          email: email || '-'
+        };
+
+        const registered = await registerMemberToGoogleSheets(tempMember);
+        await window.BokeoDB.saveMember(registered);
+        
+        state.members = await window.BokeoDB.getMembers();
+        selectCartMember(registered);
+        els.registerMemberModal.classList.remove('active');
+        alert('ລົງທະບຽນສະມາຊິກໃໝ່ ສຳເລັດ: ' + registered.id);
+      } catch (error) {
+        console.error('Registration failed:', error);
+        alert('ບໍ່ສາມາດລົງທະບຽນສະມາຊິກໄດ້: ' + error.message);
+      } finally {
+        els.confirmRegisterMemberBtn.disabled = false;
+        els.confirmRegisterMemberBtn.innerHTML = `<i class="fas fa-save"></i> ຢືນຢັນການລົງທະບຽນ (Register)`;
+      }
+    });
+  }
+
+  if (els.btnSyncMembersSettings) {
+    els.btnSyncMembersSettings.addEventListener('click', async () => {
+      els.btnSyncMembersSettings.disabled = true;
+      els.btnSyncMembersSettings.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ກຳລັງອັບເດດ...`;
+      try {
+        await window.BokeoDB.syncWithGoogleSheets();
+        state.members = await window.BokeoDB.getMembers();
+        renderSettingsMembersTable();
+        alert('ອັບເດດຂໍ້ມູນສະມາຊິກຈາກ Google Sheets ສຳເລັດ');
+      } catch (error) {
+        console.error('Sync failed:', error);
+        alert('ບໍ່ສາມາດອັບເດດຂໍ້ມູນໄດ້: ' + error.message);
+      } finally {
+        els.btnSyncMembersSettings.disabled = false;
+        els.btnSyncMembersSettings.innerHTML = `<i class="fas fa-sync-alt"></i> ອັບເດດ`;
+      }
+    });
+  }
+
+  if (els.settingsMemberSearch) {
+    els.settingsMemberSearch.addEventListener('input', () => {
+      renderSettingsMembersTable();
+    });
   }
 
   // Load database content on start

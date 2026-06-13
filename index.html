@@ -151,6 +151,34 @@
                 <button class="clear-cart-btn" id="clear-cart-btn">ລ້າງກະຕ່າ</button>
               </div>
 
+              <!-- Member Section -->
+              <div class="cart-member-section" id="cart-member-section">
+                <div class="member-search-container" id="member-search-container">
+                  <div style="position: relative; flex: 1;">
+                    <i class="fas fa-id-card search-icon" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: 0.85rem;"></i>
+                    <input type="text" id="cart-member-search" placeholder="ຄົ້ນຫາສະມາຊິກ (ເບີໂທ ຫຼື ID)..." autocomplete="off" style="width: 100%; padding: 8px 12px 8px 32px; border: 1px solid var(--border-color); border-radius: 20px; font-size: 0.8rem; background-color: var(--background-color); font-family: var(--font-family);">
+                    <div class="member-search-results" id="member-search-results" style="display: none; position: absolute; left: 0; right: 0; top: 100%; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; box-shadow: var(--shadow-md); z-index: 100; max-height: 200px; overflow-y: auto;"></div>
+                  </div>
+                  <button class="primary-btn" id="btn-open-register-modal" style="padding: 6px 12px; font-size: 0.75rem; border-radius: 20px; flex-shrink: 0;" title="ລົງທະບຽນສະມາຊິກໃໝ່">
+                    <i class="fas fa-user-plus"></i> ເພີ່ມ
+                  </button>
+                </div>
+                
+                <div class="selected-member-card" id="selected-member-card" style="display: none;">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                      <div class="member-name" id="selected-member-name" style="font-weight: 700; font-size: 0.85rem; color: var(--text-primary);"></div>
+                      <div class="member-id" id="selected-member-id" style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 2px;"></div>
+                    </div>
+                    <button class="clear-cart-btn" id="btn-clear-member" style="font-size: 0.72rem; padding: 0;"><i class="fas fa-times"></i> ຍົກເລີກ</button>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.75rem; border-top: 1px dashed var(--border-color); padding-top: 6px;">
+                    <div>ຄະແນນສະສົມ: <strong id="selected-member-points" style="color: var(--primary-accent);">0</strong></div>
+                    <div>ແຕ້ມທີ່ຈະໄດ້: <strong id="selected-member-earned" style="color: #10b981;">+0</strong></div>
+                  </div>
+                </div>
+              </div>
+
               <!-- List of products in Cart -->
               <div class="cart-items" id="cart-items"></div>
 
@@ -403,6 +431,25 @@
                     <textarea class="form-input" id="settings-firebase-config" rows="6" style="font-family: monospace; font-size: 0.8rem; resize: none;" placeholder='{&#10;  "apiKey": "...",&#10;  "authDomain": "...",&#10;  "projectId": "...",&#10;  "storageBucket": "...",&#10;  "messagingSenderId": "...",&#10;  "appId": "..."&#10;}'></textarea>
                   </div>
                 </div>
+
+                <!-- Membership Points Settings -->
+                <div class="settings-card">
+                  <h3><i class="fas fa-id-card"></i> ຕັ້ງຄ່າຄະແນນສະມາຊິກ (Membership Points)</h3>
+                  <div class="form-group">
+                    <label for="settings-member-threshold">ເກນມູນຄ່າໃບບິນສະສົມຄະແນນ (ບາດ/THB)</label>
+                    <input type="number" class="form-input" id="settings-member-threshold" placeholder="500">
+                  </div>
+                  <div class="settings-row" style="margin-top: 12px;">
+                    <div class="form-group">
+                      <label for="settings-member-below">ຕ່ຳກວ່າເກນໄດ້ (ແຕ້ມ)</label>
+                      <input type="number" class="form-input" id="settings-member-below" placeholder="1">
+                    </div>
+                    <div class="form-group">
+                      <label for="settings-member-above">ເກີນ ຫຼື ເທົ່າເກນໄດ້ (ແຕ້ມ)</label>
+                      <input type="number" class="form-input" id="settings-member-above" placeholder="10">
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- Right settings block -->
@@ -489,6 +536,30 @@
                     <button class="primary-btn" id="btn-add-pos">ເພີ່ມຈຸດຂາຍ</button>
                   </div>
                   <div id="settings-pos-list" style="max-height:150px; overflow-y:auto; border:1px solid var(--border-color); border-radius: var(--radius-sm);"></div>
+                </div>
+
+                <!-- Member Directory -->
+                <div class="settings-card">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+                    <h3 style="margin-bottom:0;"><i class="fas fa-users"></i> ລາຍຊື່ສະມາຊິກທັງໝົດ</h3>
+                    <button class="secondary-btn" id="btn-sync-members-settings" style="padding: 4px 8px; font-size: 0.75rem;"><i class="fas fa-sync-alt"></i> ອັບເດດ</button>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <input type="text" class="form-input" id="settings-member-search" placeholder="ຄົ້ນຫາສະມາຊິກ (ຊື່, ເບີໂທ, ລະຫັດ)..." style="border-radius: 20px; font-size: 0.8rem;">
+                  </div>
+                  <div class="table-wrapper" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                    <table class="report-table" style="font-size: 0.8rem;">
+                      <thead>
+                        <tr>
+                          <th>ລະຫັດ</th>
+                          <th>ຊື່ ແລະ ນາມສະກຸນ</th>
+                          <th>ເບີໂທ</th>
+                          <th style="text-align:center;">ຄະແນນ</th>
+                        </tr>
+                      </thead>
+                      <tbody id="settings-members-table-body"></tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 
@@ -632,6 +703,40 @@
     </div>
   </div>
 
+  <!-- 6. MEMBER REGISTRATION MODAL -->
+  <div class="modal-overlay" id="register-member-modal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3><i class="fas fa-user-plus"></i> ລົງທະບຽນສະມາຊິກໃໝ່</h3>
+        <button class="close-modal-btn" id="register-close-btn">&times;</button>
+      </div>
+
+      <div class="form-group">
+        <label for="reg-member-name"><i class="fas fa-user"></i> ຊື່ (First Name) *</label>
+        <input type="text" class="form-input" id="reg-member-name" placeholder="ປ້ອນຊື່...">
+      </div>
+
+      <div class="form-group" style="margin-top: 12px;">
+        <label for="reg-member-surname"><i class="fas fa-user-friends"></i> ນາມສະກຸນ (Surname) *</label>
+        <input type="text" class="form-input" id="reg-member-surname" placeholder="ປ້ອນນາມສະກຸນ...">
+      </div>
+
+      <div class="form-group" style="margin-top: 12px;">
+        <label for="reg-member-phone"><i class="fas fa-phone-alt"></i> ເບີໂທ (Phone Number) *</label>
+        <input type="text" class="form-input" id="reg-member-phone" placeholder="ປ້ອນເບີໂທ...">
+      </div>
+
+      <div class="form-group" style="margin-top: 12px;">
+        <label for="reg-member-email"><i class="fas fa-envelope"></i> ອີເມວ (Email - ຖ້າມີ)</label>
+        <input type="email" class="form-input" id="reg-member-email" placeholder="ປ້ອນອີເມວ...">
+      </div>
+
+      <button class="checkout-btn" id="confirm-register-member-btn" style="margin-top: 20px;">
+        <i class="fas fa-save"></i> ຢືນຢັນການລົງທະບຽນ (Register)
+      </button>
+    </div>
+  </div>
+
   <!-- 3. RESTOCK PRODUCT MODAL -->
   <div class="modal-overlay" id="restock-modal">
     <div class="modal-content" style="max-width: 400px;">
@@ -769,8 +874,8 @@
   <input type="file" id="hidden-product-image-uploader" accept="image/*" style="display: none;">
 
   <!-- Load Database and Application Logic scripts -->
-  <script src="database.js?v=2.9"></script>
-  <script src="app.js?v=2.19"></script>
+  <script src="database.js?v=3.0"></script>
+  <script src="app.js?v=2.20"></script>
 
 </body>
 </html>
