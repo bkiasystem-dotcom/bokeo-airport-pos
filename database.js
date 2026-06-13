@@ -6,12 +6,12 @@
 // Default Firebase Firestore Configuration for Real-time Cloud Sync
 // Edit these values with your Firebase Project Configuration to sync all devices!
 const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyAYwndMq4pCJZrYqkkVPXgNmkcVU05x2Q0",
+  authDomain: "bokeo-airport-pos.firebaseapp.com",
+  projectId: "bokeo-airport-pos",
+  storageBucket: "bokeo-airport-pos.firebasestorage.app",
+  messagingSenderId: "95891865739",
+  appId: "1:95891865739:web:a7faadfbb749b7f8e9548e"
 };
 
 const DB_NAME = 'BokeoAirportPOS_DB_v2';
