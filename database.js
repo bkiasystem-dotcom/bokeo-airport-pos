@@ -807,7 +807,7 @@ class BokeoPOSDB {
 
       // Parse and update products
       let currentCategory = 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ';
-      const categoriesList = ['ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', 'ຫ້ອງ VIP', 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', 'ບໍລິການແທັກຊີ່', 'ບໍລິການລານຈອດ'];
+      const categoriesList = ['ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', 'ຫ້ອງ VIP', 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', 'ບໍລິການແທັກຊີ່', 'ບໍລິການລານຈອດ', 'ບໍລິການລານຈອດລົດ'];
       const importedIds = new Set();
 
       pricesRows.forEach(row => {
@@ -818,7 +818,7 @@ class BokeoPOSDB {
 
         // Check if this is a category header row
         if (categoriesList.includes(colA) && !colB && !colC) {
-          currentCategory = colA;
+          currentCategory = (colA === 'ບໍລິການລານຈອດລົດ') ? 'ບໍລິການລານຈອດ' : colA;
           return;
         }
 
