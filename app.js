@@ -858,8 +858,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     item.addEventListener('click', (e) => {
       const targetView = e.currentTarget.getAttribute('data-view');
       
-      // Check permission for admin areas (Dashboard, Stock, Settings)
-      if (targetView === 'dashboard' || targetView === 'stock' || targetView === 'settings') {
+      // Check permission for admin areas (Stock, Settings)
+      if (targetView === 'stock' || targetView === 'settings') {
         const isAdminPOS = state.currentPOS && [
           'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
           'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
@@ -930,7 +930,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           item.style.display = 'flex';
         }
       } else {
-        if (view === 'pos') {
+        if (view === 'pos' || view === 'dashboard') {
           item.style.display = 'flex';
         } else {
           item.style.display = 'none';
@@ -2157,36 +2157,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Populate POS Filters
     els.dashPOSFilter.innerHTML = '';
     
-    const optAll = document.createElement('option');
-    optAll.value = 'all';
-    optAll.textContent = 'ຈຸດຂາຍທັງໝົດ (All POS)';
-    els.dashPOSFilter.appendChild(optAll);
-    
-    // Group 1: Service Types (ປະເພດບໍລິການ)
-    const optGroupService = document.createElement('optgroup');
-    optGroupService.label = 'ປະເພດບໍລິການ (Service Types)';
-    
-    const serviceTypes = [...new Set(state.settings.pos_points.map(p => p.serviceType).filter(Boolean))];
-    serviceTypes.forEach(st => {
+    const isAdminPOS = state.currentPOS && [
+      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
+      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
+      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
+    ].includes(state.currentPOS.name);
+
+    if (!isAdminPOS) {
       const opt = document.createElement('option');
-      opt.value = `service:${st}`;
-      opt.textContent = `ປະເພດ: ${st}`;
-      optGroupService.appendChild(opt);
-    });
-    if (serviceTypes.length > 0) {
-      els.dashPOSFilter.appendChild(optGroupService);
+      opt.value = `pos:${state.currentPOS.name}`;
+      opt.textContent = `ຈຸດຂາຍ: ${state.currentPOS.name}`;
+      els.dashPOSFilter.appendChild(opt);
+      els.dashPOSFilter.disabled = true;
+    } else {
+      els.dashPOSFilter.disabled = false;
+      
+      const optAll = document.createElement('option');
+      optAll.value = 'all';
+      optAll.textContent = 'ຈຸດຂາຍທັງໝົດ (All POS)';
+      els.dashPOSFilter.appendChild(optAll);
+      
+      // Group 1: Service Types (ປະເພດບໍລິການ)
+      const optGroupService = document.createElement('optgroup');
+      optGroupService.label = 'ປະເພດບໍລິການ (Service Types)';
+      
+      const serviceTypes = [...new Set(state.settings.pos_points.map(p => p.serviceType).filter(Boolean))];
+      serviceTypes.forEach(st => {
+        const opt = document.createElement('option');
+        opt.value = `service:${st}`;
+        opt.textContent = `ປະເພດ: ${st}`;
+        optGroupService.appendChild(opt);
+      });
+      if (serviceTypes.length > 0) {
+        els.dashPOSFilter.appendChild(optGroupService);
+      }
+      
+      // Group 2: Individual POS Outlets (ຈຸດຂາຍ)
+      const optGroupPOS = document.createElement('optgroup');
+      optGroupPOS.label = 'ຈຸດຂາຍ (POS Outlets)';
+      state.settings.pos_points.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = `pos:${p.name}`;
+        opt.textContent = `ຈຸດຂາຍ: ${p.name}`;
+        optGroupPOS.appendChild(opt);
+      });
+      els.dashPOSFilter.appendChild(optGroupPOS);
     }
-    
-    // Group 2: Individual POS Outlets (ຈຸດຂາຍ)
-    const optGroupPOS = document.createElement('optgroup');
-    optGroupPOS.label = 'ຈຸດຂາຍ (POS Outlets)';
-    state.settings.pos_points.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = `pos:${p.name}`;
-      opt.textContent = `ຈຸດຂາຍ: ${p.name}`;
-      optGroupPOS.appendChild(opt);
-    });
-    els.dashPOSFilter.appendChild(optGroupPOS);
 
     if (!dashboardListenersBound) {
       els.startDateFilter.addEventListener('change', loadDashboardData);
@@ -2247,6 +2263,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const start = els.startDateFilter.value;
     const end = els.endDateFilter.value;
     const selectedPOS = els.dashPOSFilter.value;
+
+    const isAdminPOS = state.currentPOS && [
+      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
+      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
+      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
+    ].includes(state.currentPOS.name);
 
     const allTx = await window.BokeoDB.getTransactions();
     const allPetty = await window.BokeoDB.getPettyCashSessions();
@@ -2385,9 +2407,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="window.reprintInvoice('${tx.id}')">
               <i class="fas fa-print"></i>
             </button>
+            ${isAdminPOS ? `
             <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem; color:var(--danger-color);" onclick="window.deleteInvoice('${tx.id}')">
               <i class="fas fa-trash-alt"></i>
             </button>
+            ` : ''}
           </td>
         `;
         els.dashTableBody.appendChild(tr);
@@ -2464,14 +2488,41 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       dataValues = labels.map(l => sums[l]);
     } else if (chartMode === 'monthly') {
-      labels = getMonthsInRange(start, end);
+      let [y1, m1] = start.split('-').map(Number);
+      let monthStart = `${y1}-${String(m1).padStart(2, '0')}-01`;
+      
+      let [y2, m2] = end.split('-').map(Number);
+      let lastDay = new Date(y2, m2, 0).getDate();
+      let monthEnd = `${y2}-${String(m2).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      labels = getDatesInRange(monthStart, monthEnd);
       const sums = {};
       labels.forEach(l => sums[l] = 0);
       
-      dashboardTransactions.forEach(tx => {
-        const monthStr = tx.timestamp.split('T')[0].slice(0, 7);
-        if (sums[monthStr] !== undefined) {
-          sums[monthStr] += getTxAmount(tx, selectedCurrency);
+      const chartTxs = allTx.filter(tx => {
+        const txDate = tx.timestamp.split('T')[0];
+        const matchDate = txDate >= monthStart && txDate <= monthEnd;
+        
+        let matchPOS = false;
+        if (selectedPOS === 'all') {
+          matchPOS = true;
+        } else if (selectedPOS.startsWith('service:')) {
+          const targetService = selectedPOS.substring(8);
+          const txServiceType = tx.serviceType || (state.settings.pos_points.find(p => p.name === tx.pos)?.serviceType);
+          matchPOS = txServiceType === targetService;
+        } else if (selectedPOS.startsWith('pos:')) {
+          const targetPOS = selectedPOS.substring(4);
+          matchPOS = tx.pos === targetPOS;
+        } else {
+          matchPOS = tx.pos === selectedPOS;
+        }
+        return matchDate && matchPOS;
+      });
+
+      chartTxs.forEach(tx => {
+        const dateStr = tx.timestamp.split('T')[0];
+        if (sums[dateStr] !== undefined) {
+          sums[dateStr] += getTxAmount(tx, selectedCurrency);
         }
       });
       dataValues = labels.map(l => sums[l]);
