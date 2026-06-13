@@ -204,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
           { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
           { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
+          { name: 'ຈຸດຂາຍ ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
           { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
           { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
           { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
@@ -230,6 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
         { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
         { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
+        { name: 'ຈຸດຂາຍ ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
         { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
         { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
         { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
@@ -1005,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     filtered.forEach(p => {
       const card = document.createElement('div');
-      card.className = `product-card ${serviceType === 'ຫ້ອງ VIP' ? 'vip' : serviceType === 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' ? 'wrapping' : serviceType === 'ບໍລິການແທັກຊີ່' ? 'taxi' : ''}`;
+      card.className = `product-card ${serviceType === 'ຫ້ອງ VIP' ? 'vip' : serviceType === 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' ? 'wrapping' : serviceType === 'ບໍລິການແທັກຊີ່' ? 'taxi' : serviceType === 'ບໍລິການລານຈອດ' ? 'parking' : ''}`;
       
       // Stock Status
       let stockHtml = '';
@@ -2146,6 +2148,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let dashboardTransactions = [];
   let salesChartInstance = null;
   let chartMode = 'daily'; // 'daily', 'monthly', 'allmonths'
+  let posChartInstance = null;
+  let posChartMode = 'daily'; // 'daily', 'monthly', 'yearly'
   let dashboardListenersBound = false;
 
   function initDashboard() {
@@ -2241,11 +2245,38 @@ document.addEventListener('DOMContentLoaded', async () => {
           loadDashboardData();
         });
       }
+
+      const btnPosDaily = document.getElementById('pos-chart-btn-daily');
+      const btnPosMonthly = document.getElementById('pos-chart-btn-monthly');
+      const btnPosYearly = document.getElementById('pos-chart-btn-yearly');
+      
+      if (btnPosDaily) {
+        btnPosDaily.addEventListener('click', () => {
+          posChartMode = 'daily';
+          updatePOSChartToggles();
+          loadDashboardData();
+        });
+      }
+      if (btnPosMonthly) {
+        btnPosMonthly.addEventListener('click', () => {
+          posChartMode = 'monthly';
+          updatePOSChartToggles();
+          loadDashboardData();
+        });
+      }
+      if (btnPosYearly) {
+        btnPosYearly.addEventListener('click', () => {
+          posChartMode = 'yearly';
+          updatePOSChartToggles();
+          loadDashboardData();
+        });
+      }
       
       dashboardListenersBound = true;
     }
 
     updateChartToggles();
+    updatePOSChartToggles();
     loadDashboardData();
   }
 
@@ -2750,6 +2781,244 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (posContainer) {
       posContainer.innerHTML = posSummaryHTML;
     }
+
+    renderPOSChart(allTx);
+  }
+
+  function updatePOSChartToggles() {
+    const btnDaily = document.getElementById('pos-chart-btn-daily');
+    const btnMonthly = document.getElementById('pos-chart-btn-monthly');
+    const btnYearly = document.getElementById('pos-chart-btn-yearly');
+    
+    if (btnDaily) btnDaily.classList.toggle('active', posChartMode === 'daily');
+    if (btnMonthly) btnMonthly.classList.toggle('active', posChartMode === 'monthly');
+    if (btnYearly) btnYearly.classList.toggle('active', posChartMode === 'yearly');
+  }
+
+  function renderPOSChart(allTx) {
+    const start = els.startDateFilter.value;
+    const end = els.endDateFilter.value;
+    const selectedPOS = els.dashPOSFilter.value;
+
+    const chartCurrency = document.getElementById('chart-currency');
+    const selectedCurrency = chartCurrency ? chartCurrency.value : 'COMBINED_LAK';
+    const symbol = getCurrencySymbol(selectedCurrency);
+
+    function getTxAmount(tx, currency) {
+      if (currency === 'COMBINED_LAK') return tx.total_lak || 0;
+      if (currency === 'COMBINED_THB') return tx.total_thb || 0;
+      if (currency === 'LAK') return tx.paid_currency === 'LAK' ? (tx.total_lak || 0) : 0;
+      if (currency === 'THB') return tx.paid_currency === 'THB' ? (tx.total_thb || 0) : 0;
+      if (currency === 'CNY') return tx.paid_currency === 'CNY' ? (tx.total_cny || 0) : 0;
+      return 0;
+    }
+
+    function getCurrencySymbol(currency) {
+      if (currency === 'COMBINED_LAK' || currency === 'LAK') return '₭';
+      if (currency === 'COMBINED_THB' || currency === 'THB') return '฿';
+      if (currency === 'CNY') return '¥';
+      return '';
+    }
+
+    function getDatesInRange(startDateStr, endDateStr) {
+      const dates = [];
+      let [y1, m1, d1] = startDateStr.split('-').map(Number);
+      let [y2, m2, d2] = endDateStr.split('-').map(Number);
+      let start = new Date(y1, m1 - 1, d1);
+      const end = new Date(y2, m2 - 1, d2);
+      while (start <= end) {
+        const y = start.getFullYear();
+        const m = String(start.getMonth() + 1).padStart(2, '0');
+        const d = String(start.getDate()).padStart(2, '0');
+        dates.push(`${y}-${m}-${d}`);
+        start.setDate(start.getDate() + 1);
+      }
+      return dates;
+    }
+
+    function getMonthsInRange(startDateStr, endDateStr) {
+      const months = [];
+      let [y1, m1] = startDateStr.split('-').map(Number);
+      let [y2, m2] = endDateStr.split('-').map(Number);
+      let start = new Date(y1, m1 - 1, 1);
+      const end = new Date(y2, m2 - 1, 1);
+      while (start <= end) {
+        const y = start.getFullYear();
+        const m = String(start.getMonth() + 1).padStart(2, '0');
+        months.push(`${y}-${m}`);
+        start.setMonth(start.getMonth() + 1);
+      }
+      return months;
+    }
+
+    let labels = [];
+    if (posChartMode === 'daily') {
+      labels = getDatesInRange(start, end);
+    } else if (posChartMode === 'monthly') {
+      let [y1, m1] = start.split('-').map(Number);
+      let monthStart = `${y1}-${String(m1).padStart(2, '0')}-01`;
+      let [y2, m2] = end.split('-').map(Number);
+      let lastDay = new Date(y2, m2, 0).getDate();
+      let monthEnd = `${y2}-${String(m2).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      labels = getDatesInRange(monthStart, monthEnd);
+    } else if (posChartMode === 'yearly') {
+      let [y] = start.split('-');
+      let yearStart = `${y}-01-01`;
+      let yearEnd = `${y}-12-31`;
+      labels = getMonthsInRange(yearStart, yearEnd);
+    }
+
+    const displayLabels = labels.map(l => {
+      if (l.length === 10) {
+        const [y, m, d] = l.split('-');
+        return `${d}/${m}/${y}`;
+      }
+      if (l.length === 7) {
+        const [y, m] = l.split('-');
+        return `${m}/${y}`;
+      }
+      return l;
+    });
+
+    const activePOSList = state.settings.pos_points.filter(p => {
+      if (selectedPOS === 'all') return true;
+      if (selectedPOS.startsWith('service:')) {
+        return p.serviceType === selectedPOS.substring(8);
+      }
+      if (selectedPOS.startsWith('pos:')) {
+        return p.name === selectedPOS.substring(4);
+      }
+      return p.name === selectedPOS;
+    });
+
+    const colorPalette = [
+      { border: '#0f766e', background: 'rgba(15, 118, 110, 0.05)' }, // Teal
+      { border: '#3b82f6', background: 'rgba(59, 130, 246, 0.05)' }, // Blue
+      { border: '#8b5cf6', background: 'rgba(139, 92, 246, 0.05)' }, // Purple
+      { border: '#f59e0b', background: 'rgba(245, 158, 11, 0.05)' }, // Amber
+      { border: '#ec4899', background: 'rgba(236, 72, 153, 0.05)' }, // Pink
+      { border: '#10b981', background: 'rgba(16, 185, 129, 0.05)' }, // Emerald
+      { border: '#6366f1', background: 'rgba(99, 102, 241, 0.05)' }, // Indigo
+      { border: '#ef4444', background: 'rgba(239, 68, 68, 0.05)' },  // Red
+      { border: '#06b6d4', background: 'rgba(6, 182, 212, 0.05)' },  // Cyan
+      { border: '#84cc16', background: 'rgba(132, 204, 22, 0.05)' }   // Lime
+    ];
+
+    const posDatasets = activePOSList.map((p, idx) => {
+      const color = colorPalette[idx % colorPalette.length];
+      const data = labels.map(labelDate => {
+        const txsOnDate = allTx.filter(tx => {
+          const txDate = tx.timestamp.split('T')[0];
+          let dateMatches = false;
+          if (posChartMode === 'daily') {
+            dateMatches = txDate === labelDate;
+          } else if (posChartMode === 'monthly') {
+            dateMatches = txDate === labelDate;
+          } else if (posChartMode === 'yearly') {
+            const txMonth = txDate.slice(0, 7);
+            dateMatches = txMonth === labelDate;
+          }
+          return dateMatches && tx.pos === p.name;
+        });
+
+        let sum = 0;
+        txsOnDate.forEach(tx => {
+          sum += getTxAmount(tx, selectedCurrency);
+        });
+        return sum;
+      });
+
+      return {
+        label: p.name,
+        data: data,
+        borderColor: color.border,
+        borderWidth: 2,
+        backgroundColor: color.background,
+        fill: false,
+        tension: 0.3,
+        pointBackgroundColor: color.border,
+        pointBorderColor: '#fff',
+        pointHoverRadius: 6,
+        pointHoverBackgroundColor: color.border,
+        pointHoverBorderColor: '#fff',
+        pointRadius: 4
+      };
+    });
+
+    if (posChartInstance) {
+      posChartInstance.destroy();
+      posChartInstance = null;
+    }
+
+    const canvasEl = document.getElementById('posSalesChart');
+    if (canvasEl && typeof Chart !== 'undefined') {
+      const ctx = canvasEl.getContext('2d');
+      posChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: displayLabels,
+          datasets: posDatasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                font: {
+                  family: 'Outfit, Noto Sans Lao',
+                  size: 11
+                },
+                boxWidth: 12,
+                usePointStyle: true
+              }
+            },
+            tooltip: {
+              bodyFont: {
+                family: 'Outfit, Noto Sans Lao'
+              },
+              titleFont: {
+                family: 'Outfit, Noto Sans Lao'
+              },
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label + ': ' + formatNumber(context.parsed.y) + ' ' + symbol;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                font: {
+                  family: 'Outfit, Noto Sans Lao',
+                  size: 11
+                }
+              }
+            },
+            y: {
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              },
+              ticks: {
+                font: {
+                  family: 'Outfit, Noto Sans Lao',
+                  size: 11
+                },
+                callback: function(value) {
+                  return formatNumber(value) + ' ' + symbol;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
   }
 
   // Global reprints helper
@@ -2820,7 +3089,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)': { lo: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', cn: '商品销售处 (Consumer Shop)' },
       'ຫ້ອງ VIP (VIP Lounge)': { lo: 'ຫ້ອງ VIP (VIP Lounge)', cn: '贵宾厅 (VIP Lounge)' },
       'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)': { lo: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', cn: '行李打包处 (Wrapping Counter)' },
-      'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)': { lo: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', cn: '出租车柜台 (Taxi Counter)' }
+      'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)': { lo: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', cn: '出租车柜台 (Taxi Counter)' },
+      'ຈຸດຂາຍ ລານຈອດລົດ (Parking Lot)': { lo: 'ຈຸດຂາຍ ລານຈອດລົດ (Parking Lot)', cn: '停车场收费处 (Parking Lot)' }
     };
 
     let friendlyPOSLao = '';

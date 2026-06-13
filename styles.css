@@ -303,6 +303,10 @@ body {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
 }
 
+.product-card.parking .img-container {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+}
+
 .product-card .img-upload-overlay {
   position: absolute;
   top: 0;

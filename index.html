@@ -6,7 +6,7 @@
   <title>Bokeo International Airport POS - ລະບົບຈຸດຂາຍ</title>
   
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=2.8">
+  <link rel="stylesheet" href="styles.css?v=2.9">
   
   <!-- FontAwesome for Premium Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -271,6 +271,23 @@
               </div>
               <div style="height: 300px; position: relative; width: 100%;">
                 <canvas id="salesChart"></canvas>
+              </div>
+            </div>
+
+            <!-- Sales by POS Chart Card (Lao: ຍອດຂາຍແຍກຕາມຈຸດຂາຍ) -->
+            <div class="report-card" style="margin-bottom: 32px; flex-shrink: 0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <h3 style="margin-bottom:0;"><i class="fas fa-chart-bar"></i> ຍອດຂາຍແຍກຕາມຈຸດຂາຍ (Sales by POS)</h3>
+                <div style="display:flex; gap: 8px; align-items:center; flex-wrap: wrap;">
+                  <div class="currency-toggle" style="margin-right: 12px;">
+                    <button class="currency-opt active" id="pos-chart-btn-daily" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px;">ລາຍວັນ (Daily)</button>
+                    <button class="currency-opt" id="pos-chart-btn-monthly" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px;">ລາຍເດືອນ (Monthly)</button>
+                    <button class="currency-opt" id="pos-chart-btn-yearly" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px;">ລາຍປີ (Yearly)</button>
+                  </div>
+                </div>
+              </div>
+              <div style="height: 300px; position: relative; width: 100%;">
+                <canvas id="posSalesChart"></canvas>
               </div>
             </div>
 
@@ -875,7 +892,7 @@
 
   <!-- Load Database and Application Logic scripts -->
   <script src="database.js?v=3.1"></script>
-  <script src="app.js?v=2.23"></script>
+  <script src="app.js?v=2.25"></script>
 
 </body>
 </html>
