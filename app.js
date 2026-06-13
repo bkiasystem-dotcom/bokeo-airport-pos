@@ -99,6 +99,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     dashTableBody: document.getElementById('dash-table-body'),
     btnExportLaoPDF: document.getElementById('btn-export-lao-pdf'),
     btnExportCnyPDF: document.getElementById('btn-export-cny-pdf'),
+    reportRatesWrapper: document.getElementById('report-rates-wrapper'),
+    reportRateLak: document.getElementById('dash-rate-lak'),
+    reportRateCny: document.getElementById('dash-rate-cny'),
 
     // Stock View
     stockSearch: document.getElementById('stock-search'),
@@ -2191,6 +2194,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
     ].includes(state.currentPOS.name);
 
+    if (els.reportRateLak && !els.reportRateLak.value) {
+      els.reportRateLak.value = state.settings.exchange_rate_lak;
+    }
+    if (els.reportRateCny && !els.reportRateCny.value) {
+      els.reportRateCny.value = state.settings.exchange_rate_cny;
+    }
+    if (els.reportRatesWrapper) {
+      els.reportRatesWrapper.style.display = isAdminPOS ? 'flex' : 'none';
+    }
+
     if (!isAdminPOS) {
       const opt = document.createElement('option');
       opt.value = `pos:${state.currentPOS.name}`;
@@ -2236,6 +2249,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       els.startDateFilter.addEventListener('change', loadDashboardData);
       els.endDateFilter.addEventListener('change', loadDashboardData);
       els.dashPOSFilter.addEventListener('change', loadDashboardData);
+      if (els.reportRateLak) els.reportRateLak.addEventListener('input', loadDashboardData);
+      if (els.reportRateCny) els.reportRateCny.addEventListener('input', loadDashboardData);
 
       // Bind new chart toggles
       const btnDaily = document.getElementById('chart-btn-daily');
@@ -2325,6 +2340,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
     ].includes(state.currentPOS.name);
 
+    const rateLak = parseFloat(els.reportRateLak.value) || state.settings.exchange_rate_lak;
+    const rateCny = parseFloat(els.reportRateCny.value) || state.settings.exchange_rate_cny;
+
     const allTx = await window.BokeoDB.getTransactions();
     const allPetty = await window.BokeoDB.getPettyCashSessions();
 
@@ -2362,20 +2380,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     let ldbCount = 0;
 
     dashboardTransactions.forEach(tx => {
-      sumLAK += tx.total_lak;
-      sumTHB += tx.total_thb;
-      sumCNY += tx.total_cny;
+      const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+      const txTotalLak = txTotalThb * rateLak;
+      const txTotalCny = txTotalThb * rateCny;
+
+      sumLAK += txTotalLak;
+      sumTHB += txTotalThb;
+      sumCNY += txTotalCny;
 
       if (tx.payment_type === 'ໂອນ') {
-        transferLAK += tx.total_lak;
-        transferTHB += tx.total_thb;
-        transferCNY += tx.total_cny;
+        transferLAK += txTotalLak;
+        transferTHB += txTotalThb;
+        transferCNY += txTotalCny;
 
         if (tx.bank === 'BCEL') bcelCount++;
         else if (tx.bank === 'LDB') ldbCount++;
       }
     });
-
     // Calculate Petty Cash Balances for the filter range
     let startLAK = 0, startTHB = 0, startCNY = 0;
     let remainLAK = 0, remainTHB = 0, remainCNY = 0;
@@ -2447,9 +2468,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tr = document.createElement('tr');
         
         let amountDisplay = '';
-        if (tx.paid_currency === 'LAK') amountDisplay = formatNumber(tx.total_lak) + ' ₭';
+        if (tx.paid_currency === 'LAK') amountDisplay = formatNumber(tx.total_thb * rateLak) + ' ₭';
         else if (tx.paid_currency === 'THB') amountDisplay = formatNumber(tx.total_thb) + ' ฿';
-        else if (tx.paid_currency === 'CNY') amountDisplay = formatNumber(tx.total_cny) + ' ¥';
+        else if (tx.paid_currency === 'CNY') amountDisplay = formatNumber(tx.total_thb * rateCny) + ' ¥';
 
         tr.innerHTML = `
           <td style="font-weight:700;">${tx.id}</td>
@@ -2484,18 +2505,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const symbol = getCurrencySymbol(selectedCurrency);
 
     function getTxAmount(tx, currency) {
-      if (currency === 'COMBINED_LAK') return tx.total_lak || 0;
-      if (currency === 'COMBINED_THB') return tx.total_thb || 0;
-      if (currency === 'LAK') return tx.paid_currency === 'LAK' ? (tx.total_lak || 0) : 0;
-      if (currency === 'THB') return tx.paid_currency === 'THB' ? (tx.total_thb || 0) : 0;
-      if (currency === 'CNY') return tx.paid_currency === 'CNY' ? (tx.total_cny || 0) : 0;
+      const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+      if (currency === 'COMBINED_LAK') return txTotalThb * rateLak;
+      if (currency === 'COMBINED_THB') return txTotalThb;
+      if (currency === 'COMBINED_CNY') return txTotalThb * rateCny;
+      if (currency === 'LAK') return tx.paid_currency === 'LAK' ? (txTotalThb * rateLak) : 0;
+      if (currency === 'THB') return tx.paid_currency === 'THB' ? txTotalThb : 0;
+      if (currency === 'CNY') return tx.paid_currency === 'CNY' ? (txTotalThb * rateCny) : 0;
       return 0;
     }
 
     function getCurrencySymbol(currency) {
       if (currency === 'COMBINED_LAK' || currency === 'LAK') return '₭';
       if (currency === 'COMBINED_THB' || currency === 'THB') return '฿';
-      if (currency === 'CNY') return '¥';
+      if (currency === 'COMBINED_CNY' || currency === 'CNY') return '¥';
       return '';
     }
 
@@ -2726,11 +2749,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         posDailyData[dateStr] = {};
       }
       if (!posDailyData[dateStr][posName]) {
-        posDailyData[dateStr][posName] = { lak: 0, thb: 0, cny: 0 };
+        posDailyData[dateStr][posName] = { thb: 0 };
       }
-      posDailyData[dateStr][posName].lak += tx.total_lak || 0;
-      posDailyData[dateStr][posName].thb += tx.total_thb || 0;
-      posDailyData[dateStr][posName].cny += tx.total_cny || 0;
+      posDailyData[dateStr][posName].thb += tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
     });
 
     const sortedDates = Object.keys(posDailyData).sort().reverse();
@@ -2744,30 +2765,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         const formattedDate = `${d}/${m}/${y}`;
         
         let rowsHtml = '';
-        let dayTotalLak = 0;
         let dayTotalThb = 0;
-        let dayTotalCny = 0;
         
         const posNames = Object.keys(posDailyData[dateStr]).sort();
         posNames.forEach(posName => {
           const metrics = posDailyData[dateStr][posName];
-          dayTotalLak += metrics.lak;
-          dayTotalThb += metrics.thb;
-          dayTotalCny += metrics.cny;
+          const posThb = metrics.thb;
+          const posLak = posThb * rateLak;
+          const posCny = posThb * rateCny;
+          dayTotalThb += posThb;
           
           rowsHtml += `
             <tr>
               <td style="font-weight: 500; font-size: 0.8rem; padding: 6px 8px;">${posName}</td>
-              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(metrics.lak)} ₭</td>
-              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(metrics.thb)} ฿</td>
-              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(metrics.cny)} ¥</td>
+              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(posLak)} ₭</td>
+              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(posThb)} ฿</td>
+              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(posCny)} ¥</td>
             </tr>
           `;
         });
         
-        const rateLak = state.settings.exchange_rate_lak;
-        const rateCny = state.settings.exchange_rate_cny;
-        const dayCombinedLak = dayTotalLak + (dayTotalThb * rateLak) + (dayTotalCny * (rateLak / rateCny));
+        const dayTotalLak = dayTotalThb * rateLak;
+        const dayTotalCny = dayTotalThb * rateCny;
         
         posSummaryHTML += `
           <div style="margin-bottom: 24px; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; background: #fff;">
@@ -2793,8 +2812,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </tr>
               </tbody>
             </table>
-            <div style="font-size: 0.75rem; color: var(--text-secondary); text-align: right; font-weight: 600; padding-top: 4px;">
-              ລວມທັງໝົດທຽບເທົ່າກີບ: <span style="color: var(--primary-accent);">${formatNumber(dayCombinedLak)} ₭</span>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); text-align: right; font-weight: 600; padding-top: 4px; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
+              <span>ລວມທຽບເທົ່າກີບ (LAK): <span style="color: var(--primary-accent);">${formatNumber(dayTotalLak)} ₭</span></span>
+              <span>ລວມທຽບເທົ່າບາດ (THB): <span style="color: var(--primary-accent);">${formatNumber(dayTotalThb)} ฿</span></span>
+              <span>ລວມທຽບເທົ່າຢວນ (CNY): <span style="color: var(--primary-accent);">${formatNumber(dayTotalCny)} ¥</span></span>
             </div>
           </div>
         `;
@@ -2828,19 +2849,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const selectedCurrency = chartCurrency ? chartCurrency.value : 'COMBINED_LAK';
     const symbol = getCurrencySymbol(selectedCurrency);
 
+    const rateLak = parseFloat(els.reportRateLak.value) || state.settings.exchange_rate_lak;
+    const rateCny = parseFloat(els.reportRateCny.value) || state.settings.exchange_rate_cny;
+
     function getTxAmount(tx, currency) {
-      if (currency === 'COMBINED_LAK') return tx.total_lak || 0;
-      if (currency === 'COMBINED_THB') return tx.total_thb || 0;
-      if (currency === 'LAK') return tx.paid_currency === 'LAK' ? (tx.total_lak || 0) : 0;
-      if (currency === 'THB') return tx.paid_currency === 'THB' ? (tx.total_thb || 0) : 0;
-      if (currency === 'CNY') return tx.paid_currency === 'CNY' ? (tx.total_cny || 0) : 0;
+      const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+      if (currency === 'COMBINED_LAK') return txTotalThb * rateLak;
+      if (currency === 'COMBINED_THB') return txTotalThb;
+      if (currency === 'COMBINED_CNY') return txTotalThb * rateCny;
+      if (currency === 'LAK') return tx.paid_currency === 'LAK' ? (txTotalThb * rateLak) : 0;
+      if (currency === 'THB') return tx.paid_currency === 'THB' ? txTotalThb : 0;
+      if (currency === 'CNY') return tx.paid_currency === 'CNY' ? (txTotalThb * rateCny) : 0;
       return 0;
     }
 
     function getCurrencySymbol(currency) {
       if (currency === 'COMBINED_LAK' || currency === 'LAK') return '₭';
       if (currency === 'COMBINED_THB' || currency === 'THB') return '฿';
-      if (currency === 'CNY') return '¥';
+      if (currency === 'COMBINED_CNY' || currency === 'CNY') return '¥';
       return '';
     }
 
@@ -3139,26 +3165,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       friendlyPOSCn = `销售点: ${translatedPOS}`;
     }
 
+    const rateLak = parseFloat(els.reportRateLak.value) || state.settings.exchange_rate_lak;
+    const rateCny = parseFloat(els.reportRateCny.value) || state.settings.exchange_rate_cny;
+
     let totalLAK = 0, totalTHB = 0, totalCNY = 0;
     let transLAK = 0, transTHB = 0, transCNY = 0;
     let cashLAK = 0, cashTHB = 0, cashCNY = 0;
     let bcel = 0, ldb = 0;
 
     dashboardTransactions.forEach(tx => {
-      totalLAK += tx.total_lak;
-      totalTHB += tx.total_thb;
-      totalCNY += tx.total_cny;
+      const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+      const txTotalLak = txTotalThb * rateLak;
+      const txTotalCny = txTotalThb * rateCny;
+
+      totalLAK += txTotalLak;
+      totalTHB += txTotalThb;
+      totalCNY += txTotalCny;
 
       if (tx.payment_type === 'ໂອນ') {
-        transLAK += tx.total_lak;
-        transTHB += tx.total_thb;
-        transCNY += tx.total_cny;
+        transLAK += txTotalLak;
+        transTHB += txTotalThb;
+        transCNY += txTotalCny;
         if (tx.bank === 'BCEL') bcel++;
         else if (tx.bank === 'LDB') ldb++;
       } else {
-        cashLAK += tx.total_lak;
-        cashTHB += tx.total_thb;
-        cashCNY += tx.total_cny;
+        cashLAK += txTotalLak;
+        cashTHB += txTotalThb;
+        cashCNY += txTotalCny;
       }
     });
 
@@ -3270,11 +3303,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         pdfPosDailyData[dateStr] = {};
       }
       if (!pdfPosDailyData[dateStr][posName]) {
-        pdfPosDailyData[dateStr][posName] = { lak: 0, thb: 0, cny: 0 };
+        pdfPosDailyData[dateStr][posName] = { thb: 0 };
       }
-      pdfPosDailyData[dateStr][posName].lak += tx.total_lak || 0;
-      pdfPosDailyData[dateStr][posName].thb += tx.total_thb || 0;
-      pdfPosDailyData[dateStr][posName].cny += tx.total_cny || 0;
+      pdfPosDailyData[dateStr][posName].thb += tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
     });
 
     const pdfSortedDates = Object.keys(pdfPosDailyData).sort().reverse();
@@ -3290,31 +3321,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         const formattedDate = `${d}/${m}/${y}`;
         
         let rowsHtml = '';
-        let dayTotalLak = 0;
         let dayTotalThb = 0;
-        let dayTotalCny = 0;
         
         const posNames = Object.keys(pdfPosDailyData[dateStr]).sort();
         posNames.forEach(posName => {
           const metrics = pdfPosDailyData[dateStr][posName];
-          dayTotalLak += metrics.lak;
-          dayTotalThb += metrics.thb;
-          dayTotalCny += metrics.cny;
+          const posThb = metrics.thb;
+          const posLak = posThb * rateLak;
+          const posCny = posThb * rateCny;
+          dayTotalThb += posThb;
           
           const translatedPOSName = lang === 'cn' ? (posTranslations[posName]?.cn || posName) : posName;
           rowsHtml += `
             <tr style="page-break-inside: avoid; break-inside: avoid;">
               <td style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem;">${translatedPOSName}</td>
-              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.lak)} ₭</td>
-              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.thb)} ฿</td>
-              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.cny)} ¥</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(posLak)} ₭</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(posThb)} ฿</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(posCny)} ¥</td>
             </tr>
           `;
         });
         
-        const rateLak = state.settings.exchange_rate_lak;
-        const rateCny = state.settings.exchange_rate_cny;
-        const dayCombinedLak = dayTotalLak + (dayTotalThb * rateLak) + (dayTotalCny * (rateLak / rateCny));
+        const dayTotalLak = dayTotalThb * rateLak;
+        const dayTotalCny = dayTotalThb * rateCny;
         
         pdfPosSummaryHTML += `
           <div style="margin-bottom: 16px; page-break-inside: avoid; break-inside: avoid;">
@@ -3340,8 +3369,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </tr>
               </tbody>
             </table>
-            <div style="font-size: 0.75rem; color: #555; text-align: right; font-weight: 600; padding-top: 2px;">
-              ${t.combinedLak}: <span style="color: #0f766e;">${formatNumber(dayCombinedLak)} ₭</span>
+            <div style="font-size: 0.72rem; color: #555; text-align: right; font-weight: 600; padding-top: 2px; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
+              <span>${lang === 'cn' ? '折合基普总额' : 'ລວມທຽບເທົ່າກີບ'}: <span style="color: #0f766e;">${formatNumber(dayTotalLak)} ₭</span></span>
+              <span>${lang === 'cn' ? '折合泰铢总额' : 'ລວມທຽບເທົ່າບາດ'}: <span style="color: #0f766e;">${formatNumber(dayTotalThb)} ฿</span></span>
+              <span>${lang === 'cn' ? '折合人民币总额' : 'ລວມທຽບເທົ່າຢວນ'}: <span style="color: #0f766e;">${formatNumber(dayTotalCny)} ¥</span></span>
             </div>
           </div>
         `;
@@ -3354,12 +3385,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     reportDiv.style.fontFamily = 'var(--font-family)';
     reportDiv.style.color = '#000';
 
+    const isCustomRates = (rateLak !== state.settings.exchange_rate_lak) || (rateCny !== state.settings.exchange_rate_cny);
+    const rateWarningBanner = `
+      <div style="background-color: ${isCustomRates ? '#fffbeb' : '#f0fdf4'}; border: 1px solid ${isCustomRates ? '#fef3c7' : '#dcfce7'}; border-radius: 8px; padding: 12px; margin-bottom: 24px; text-align: center; color: ${isCustomRates ? '#b45309' : '#166534'}; font-weight: 600; font-size: 0.85rem; page-break-inside: avoid; break-inside: avoid;">
+        ${lang === 'cn' ? `
+          <div>${isCustomRates ? '⚠️ 汇率警示：此报告采用自定义汇总汇率计算' : 'ℹ️ 汇率说明：此报告采用系统当前汇率计算'}：1 THB = ${formatNumber(rateLak)} LAK | 1 THB = ${rateCny} CNY</div>
+          <div style="font-size: 0.75rem; margin-top: 2px; font-weight: normal; opacity: 0.95;">
+            ${isCustomRates ? 'Custom Exchange Rates Warning: Totals recalculated using custom reporting rates.' : 'Standard Exchange Rates: Totals calculated using active system exchange rates.'}
+          </div>
+        ` : `
+          <div>${isCustomRates ? '⚠️ ແຈ້ງເຕືອນອັດຕາແລກປ່ຽນ: ບົດລາຍງານນີ້ໃຊ້ການຄິດໄລ່ດ້ວຍອັດຕາແລກປ່ຽນທີ່ກຳນົດເອງ' : 'ℹ️ ຂໍ້ມູນອັດຕາແລກປ່ຽນ: ບົດລາຍງານນີ້ໃຊ້ການຄິດໄລ່ດ້ວຍອັດຕາແລກປ່ຽນມາດຕະຖານ'}: 1 THB = ${formatNumber(rateLak)} LAK | 1 THB = ${rateCny} CNY</div>
+          <div style="font-size: 0.75rem; margin-top: 2px; font-weight: normal; opacity: 0.95;">
+            ${isCustomRates ? 'Custom Exchange Rates Warning: Totals recalculated using custom reporting rates.' : 'Standard Exchange Rates: Totals calculated using active system exchange rates.'}
+          </div>
+        `}
+      </div>
+    `;
+
     reportDiv.innerHTML = `
       <div style="text-align:center; margin-bottom: 24px;">
         <h2 style="font-size: 1.6rem; margin-bottom: 4px;">${t.title}</h2>
         <h4 style="font-size: 0.95rem; font-weight: 500; color: #444; margin-bottom: 8px;">${t.sub}</h4>
         <p style="font-size: 0.85rem; color: #555;">${t.date} | ${t.pos}</p>
       </div>
+
+      ${rateWarningBanner}
 
       <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; page-break-inside: avoid; break-inside: avoid;">
         <div style="border: 1px solid #ddd; padding: 16px; border-radius: 8px; background: #fafafa;">
@@ -3405,9 +3455,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${dashboardTransactions.map(tx => {
             let val = 0;
             let sym = '';
-            if (tx.paid_currency === 'LAK') { val = tx.total_lak; sym = '₭'; }
-            else if (tx.paid_currency === 'THB') { val = tx.total_thb; sym = '฿'; }
-            else if (tx.paid_currency === 'CNY') { val = tx.total_cny; sym = '¥'; }
+            const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+            if (tx.paid_currency === 'LAK') { val = txTotalThb * rateLak; sym = '₭'; }
+            else if (tx.paid_currency === 'THB') { val = txTotalThb; sym = '฿'; }
+            else if (tx.paid_currency === 'CNY') { val = txTotalThb * rateCny; sym = '¥'; }
 
             let displayPaymentType = tx.payment_type;
             if (lang === 'cn') {
