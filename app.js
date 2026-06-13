@@ -382,6 +382,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
+    // Listen to Cashiers changes and reload UI
+    window.BokeoDB.on('cashiers', async () => {
+      state.cashiers = await window.BokeoDB.getCashiers();
+      populateSetupOptions();
+      if (state.currentView === 'settings') {
+        renderSettingsCashiers();
+      }
+    });
+
+    // Listen to Transactions changes and reload UI
+    window.BokeoDB.on('transactions', async () => {
+      if (state.currentView === 'dashboard') {
+        await loadDashboardData();
+      }
+    });
+
     // Initial Google Sheets Auto-Sync on startup
     window.BokeoDB.syncWithGoogleSheets().then(async () => {
       state.products = await window.BokeoDB.getProducts();
@@ -3791,14 +3807,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   window.deleteCashier = async (id) => {
-    // Restrict deletion of cashiers locally
-    const tx = window.BokeoDB.db.transaction('cashiers', 'readwrite');
-    tx.objectStore('cashiers').delete(id);
-    tx.oncomplete = async () => {
-      state.cashiers = await window.BokeoDB.getCashiers();
-      renderSettingsCashiers();
-      populateSetupOptions();
-    };
+    const confirmDelete = confirm('ທ່ານຕ້ອງການລຶບພະນັກງານຄົນນີ້ແທ້ຫຼືບໍ່?');
+    if (confirmDelete) {
+      try {
+        await window.BokeoDB.deleteCashier(id);
+      } catch (e) {
+        console.error('Failed to delete cashier:', e);
+      }
+    }
   };
 
   els.btnAddCashier.addEventListener('click', async () => {

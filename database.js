@@ -188,6 +188,9 @@ class BokeoPOSDB {
         
         // Setup real-time listener for products and stock
         this._setupRealtimeSyncListeners();
+
+        // Migrate/sync local data to Firestore
+        this.syncLocalDataToFirestore();
       } else {
         console.warn('Firebase SDK not loaded. Dynamic Cloud Sync is disabled.');
       }
@@ -473,6 +476,27 @@ class BokeoPOSDB {
     });
   }
 
+  async deleteCashier(id) {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction('cashiers', 'readwrite');
+      const store = tx.objectStore('cashiers');
+      const req = store.delete(id);
+
+      req.onsuccess = async () => {
+        if (this.isFirebaseEnabled && this.firestore) {
+          try {
+            await this.firestore.collection('cashiers').doc(id).delete();
+          } catch (e) {
+            console.error('Firestore deleteCashier error:', e);
+          }
+        }
+        this._notifyListener('cashiers');
+        resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
   /* =========================================================================
      MEMBERS MANAGEMENT
      ========================================================================= */
@@ -658,6 +682,108 @@ class BokeoPOSDB {
       });
       this._notifyListener('transactions');
     });
+  }
+
+  async syncLocalDataToFirestore() {
+    if (!this.isFirebaseEnabled || !this.firestore) return;
+    try {
+      console.log('Starting local data migration to Firestore...');
+
+      // 1. Sync Cashiers
+      const cashiers = await this.getCashiers();
+      if (cashiers.length > 0) {
+        const snapshot = await this.firestore.collection('cashiers').get();
+        const existingIds = new Set(snapshot.docs.map(doc => doc.id));
+        const missing = cashiers.filter(c => !existingIds.has(c.id));
+        
+        if (missing.length > 0) {
+          const batch = this.firestore.batch();
+          missing.forEach(c => {
+            const docRef = this.firestore.collection('cashiers').doc(c.id);
+            batch.set(docRef, c, { merge: true });
+          });
+          await batch.commit();
+          console.log(`Uploaded ${missing.length} missing cashiers to Firestore.`);
+        }
+      }
+
+      // 2. Sync Members
+      const members = await this.getMembers();
+      if (members.length > 0) {
+        const snapshot = await this.firestore.collection('members').get();
+        const existingIds = new Set(snapshot.docs.map(doc => doc.id));
+        const missing = members.filter(m => !existingIds.has(m.id));
+
+        if (missing.length > 0) {
+          // Chunk in batches of 500 (Firestore limit)
+          const chunks = [];
+          for (let i = 0; i < missing.length; i += 500) {
+            chunks.push(missing.slice(i, i + 500));
+          }
+          for (const chunk of chunks) {
+            const batch = this.firestore.batch();
+            chunk.forEach(m => {
+              const docRef = this.firestore.collection('members').doc(m.id);
+              batch.set(docRef, m, { merge: true });
+            });
+            await batch.commit();
+          }
+          console.log(`Uploaded ${missing.length} missing members to Firestore.`);
+        }
+      }
+
+      // 3. Sync Petty Cash Sessions
+      const pettySessions = await this.getPettyCashSessions();
+      if (pettySessions.length > 0) {
+        const snapshot = await this.firestore.collection('petty_cash').get();
+        const existingIds = new Set(snapshot.docs.map(doc => doc.id));
+        const missing = pettySessions.filter(p => !existingIds.has(p.id));
+
+        if (missing.length > 0) {
+          const chunks = [];
+          for (let i = 0; i < missing.length; i += 500) {
+            chunks.push(missing.slice(i, i + 500));
+          }
+          for (const chunk of chunks) {
+            const batch = this.firestore.batch();
+            chunk.forEach(s => {
+              const docRef = this.firestore.collection('petty_cash').doc(s.id);
+              batch.set(docRef, s, { merge: true });
+            });
+            await batch.commit();
+          }
+          console.log(`Uploaded ${missing.length} missing petty cash sessions to Firestore.`);
+        }
+      }
+
+      // 4. Sync Transactions
+      const transactions = await this.getTransactions();
+      if (transactions.length > 0) {
+        const snapshot = await this.firestore.collection('transactions').get();
+        const existingIds = new Set(snapshot.docs.map(doc => doc.id));
+        const missing = transactions.filter(t => !existingIds.has(t.id));
+
+        if (missing.length > 0) {
+          const chunks = [];
+          for (let i = 0; i < missing.length; i += 500) {
+            chunks.push(missing.slice(i, i + 500));
+          }
+          for (const chunk of chunks) {
+            const batch = this.firestore.batch();
+            chunk.forEach(tx => {
+              const docRef = this.firestore.collection('transactions').doc(tx.id);
+              batch.set(docRef, tx, { merge: true });
+            });
+            await batch.commit();
+          }
+          console.log(`Uploaded ${missing.length} missing transactions to Firestore.`);
+        }
+      }
+
+      console.log('Local data migration to Firestore completed successfully.');
+    } catch (e) {
+      console.error('Error during local data migration to Firestore:', e);
+    }
   }
 
   // Local-only database writes (called by firebase event listeners to avoid infinite loops)
