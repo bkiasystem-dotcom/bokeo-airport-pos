@@ -577,7 +577,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.settings.pos_points.forEach(p => {
       const opt = document.createElement('option');
       opt.value = JSON.stringify(p);
-      opt.textContent = `${p.name} (${p.serviceType})`;
+      if (p.name.startsWith('ແອດມິນ')) {
+        opt.textContent = p.name;
+      } else {
+        opt.textContent = `${p.name} (${p.serviceType})`;
+      }
       els.setupPOS.appendChild(opt);
     });
   }
@@ -3354,8 +3358,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       li.style.padding = '8px 12px';
       li.style.borderBottom = '1px solid var(--border-color)';
 
+      const text = p.name.startsWith('ແອດມິນ') ? `<strong>${p.name}</strong>` : `<strong>${p.name}</strong> (${p.serviceType})`;
       li.innerHTML = `
-        <span><strong>${p.name}</strong> (${p.serviceType})</span>
+        <span>${text}</span>
         <button class="secondary-btn" style="padding:4px 8px; color:var(--danger-color);" onclick="window.deletePOS(${index})">
           <i class="fas fa-trash-alt"></i>
         </button>
