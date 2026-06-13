@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
           { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
           { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
-          { name: 'ຈຸດຂາຍ ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
+          { name: 'ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
           { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
           { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
           { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
@@ -226,12 +226,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.settings.pos_points = [];
       }
       
+      const oldIndex = state.settings.pos_points.findIndex(p => p.name === 'ຈຸດຂາຍ ລານຈອດລົດ (Parking Lot)');
+      if (oldIndex !== -1) {
+        state.settings.pos_points.splice(oldIndex, 1);
+        settingsUpdated = true;
+      }
+      
       const defaultPOSPoints = [
         { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
         { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
         { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
         { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
-        { name: 'ຈຸດຂາຍ ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
+        { name: 'ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
         { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
         { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
         { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
@@ -3090,7 +3096,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       'ຫ້ອງ VIP (VIP Lounge)': { lo: 'ຫ້ອງ VIP (VIP Lounge)', cn: '贵宾厅 (VIP Lounge)' },
       'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)': { lo: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', cn: '行李打包处 (Wrapping Counter)' },
       'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)': { lo: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', cn: '出租车柜台 (Taxi Counter)' },
-      'ຈຸດຂາຍ ລານຈອດລົດ (Parking Lot)': { lo: 'ຈຸດຂາຍ ລານຈອດລົດ (Parking Lot)', cn: '停车场收费处 (Parking Lot)' }
+      'ລານຈອດລົດ (Parking Lot)': { lo: 'ລານຈອດລົດ (Parking Lot)', cn: '停车场收费处 (Parking Lot)' }
     };
 
     let friendlyPOSLao = '';
