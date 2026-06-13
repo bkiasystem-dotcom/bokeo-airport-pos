@@ -248,6 +248,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       defaultPOSPoints.forEach(defPoint => {
         const found = state.settings.pos_points.find(p => p.name === defPoint.name);
         if (found) {
+          if (found.serviceType !== defPoint.serviceType) {
+            found.serviceType = defPoint.serviceType;
+            settingsUpdated = true;
+          }
           sortedPOSPoints.push(found);
         } else {
           sortedPOSPoints.push(defPoint);

@@ -811,7 +811,7 @@ class BokeoPOSDB {
       const importedIds = new Set();
 
       pricesRows.forEach(row => {
-        if (row.length < 3) return;
+        if (row.length < 1) return;
         const colA = row[0] ? row[0].trim() : '';
         const colB = row[1] ? row[1].trim() : '';
         const colC = row[2] ? row[2].trim() : '';
@@ -826,6 +826,8 @@ class BokeoPOSDB {
         if (!colA || colA.toLowerCase().includes('id') || colA.toLowerCase().includes('product') || colA.includes('ລຳດັບ')) {
           return;
         }
+
+        if (row.length < 3) return;
 
         const productId = colA;
         importedIds.add(productId);
