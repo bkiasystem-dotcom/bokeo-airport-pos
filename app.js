@@ -577,7 +577,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.settings.pos_points.forEach(p => {
       const opt = document.createElement('option');
       opt.value = JSON.stringify(p);
-      if (p.name.startsWith('ແອດມິນ')) {
+      const trimmedName = p.name.trim();
+      const isAdmin = trimmedName.startsWith('ແອດມິນ') || 
+                      trimmedName.startsWith('ແອັດມິນ') || 
+                      trimmedName.includes('ແອດມິນ') || 
+                      trimmedName.includes('ແອັດມິນ') || 
+                      trimmedName.includes('Admin') || 
+                      trimmedName.includes('admin');
+      if (isAdmin) {
         opt.textContent = p.name;
       } else {
         opt.textContent = `${p.name} (${p.serviceType})`;
@@ -3358,7 +3365,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       li.style.padding = '8px 12px';
       li.style.borderBottom = '1px solid var(--border-color)';
 
-      const text = p.name.startsWith('ແອດມິນ') ? `<strong>${p.name}</strong>` : `<strong>${p.name}</strong> (${p.serviceType})`;
+      const trimmedName = p.name.trim();
+      const isAdmin = trimmedName.startsWith('ແອດມິນ') || 
+                      trimmedName.startsWith('ແອັດມິນ') || 
+                      trimmedName.includes('ແອດມິນ') || 
+                      trimmedName.includes('ແອັດມິນ') || 
+                      trimmedName.includes('Admin') || 
+                      trimmedName.includes('admin');
+      const text = isAdmin ? `<strong>${p.name}</strong>` : `<strong>${p.name}</strong> (${p.serviceType})`;
       li.innerHTML = `
         <span>${text}</span>
         <button class="secondary-btn" style="padding:4px 8px; color:var(--danger-color);" onclick="window.deletePOS(${index})">
