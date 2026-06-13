@@ -1278,6 +1278,53 @@ body {
   display: none;
 }
 
+/* Mobile POS View Toggle Styles */
+.mobile-pos-toggle {
+  display: none;
+  background-color: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
+  padding: 10px 16px;
+  gap: 12px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.mobile-toggle-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 24px;
+  border: 1px solid var(--border-color);
+  background-color: #f4f3f0;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: var(--transition);
+}
+
+.mobile-toggle-btn.active {
+  background-color: var(--primary-accent);
+  border-color: var(--primary-accent);
+  color: var(--surface-color);
+  box-shadow: 0 4px 10px rgba(15, 118, 110, 0.15);
+}
+
+.mobile-toggle-btn span {
+  background-color: var(--danger-color);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+}
+
 /* Screen Resolution Responsiveness */
 @media (max-width: 1024px) {
   .pos-sidebar {
@@ -1291,53 +1338,240 @@ body {
 
 @media (max-width: 768px) {
   body {
-    overflow-y: auto;
+    overflow: hidden; /* Do not scroll main body */
   }
   .app-body {
-    flex-direction: column;
-    overflow-y: auto;
+    flex-direction: column-reverse; /* Put side-nav at the bottom */
+    overflow: hidden;
   }
   .side-nav {
     width: 100%;
-    height: auto;
+    height: 56px;
     flex-direction: row;
     justify-content: space-around;
-    padding: 10px 0;
+    padding: 0;
     border-right: none;
     border-top: 1px solid var(--border-color);
-    order: 2;
+    flex-shrink: 0;
+    background-color: var(--surface-color);
+    align-items: center;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    z-index: 50;
+  }
+  .nav-item {
+    width: 48px;
+    height: 48px;
+    margin: 0;
+    font-size: 1.15rem;
   }
   .nav-item-tooltip {
-    display: none;
+    display: none !important;
   }
+  
+  /* Header adjustments */
+  .app-header {
+    padding: 10px 16px;
+    height: 56px;
+  }
+  .brand-text h1 {
+    font-size: 0.95rem;
+  }
+  .brand-text p {
+    display: none; /* Hide sub-text to save space */
+  }
+  .header-meta {
+    gap: 8px;
+  }
+  .header-meta button span {
+    display: none; /* Hide text on buttons, show icons only */
+  }
+  .header-meta button, .header-meta .pos-pill, .header-meta .cashier-pill {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+  
+  /* Hide name details on extra small screens */
+  @media (max-width: 600px) {
+    #header-pos-name, #header-cashier-name {
+      display: none !important;
+    }
+  }
+
+  /* POS View mobile styling */
   .pos-view {
     flex-direction: column;
-    height: auto;
-    overflow: visible;
-  }
-  .pos-main {
-    border-right: none;
-    height: auto;
-    overflow: visible;
-  }
-  .product-grid-container {
-    overflow-y: visible;
-  }
-  .pos-sidebar {
+    height: 100%;
     width: 100%;
-    height: auto;
-    border-top: 1px solid var(--border-color);
+    overflow: hidden;
   }
+  .mobile-pos-toggle {
+    display: flex; /* Show the mobile toggle bar */
+  }
+  
+  /* By default, show catalog (.pos-main) and hide cart (.pos-sidebar) */
+  .pos-view .pos-main {
+    display: flex;
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-right: none;
+  }
+  .pos-view .pos-sidebar {
+    display: none;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Toggle class .show-cart handles active state visibility */
+  .pos-view.show-cart .pos-main {
+    display: none;
+  }
+  .pos-view.show-cart .pos-sidebar {
+    display: flex;
+    flex: 1;
+  }
+
+  /* Catalog header stacked */
+  .catalog-header {
+    flex-direction: column-reverse;
+    height: auto;
+    padding: 10px 16px;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .catalog-search-container {
+    width: 100%;
+  }
+  .category-nav {
+    padding: 2px 0;
+    width: 100%;
+  }
+  .category-tab {
+    padding: 6px 14px;
+    font-size: 0.8rem;
+  }
+
+  /* Compact Product Grid */
+  .product-grid-container {
+    padding: 12px;
+    overflow-y: auto;
+  }
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+  }
+  
+  /* Compact Product Cards */
+  .product-card {
+    padding: 10px;
+    border-radius: var(--radius-sm);
+  }
+  .product-card .img-container {
+    height: 80px;
+    margin-bottom: 6px;
+  }
+  .product-name-lo {
+    font-size: 0.82rem;
+  }
+  .product-name-en {
+    font-size: 0.68rem;
+    margin-bottom: 4px;
+  }
+  .product-card .main-price {
+    font-size: 0.95rem;
+  }
+  .product-card .sub-prices {
+    font-size: 0.65rem;
+  }
+  .stock-badge {
+    top: 8px;
+    right: 8px;
+    font-size: 0.65rem;
+    padding: 1px 6px;
+  }
+
+  /* Cart Panel styling */
+  .cart-header {
+    padding: 12px 16px;
+  }
+  .cart-items {
+    padding: 8px 16px;
+    overflow-y: auto;
+  }
+  .cart-footer {
+    padding: 16px;
+  }
+  .total-row.grand {
+    font-size: 1.25rem;
+    padding-top: 8px;
+  }
+  
+  /* Setup card responsiveness */
+  .setup-card {
+    padding: 24px;
+    width: 92%;
+    max-width: 400px;
+  }
+
+  /* Modals */
+  .modal-content {
+    padding: 20px;
+    width: 95%;
+    max-height: 95vh;
+  }
+  
+  /* Other views */
   .dashboard-view, .stock-view, .settings-view {
     padding: 16px;
-    height: auto;
-    overflow: visible;
+    height: 100%;
+    overflow-y: auto;
+  }
+  .view-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+    width: 100%;
+  }
+  .view-header h2 {
+    font-size: 1.25rem;
+  }
+  .dashboard-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+  .date-picker-row, .rate-picker-row, #dash-pos-filter {
+    width: 100% !important;
+    justify-content: space-between;
   }
   .reports-split {
     grid-template-columns: 1fr;
+    gap: 20px;
   }
   .settings-grid {
     grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  @media (max-width: 480px) {
+    .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      padding: 16px;
+    }
+    .stat-value {
+      font-size: 1.25rem;
+    }
+    .settings-row {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
   }
 }
 

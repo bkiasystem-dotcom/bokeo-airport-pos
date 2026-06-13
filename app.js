@@ -49,6 +49,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     navItems: document.querySelectorAll('.nav-item'),
     viewPanels: document.querySelectorAll('.view-panel'),
+    posView: document.getElementById('pos-view'),
+    mobilePosToggle: document.getElementById('mobile-pos-toggle'),
+    btnShowCatalog: document.getElementById('btn-show-catalog'),
+    btnShowCart: document.getElementById('btn-show-cart'),
+    mobileCartBadge: document.getElementById('mobile-cart-badge'),
 
     categoryNav: document.getElementById('category-nav'),
     catalogSearch: document.getElementById('catalog-search'),
@@ -1200,6 +1205,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   function updateCartUI() {
+    // Update mobile cart badge count
+    const totalQty = state.cart.reduce((sum, item) => sum + item.qty, 0);
+    const mobileCartCount = document.getElementById('mobile-cart-count');
+    if (mobileCartCount) {
+      mobileCartCount.textContent = totalQty;
+    }
+
     els.cartItems.innerHTML = '';
     
     if (state.cart.length === 0) {
@@ -1295,6 +1307,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (els.selectedMemberCard) els.selectedMemberCard.style.display = 'none';
       if (els.memberSearchContainer) els.memberSearchContainer.style.display = 'flex';
     }
+  }
+
+  // Mobile View Toggle Event Listeners
+  if (els.btnShowCatalog && els.btnShowCart && els.posView) {
+    els.btnShowCatalog.addEventListener('click', () => {
+      els.posView.classList.remove('show-cart');
+      els.btnShowCatalog.classList.add('active');
+      els.btnShowCart.classList.remove('active');
+    });
+
+    els.btnShowCart.addEventListener('click', () => {
+      els.posView.classList.add('show-cart');
+      els.btnShowCart.classList.add('active');
+      els.btnShowCatalog.classList.remove('active');
+    });
   }
 
   // Global bindings so inline HTML click attributes work
@@ -3284,7 +3311,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         deptSub: 'Accounting Department',
         middleTitle: 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ',
         middleSub: 'Terminal & Parking Lot Dept',
-        cashierTitle: 'ພະນັກງານຂາຍຜູ້ສະຫຼຸບ',
+        cashierTitle: 'ພະນັກງານຂາຍ/ຜູ້ສະຫລຸບ',
         cashierSub: 'Cashier Signature'
       },
       cn: {
@@ -3476,51 +3503,53 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       ${pdfPosSummaryHTML}
 
-      <h3 style="font-size: 1.1rem; border-bottom: 2px solid #333; padding-bottom: 6px; margin-top: 24px; margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid;">${t.txList}</h3>
-      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem;">
-        <thead>
-          <tr style="background-color: #f2f2f2;">
-            <th style="padding: 8px; border: 1px solid #ddd;">${t.invNo}</th>
-            <th style="padding: 8px; border: 1px solid #ddd;">${t.time}</th>
-            <th style="padding: 8px; border: 1px solid #ddd;">${lang === 'cn' ? '销售点' : 'ຈຸດຂາຍ'}</th>
-            <th style="padding: 8px; border: 1px solid #ddd;">${t.cashier}</th>
-            <th style="padding: 8px; border: 1px solid #ddd;">${t.type}</th>
-            <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">${t.amount}</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${dashboardTransactions.map(tx => {
-            let val = 0;
-            let sym = '';
-            const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
-            if (tx.paid_currency === 'LAK') { val = txTotalThb * rateLak; sym = '₭'; }
-            else if (tx.paid_currency === 'THB') { val = txTotalThb; sym = '฿'; }
-            else if (tx.paid_currency === 'CNY') { val = txTotalThb * rateCny; sym = '¥'; }
+      <div style="page-break-inside: avoid; break-inside: avoid;">
+        <h3 style="font-size: 1.1rem; border-bottom: 2px solid #333; padding-bottom: 6px; margin-top: 24px; margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid;">${t.txList}</h3>
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem;">
+          <thead>
+            <tr style="background-color: #f2f2f2;">
+              <th style="padding: 8px; border: 1px solid #ddd;">${t.invNo}</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">${t.time}</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">${lang === 'cn' ? '销售点' : 'ຈຸດຂາຍ'}</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">${t.cashier}</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">${t.type}</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">${t.amount}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dashboardTransactions.map(tx => {
+              let val = 0;
+              let sym = '';
+              const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+              if (tx.paid_currency === 'LAK') { val = txTotalThb * rateLak; sym = '₭'; }
+              else if (tx.paid_currency === 'THB') { val = txTotalThb; sym = '฿'; }
+              else if (tx.paid_currency === 'CNY') { val = txTotalThb * rateCny; sym = '¥'; }
 
-            let displayPaymentType = tx.payment_type;
-            if (lang === 'cn') {
-              if (displayPaymentType === 'ເງິນສົດ') {
-                displayPaymentType = '现金';
-              } else if (displayPaymentType === 'ໂອນ') {
-                displayPaymentType = '转账';
+              let displayPaymentType = tx.payment_type;
+              if (lang === 'cn') {
+                if (displayPaymentType === 'ເງິນສົດ') {
+                  displayPaymentType = '现金';
+                } else if (displayPaymentType === 'ໂອນ') {
+                  displayPaymentType = '转账';
+                }
               }
-            }
 
-            const displayPOS = lang === 'cn' ? (posTranslations[tx.pos]?.cn || tx.pos) : tx.pos;
+              const displayPOS = lang === 'cn' ? (posTranslations[tx.pos]?.cn || tx.pos) : tx.pos;
 
-            return `
-              <tr style="page-break-inside: avoid; break-inside: avoid;">
-                <td style="padding: 8px; border: 1px solid #ddd; font-weight: 700;">${tx.id}</td>
-                <td style="padding: 8px; border: 1px solid #ddd;">${new Date(tx.timestamp).toLocaleTimeString('lo-LA')}</td>
-                <td style="padding: 8px; border: 1px solid #ddd;">${displayPOS}</td>
-                <td style="padding: 8px; border: 1px solid #ddd;">${tx.cashier}</td>
-                <td style="padding: 8px; border: 1px solid #ddd;">${displayPaymentType} ${tx.bank ? `(${tx.bank})` : ''}</td>
-                <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: 700;">${formatNumber(val)} ${sym}</td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
+              return `
+                <tr style="page-break-inside: avoid; break-inside: avoid;">
+                  <td style="padding: 8px; border: 1px solid #ddd; font-weight: 700;">${tx.id}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">${new Date(tx.timestamp).toLocaleTimeString('lo-LA')}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">${displayPOS}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">${tx.cashier}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd;">${displayPaymentType} ${tx.bank ? `(${tx.bank})` : ''}</td>
+                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: 700;">${formatNumber(val)} ${sym}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
 
       <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 0.85rem; page-break-inside: avoid; break-inside: avoid;">
         <div style="text-align: center; width: 220px; page-break-inside: avoid; break-inside: avoid;">

@@ -3,6 +3,17 @@
  * Handles local IndexedDB storage and optional Firebase Firestore synchronization.
  */
 
+// Default Firebase Firestore Configuration for Real-time Cloud Sync
+// Edit these values with your Firebase Project Configuration to sync all devices!
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+
 const DB_NAME = 'BokeoAirportPOS_DB_v2';
 const DB_VERSION = 3;
 
@@ -147,8 +158,16 @@ class BokeoPOSDB {
   async _loadSettingsAndInitFirebase() {
     try {
       const settings = await this.getSettings();
+      let fbConfig = null;
+
       if (settings && settings.firebase_config && settings.firebase_config.apiKey) {
-        this._initFirebase(settings.firebase_config);
+        fbConfig = settings.firebase_config;
+      } else if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
+        fbConfig = DEFAULT_FIREBASE_CONFIG;
+      }
+
+      if (fbConfig) {
+        this._initFirebase(fbConfig);
       }
     } catch (e) {
       console.warn('Failed to load settings or initialize Firebase:', e);
@@ -566,10 +585,15 @@ class BokeoPOSDB {
 
       req.onsuccess = async () => {
         // Re-init Firebase configuration if changed
+        let fbConfig = null;
         if (settings.firebase_config && settings.firebase_config.apiKey) {
-          if (!this.isFirebaseEnabled) {
-            this._initFirebase(settings.firebase_config);
-          }
+          fbConfig = settings.firebase_config;
+        } else if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
+          fbConfig = DEFAULT_FIREBASE_CONFIG;
+        }
+
+        if (fbConfig) {
+          this._initFirebase(fbConfig);
         } else {
           this.isFirebaseEnabled = false;
           this.firestore = null;

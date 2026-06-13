@@ -86,10 +86,10 @@
       
       <div class="header-meta">
         <button class="pos-pill" id="header-refresh-btn" style="cursor: pointer; transition: var(--transition);">
-          <i class="fas fa-sync-alt"></i> ອັບເດດຂໍ້ມູນ
+          <i class="fas fa-sync-alt"></i> <span>ອັບເດດຂໍ້ມູນ</span>
         </button>
         <button class="pos-pill" id="header-close-counter-btn" style="cursor: pointer; color: var(--danger-color); border-color: #fca5a5; transition: var(--transition);">
-          <i class="fas fa-power-off"></i> ປິດເຄົາເຕີ້
+          <i class="fas fa-power-off"></i> <span>ປິດເຄົາເຕີ້</span>
         </button>
         <div class="pos-pill" id="header-pos-name">
           <i class="fas fa-terminal"></i> Loading...
@@ -129,6 +129,16 @@
         <!-- 1. POS View (Lao: ໝວດຂາຍສິນຄ້າ) -->
         <div class="view-panel active" id="pos-view">
           <div class="pos-view">
+            
+            <!-- Mobile Toggle Tabs (Lao: ແຖບສະຫຼັບສະແດງຜົນໃນມືຖື) -->
+            <div class="mobile-pos-toggle" id="mobile-pos-toggle">
+              <button class="mobile-toggle-btn active" id="btn-show-catalog">
+                <i class="fas fa-th"></i> ສິນຄ້າ
+              </button>
+              <button class="mobile-toggle-btn" id="btn-show-cart">
+                <i class="fas fa-shopping-cart"></i> ກະຕ່າ (<span id="mobile-cart-count">0</span>)
+              </button>
+            </div>
             
             <!-- Main catalog screen -->
             <div class="pos-main">
@@ -903,7 +913,7 @@
 
   <!-- Load Database and Application Logic scripts -->
   <script src="database.js?v=3.4"></script>
-  <script src="app.js?v=2.33"></script>
+  <script src="app.js?v=2.34"></script>
 
 </body>
 </html>
