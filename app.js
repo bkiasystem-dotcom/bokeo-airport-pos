@@ -243,13 +243,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
       ];
 
-      defaultPOSPoints.forEach(p => {
-        const exists = state.settings.pos_points.some(existing => existing.name === p.name);
-        if (!exists) {
-          state.settings.pos_points.push(p);
+      // Sort pos_points to match defaultPOSPoints order exactly
+      const sortedPOSPoints = [];
+      defaultPOSPoints.forEach(defPoint => {
+        const found = state.settings.pos_points.find(p => p.name === defPoint.name);
+        if (found) {
+          sortedPOSPoints.push(found);
+        } else {
+          sortedPOSPoints.push(defPoint);
           settingsUpdated = true;
         }
       });
+      state.settings.pos_points.forEach(existing => {
+        const isDefault = defaultPOSPoints.some(def => def.name === existing.name);
+        if (!isDefault) {
+          sortedPOSPoints.push(existing);
+        }
+      });
+      if (JSON.stringify(state.settings.pos_points) !== JSON.stringify(sortedPOSPoints)) {
+        state.settings.pos_points = sortedPOSPoints;
+        settingsUpdated = true;
+      }
       if (!state.settings.hasOwnProperty('gdrive_folder_id')) {
         state.settings.gdrive_folder_id = '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC';
         settingsUpdated = true;
