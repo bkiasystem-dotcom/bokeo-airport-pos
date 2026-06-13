@@ -2204,6 +2204,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       els.reportRatesWrapper.style.display = isAdminPOS ? 'flex' : 'none';
     }
 
+    const posChartCard = document.getElementById('pos-sales-chart-card');
+    if (posChartCard) {
+      posChartCard.style.display = isAdminPOS ? 'block' : 'none';
+    }
+
     if (!isAdminPOS) {
       const opt = document.createElement('option');
       opt.value = `pos:${state.currentPOS.name}`;
@@ -2750,9 +2755,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         posDailyData[dateStr] = {};
       }
       if (!posDailyData[dateStr][posName]) {
-        posDailyData[dateStr][posName] = { thb: 0 };
+        posDailyData[dateStr][posName] = { lak: 0, thb: 0, cny: 0 };
       }
-      posDailyData[dateStr][posName].thb += tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+      const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+      if (tx.paid_currency === 'LAK') {
+        posDailyData[dateStr][posName].lak += txTotalThb * rateLak;
+      } else if (tx.paid_currency === 'THB') {
+        posDailyData[dateStr][posName].thb += txTotalThb;
+      } else if (tx.paid_currency === 'CNY') {
+        posDailyData[dateStr][posName].cny += txTotalThb * rateCny;
+      }
     });
 
     const sortedDates = Object.keys(posDailyData).sort().reverse();
@@ -2766,28 +2778,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         const formattedDate = `${d}/${m}/${y}`;
         
         let rowsHtml = '';
+        let dayTotalLak = 0;
         let dayTotalThb = 0;
+        let dayTotalCny = 0;
         
         const posNames = Object.keys(posDailyData[dateStr]).sort();
         posNames.forEach(posName => {
           const metrics = posDailyData[dateStr][posName];
-          const posThb = metrics.thb;
-          const posLak = posThb * rateLak;
-          const posCny = posThb * rateCny;
-          dayTotalThb += posThb;
+          dayTotalLak += metrics.lak;
+          dayTotalThb += metrics.thb;
+          dayTotalCny += metrics.cny;
           
           rowsHtml += `
             <tr>
               <td style="font-weight: 500; font-size: 0.8rem; padding: 6px 8px;">${posName}</td>
-              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(posLak)} ₭</td>
-              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(posThb)} ฿</td>
-              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(posCny)} ¥</td>
+              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(metrics.lak)} ₭</td>
+              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(metrics.thb)} ฿</td>
+              <td class="right" style="font-size: 0.8rem; padding: 6px 8px;">${formatNumber(metrics.cny)} ¥</td>
             </tr>
           `;
         });
         
-        const dayTotalLak = dayTotalThb * rateLak;
-        const dayTotalCny = dayTotalThb * rateCny;
+        const dayCombinedThb = (dayTotalLak / rateLak) + dayTotalThb + (dayTotalCny / rateCny);
+        const dayCombinedLak = dayCombinedThb * rateLak;
+        const dayCombinedCny = dayCombinedThb * rateCny;
         
         posSummaryHTML += `
           <div style="margin-bottom: 24px; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; background: #fff;">
@@ -2814,9 +2828,9 @@ document.addEventListener('DOMContentLoaded', async () => {
               </tbody>
             </table>
             <div style="font-size: 0.75rem; color: var(--text-secondary); text-align: right; font-weight: 600; padding-top: 4px; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
-              <span>ລວມທຽບເທົ່າກີບ (LAK): <span style="color: var(--primary-accent);">${formatNumber(dayTotalLak)} ₭</span></span>
-              <span>ລວມທຽບເທົ່າບາດ (THB): <span style="color: var(--primary-accent);">${formatNumber(dayTotalThb)} ฿</span></span>
-              <span>ລວມທຽບເທົ່າຢວນ (CNY): <span style="color: var(--primary-accent);">${formatNumber(dayTotalCny)} ¥</span></span>
+              <span>ລວມທຽບເທົ່າກີບ (LAK): <span style="color: var(--primary-accent);">${formatNumber(dayCombinedLak)} ₭</span></span>
+              <span>ລວມທຽບເທົ່າບາດ (THB): <span style="color: var(--primary-accent);">${formatNumber(dayCombinedThb)} ฿</span></span>
+              <span>ລວມທຽບເທົ່າຢວນ (CNY): <span style="color: var(--primary-accent);">${formatNumber(dayCombinedCny)} ¥</span></span>
             </div>
           </div>
         `;
@@ -3305,9 +3319,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         pdfPosDailyData[dateStr] = {};
       }
       if (!pdfPosDailyData[dateStr][posName]) {
-        pdfPosDailyData[dateStr][posName] = { thb: 0 };
+        pdfPosDailyData[dateStr][posName] = { lak: 0, thb: 0, cny: 0 };
       }
-      pdfPosDailyData[dateStr][posName].thb += tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+      const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
+      if (tx.paid_currency === 'LAK') {
+        pdfPosDailyData[dateStr][posName].lak += txTotalThb * rateLak;
+      } else if (tx.paid_currency === 'THB') {
+        pdfPosDailyData[dateStr][posName].thb += txTotalThb;
+      } else if (tx.paid_currency === 'CNY') {
+        pdfPosDailyData[dateStr][posName].cny += txTotalThb * rateCny;
+      }
     });
 
     const pdfSortedDates = Object.keys(pdfPosDailyData).sort().reverse();
@@ -3323,29 +3344,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         const formattedDate = `${d}/${m}/${y}`;
         
         let rowsHtml = '';
+        let dayTotalLak = 0;
         let dayTotalThb = 0;
+        let dayTotalCny = 0;
         
         const posNames = Object.keys(pdfPosDailyData[dateStr]).sort();
         posNames.forEach(posName => {
           const metrics = pdfPosDailyData[dateStr][posName];
-          const posThb = metrics.thb;
-          const posLak = posThb * rateLak;
-          const posCny = posThb * rateCny;
-          dayTotalThb += posThb;
+          dayTotalLak += metrics.lak;
+          dayTotalThb += metrics.thb;
+          dayTotalCny += metrics.cny;
           
           const translatedPOSName = lang === 'cn' ? (posTranslations[posName]?.cn || posName) : posName;
           rowsHtml += `
             <tr style="page-break-inside: avoid; break-inside: avoid;">
               <td style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem;">${translatedPOSName}</td>
-              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(posLak)} ₭</td>
-              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(posThb)} ฿</td>
-              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(posCny)} ¥</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.lak)} ₭</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.thb)} ฿</td>
+              <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; font-size: 0.75rem;">${formatNumber(metrics.cny)} ¥</td>
             </tr>
           `;
         });
         
-        const dayTotalLak = dayTotalThb * rateLak;
-        const dayTotalCny = dayTotalThb * rateCny;
+        const dayCombinedThb = (dayTotalLak / rateLak) + dayTotalThb + (dayTotalCny / rateCny);
+        const dayCombinedLak = dayCombinedThb * rateLak;
+        const dayCombinedCny = dayCombinedThb * rateCny;
         
         pdfPosSummaryHTML += `
           <div style="margin-bottom: 16px; page-break-inside: avoid; break-inside: avoid;">
@@ -3372,9 +3395,9 @@ document.addEventListener('DOMContentLoaded', async () => {
               </tbody>
             </table>
             <div style="font-size: 0.72rem; color: #555; text-align: right; font-weight: 600; padding-top: 2px; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
-              <span>${lang === 'cn' ? '折合基普总额' : 'ລວມທຽບເທົ່າກີບ'}: <span style="color: #0f766e;">${formatNumber(dayTotalLak)} ₭</span></span>
-              <span>${lang === 'cn' ? '折合泰铢总额' : 'ລວມທຽບເທົ່າບາດ'}: <span style="color: #0f766e;">${formatNumber(dayTotalThb)} ฿</span></span>
-              <span>${lang === 'cn' ? '折合人民币总额' : 'ລວມທຽບເທົ່າຢວນ'}: <span style="color: #0f766e;">${formatNumber(dayTotalCny)} ¥</span></span>
+              <span>${lang === 'cn' ? '折合基普总额' : 'ລວມທຽບເທົ່າກີບ'}: <span style="color: #0f766e;">${formatNumber(dayCombinedLak)} ₭</span></span>
+              <span>${lang === 'cn' ? '折合泰铢总额' : 'ລວມທຽບເທົ່າບາດ'}: <span style="color: #0f766e;">${formatNumber(dayCombinedThb)} ฿</span></span>
+              <span>${lang === 'cn' ? '折合人民币总额' : 'ລວມທຽບເທົ່າຢວນ'}: <span style="color: #0f766e;">${formatNumber(dayCombinedCny)} ¥</span></span>
             </div>
           </div>
         `;
