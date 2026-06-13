@@ -755,11 +755,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const todayStr = new Date().toISOString().split('T')[0];
     const allTx = await window.BokeoDB.getTransactions();
     
-    // Filter transactions made today at this POS (accumulated sales on the same day)
+    // Extract start time of this shift session. Fallback to petty cash session's creation time (parsed from id suffix) if state.shiftStartTime is lost.
+    let shiftStartTime = state.shiftStartTime;
+    if (!shiftStartTime && state.pettyCashSession) {
+      const idParts = state.pettyCashSession.id.split('_');
+      const timeMs = parseInt(idParts[idParts.length - 1]);
+      if (!isNaN(timeMs)) {
+        shiftStartTime = new Date(timeMs);
+      }
+    }
+    if (!shiftStartTime) {
+      shiftStartTime = new Date(0); // fallback to epoch if nothing is available (to not crash)
+    }
+
+    // Filter transactions made by this cashier during this shift at this POS
     const shiftTx = allTx.filter(tx => {
       const isThisPOS = tx.pos === state.currentPOS.name;
-      const txDate = tx.timestamp.split('T')[0];
-      return isThisPOS && isSameDay(txDate, todayStr);
+      const isThisCashier = tx.cashier === state.currentCashier;
+      const txTime = new Date(tx.timestamp);
+      return isThisPOS && isThisCashier && txTime >= shiftStartTime;
     });
 
     // Sum up shift sales
@@ -783,15 +797,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.shiftReportPOS.textContent = state.currentPOS.name;
     els.shiftReportDate.textContent = new Date().toLocaleString('lo-LA');
 
-    // Find starting petty cash of the first session of today safely
-    const allPetty = await window.BokeoDB.getPettyCashSessions();
-    const posSessions = allPetty.filter(p => isSameDay(p.date, todayStr) && p.pos === state.currentPOS.name);
-    const firstSession = posSessions[0] || state.pettyCashSession;
+    // Get starting petty cash directly from the current active shift session
+    const activeSession = state.pettyCashSession || { lak_start: 0, thb_start: 0, cny_start: 0 };
 
     // Starting Petty cash
-    els.shiftStartLak.textContent = formatNumber(firstSession.lak_start) + ' ₭';
-    els.shiftStartThb.textContent = formatNumber(firstSession.thb_start) + ' ฿';
-    els.shiftStartCny.textContent = formatNumber(firstSession.cny_start) + ' ¥';
+    els.shiftStartLak.textContent = formatNumber(activeSession.lak_start) + ' ₭';
+    els.shiftStartThb.textContent = formatNumber(activeSession.thb_start) + ' ฿';
+    els.shiftStartCny.textContent = formatNumber(activeSession.cny_start) + ' ¥';
 
     // Cash sales
     els.shiftSalesCashLak.textContent = formatNumber(cashLAK) + ' ₭';
