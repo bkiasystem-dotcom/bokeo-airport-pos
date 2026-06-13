@@ -2222,7 +2222,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const optGroupService = document.createElement('optgroup');
       optGroupService.label = 'ປະເພດບໍລິການ (Service Types)';
       
-      const serviceTypes = [...new Set(state.settings.pos_points.map(p => p.serviceType).filter(Boolean))];
+      const actualPOSPoints = state.settings.pos_points.filter(p => !p.name.startsWith('ແອດມິນ'));
+      const serviceTypes = [...new Set(actualPOSPoints.map(p => p.serviceType).filter(Boolean))];
       serviceTypes.forEach(st => {
         const opt = document.createElement('option');
         opt.value = `service:${st}`;
@@ -2236,7 +2237,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Group 2: Individual POS Outlets (ຈຸດຂາຍ)
       const optGroupPOS = document.createElement('optgroup');
       optGroupPOS.label = 'ຈຸດຂາຍ (POS Outlets)';
-      state.settings.pos_points.forEach(p => {
+      actualPOSPoints.forEach(p => {
         const opt = document.createElement('option');
         opt.value = `pos:${p.name}`;
         opt.textContent = `ຈຸດຂາຍ: ${p.name}`;
@@ -2931,6 +2932,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const activePOSList = state.settings.pos_points.filter(p => {
+      if (p.name.startsWith('ແອດມິນ')) return false;
       if (selectedPOS === 'all') return true;
       if (selectedPOS.startsWith('service:')) {
         return p.serviceType === selectedPOS.substring(8);
