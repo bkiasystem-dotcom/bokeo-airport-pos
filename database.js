@@ -896,6 +896,7 @@ class BokeoPOSDB {
       let stockText = '';
       let pettyText = '';
       let membersText = '';
+      let salesText = '';
       const settings = await this.getSettings();
 
       if (settings && settings.gdrive_script_url) {

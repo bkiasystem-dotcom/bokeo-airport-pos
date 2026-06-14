@@ -1,0 +1,209 @@
+﻿Created At: 2026-06-13T11:13:05Z
+Completed At: 2026-06-13T11:13:08Z
+File Path: `file:///C:/Users/bkia.net/.gemini/antigravity/brain/1fcde4e4-e153-42e4-bca3-ee3f0d9efc4f/scratch/google-apps-script.js`
+Total Lines: 464
+Total Bytes: 17796
+Showing lines 1 to 200
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: /**
+2:  * Google Apps Script - POS Integration Backend for Bokeo Airport POS
+3:  * 
+4:  * Instructions:
+5:  * 1. Open your Google Sheet "Goods and Price" (ID: 1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg).
+6:  * 2. Click Extensions > Apps Script.
+7:  * 3. Delete any code in Code.gs and paste this script.
+8:  * 4. Click Save (disk icon).
+9:  * 5. Click Deploy > New deployment.
+10:  * 6. Click Select type (cog icon) > Web app.
+11:  * 7. Set Description: "Bokeo POS Sync API"
+12:  * 8. Set Execute as: "Me (your-email@gmail.com)"
+13:  * 9. Set Who has access: "Anyone" (This is required so the POS Web App can connect to it).
+14:  * 10. Click Deploy.
+15:  * 11. Authorize permissions if prompted.
+16:  * 12. Copy the "Web app URL" and paste it into the POS App Settings in the Backoffice.
+17:  */
+18: 
+19: // Handle POST request from POS App
+20: function doPost(e) {
+21:   try {
+22:     const data = JSON.parse(e.postData.contents);
+23:     const action = data.action;
+24:     
+25:     if (action === 'upload_invoice') {
+26:       const fileId = savePdfToDrive(data);
+27:       let sheetError = null;
+28:       try {
+29:         saveTransactionToSheet(data.transaction);
+30:       } catch (err) {
+31:         sheetError = err.toString();
+32:       }
+33:       return ContentService.createTextOutput(JSON.stringify({
+34:         success: true,
+35:         fileId: fileId,
+36:         sheetError: sheetError
+37:       })).setMimeType(ContentService.MimeType.JSON);
+38:       
+39:     } else if (action === 'sync_petty_cash') {
+40:       savePettyCashToSheet(data.session);
+41:       return ContentService.createTextOutput(JSON.stringify({
+42:         success: true
+43:       })).setMimeType(ContentService.MimeType.JSON);
+44:       
+45:     } else if (action === 'update_stock' || action === 'update_sales') {
+46:       const result = updateStockSheet(data.code, data.addedQty || data.qty, action);
+47:       return ContentService.createTextOutput(JSON.stringify(result))
+48:         .setMimeType(ContentService.MimeType.JSON);
+49:     } else if (action === 'register_member') {
+50:       const result = registerMember(data.member);
+51:       return ContentService.createTextOutput(JSON.stringify(result))
+52:         .setMimeType(ContentService.MimeType.JSON);
+53:     }
+54:     
+55:     return ContentService.createTextOutput(JSON.stringify({
+56:       success: false,
+57:       error: 'Invalid action: ' + action
+58:     })).setMimeType(ContentService.MimeType.JSON);
+59:     
+60:   } catch (err) {
+61:     return ContentService.createTextOutput(JSON.stringify({
+62:       success: false,
+63:       error: err.toString()
+64:     })).setMimeType(ContentService.MimeType.JSON);
+65:   }
+66: }
+67: 
+68: // Handle GET request (For direct sheet data exports)
+69: function doGet(e) {
+70:   const sheetParam = e.parameter.sheet;
+71:   const GOODS_SPREADSHEET_ID = '1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg';
+72:   
+73:   let ssGoods;
+74:   try {
+75:     ssGoods = SpreadsheetApp.openById(GOODS_SPREADSHEET_ID);
+76:   } catch (err) {
+77:     Logger.log('Failed to open goods spreadsheet in doGet: ' + err.toString());
+78:     ssGoods = SpreadsheetApp.getActiveSpreadsheet();
+79:   }
+80:   
+81:   if (sheetParam === 'prices') {
+82:     const sheet = ssGoods.getSheetByName('àº¥àº²àº„àº²àºªàº´àº™àº„à»‰àº²');
+83:     if (!sheet) return ContentService.createTextOutput('Error: sheet àº¥àº²àº„àº²àºªàº´àº™àº„à»‰àº² not found');
+84:     const data = sheet.getDataRange().getDisplayValues();
+85:     const csv = convertToCSV(data);
+86:     return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.TEXT);
+87:     
+88:   } else if (sheetParam === 'stock') {
+89:     const sheet = ssGoods.getSheetByName('àºªàº°àº•àº±àº­àºàºªàº´àº™àº„à»‰àº²àº¥à»ˆàº²àºªàº¸àº”');
+90:     if (!sheet) return ContentService.createTextOutput('Error: sheet àºªàº°àº•àº±àº­àºàºªàº´àº™àº„à»‰àº²àº¥à»ˆàº²àºªàº¸àº” not found');
+91:     const data = sheet.getDataRange().getDisplayValues();
+92:     const csv = convertToCSV(data);
+93:     return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.TEXT);
+94:     
+95:   } else if (sheetParam === 'petty_cash') {
+96:     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('PettyCash');
+97:     if (!sheet) return ContentService.createTextOutput('Error: sheet PettyCash not found');
+98:     const data = sheet.getDataRange().getDisplayValues();
+99:     const csv = convertToCSV(data);
+100:     return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.TEXT);
+101:   } else if (sheetParam === 'members') {
+102:     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Members');
+103:     if (!sheet) return ContentService.createTextOutput('Error: sheet Members not found');
+104:     const data = sheet.getDataRange().getDisplayValues();
+105:     const csv = convertToCSV(data);
+106:     return ContentService.createTextOutput(csv).setMimeType(ContentService.MimeType.TEXT);
+107:   }
+108:   
+109:   return ContentService.createTextOutput(JSON.stringify({
+110:     success: true,
+111:     message: 'Bokeo Airport POS Apps Script API active'
+112:   })).setMimeType(ContentService.MimeType.JSON);
+113: }
+114: 
+115: // Convert 2D array to CSV string
+116: function convertToCSV(data) {
+117:   return data.map(row => {
+118:     return row.map(val => {
+119:       let str = val === null ? '' : val.toString();
+120:       if (str.indexOf(',') !== -1 || str.indexOf('"') !== -1 || str.indexOf('\n') !== -1) {
+121:         str = '"' + str.replace(/"/g, '""') + '"';
+122:       }
+123:       return str;
+124:     }).join(',');
+125:   }).join('\n');
+126: }
+127: 
+128: // Save transaction PDF invoice to Google Drive
+129: function savePdfToDrive(data) {
+130:   try {
+131:     let base64Data = data.file;
+132:     if (base64Data.indexOf('base64,') !== -1) {
+133:       base64Data = base64Data.split('base64,')[1];
+134:     }
+135:     const blob = Utilities.newBlob(Utilities.base64Decode(base64Data), 'application/pdf', data.filename.split('/').pop());
+136:     
+137:     let rootFolder;
+138:     if (data.folderId) {
+139:       try {
+140:         rootFolder = DriveApp.getFolderById(data.folderId);
+141:       } catch (err) {
+142:         Logger.log('Could not find folder by ID, using folder name: ' + err.toString());
+143:       }
+144:     }
+145:     
+146:     if (!rootFolder) {
+147:       const rootFolders = DriveApp.getFoldersByName('Bokeo_Receipts');
+148:       if (rootFolders.hasNext()) {
+149:         rootFolder = rootFolders.next();
+150:       } else {
+151:         rootFolder = DriveApp.createFolder('Bokeo_Receipts');
+152:       }
+153:     }
+154:     
+155:     // Parse directories from filename (e.g., YYYY-MM-DD/POS_Name/Payment_Type/File.pdf)
+156:     const pathParts = data.filename.split('/');
+157:     let currentFolder = rootFolder;
+158:     
+159:     for (let i = 0; i < pathParts.length - 1; i++) {
+160:       const part = pathParts[i];
+161:       if (!part) continue;
+162:       const subFolders = currentFolder.getFoldersByName(part);
+163:       if (subFolders.hasNext()) {
+164:         currentFolder = subFolders.next();
+165:       } else {
+166:         currentFolder = currentFolder.createFolder(part);
+167:       }
+168:     }
+169:     
+170:     const file = currentFolder.createFile(blob);
+171:     return file.getId();
+172:   } catch (err) {
+173:     Logger.log('Failed to save PDF to Drive: ' + err.toString());
+174:     throw err;
+175:   }
+176: }
+177: 
+178: // Save transaction metadata to "Sales" tab
+179: function saveTransactionToSheet(tx) {
+180:   const ss = SpreadsheetApp.getActiveSpreadsheet();
+181:   let sheet = ss.getSheetByName('Sales');
+182:   
+183:   if (!sheet) {
+184:     sheet = ss.insertSheet('Sales');
+185:     sheet.appendRow([
+186:       'à¹€à¸¥à¸‚à¸šà¸´à¸¥ (Invoice No)',             // A
+187:       'à¸§à¸±à¸™à¸—à¸µà¹ˆ & à¹€à¸§à¸¥à¸² (Timestamp)',        // B
+188:       'à¸ˆà¸¸à¸”à¸‚à¸²à¸¢ (POS)',                   // C
+189:       'à¸žà¸™à¸±à¸à¸‡à¸²à¸™ (Cashier)',              // D
+190:       'à¸£à¸²à¸¢à¸à¸²à¸£à¸ªà¸´à¸™à¸„à¹‰à¸² (Items)',             // E
+191:       'à¸›à¸£à¸°à¹€à¸ à¸—à¸à¸²à¸£à¸Šà¸³à¸£à¸° (Payment Type)',     // F
+192:       'à¸˜à¸™à¸²à¸„à¸²à¸£ (Bank)',                  // G
+193:       'à¸ªà¸à¸¸à¸¥à¹€à¸‡à¸´à¸™à¸—à¸µà¹ˆà¸ˆà¹ˆà¸²à¸¢ (Paid Currency)',   // H
+194:       'à¸¢à¸­à¸”à¸ˆà¹ˆà¸²à¸¢ (Paid Amount)',          // I
+195:       'à¹€à¸‡à¸´à¸™à¸—à¸­à¸™ (Change)',               // J
+196:       'à¸¢à¸­à¸”à¸£à¸§à¸¡ à¸à¸µà¸š (Subtotal LAK)',       // K
+197:       'à¸¢à¸­à¸”à¸£à¸§à¸¡ à¸šà¸²à¸— (Subtotal THB)',       // L
+198:       'à¸¢à¸­à¸”à¸£à¸§à¸¡ à¸«à¸¢à¸§à¸™ (Subtotal CNY)',      // M
+199:       'à¸ªà¹ˆà¸§à¸™à¸¥à¸” % (Discount %)',          // N
+200:       'à¸ªà¹ˆà¸§à¸™à¸¥à¸” à¸à¸µà¸š (Discount LAK)',       // O
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
