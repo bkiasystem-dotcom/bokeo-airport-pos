@@ -1197,6 +1197,10 @@ body {
   font-weight: 600;
   outline: none;
   color: var(--text-primary);
+  flex: 1;
+  min-width: 110px;
+  cursor: pointer;
+  background: transparent;
 }
 
 /* Rate range picker container */
@@ -1425,10 +1429,12 @@ body {
   }
 
   /* Toggle class .show-cart handles active state visibility */
-  .pos-view.show-cart .pos-main {
+  .pos-view.show-cart .pos-main,
+  #pos-view.show-cart .pos-main {
     display: none;
   }
-  .pos-view.show-cart .pos-sidebar {
+  .pos-view.show-cart .pos-sidebar,
+  #pos-view.show-cart .pos-sidebar {
     display: flex;
     flex: 1;
   }

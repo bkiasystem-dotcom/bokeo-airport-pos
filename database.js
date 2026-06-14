@@ -598,6 +598,11 @@ class BokeoPOSDB {
       const req = store.put(settings);
 
       req.onsuccess = async () => {
+        // Sync to cloud in background (non-blocking)
+        if (this.isFirebaseEnabled && this.firestore) {
+          this.firestore.collection('settings').doc('global').set(settings)
+            .catch(e => console.error('Firestore saveSettings error:', e));
+        }
         // Re-init Firebase configuration if changed
         let fbConfig = null;
         if (settings.firebase_config && settings.firebase_config.apiKey) {
@@ -672,12 +677,42 @@ class BokeoPOSDB {
       });
       this._notifyListener('transactions');
     });
+
+    // Listen to Settings Changes (For cross-terminal configuration sync)
+    this.firestore.collection('settings').doc('global').onSnapshot(async (doc) => {
+      if (doc.exists) {
+        const data = doc.data();
+        const localSettings = await this.getSettings();
+        if (JSON.stringify(localSettings) !== JSON.stringify(data)) {
+          console.log('Settings changed on cloud. Updating local settings...');
+          await this._saveSettingsLocalOnly(data);
+          this._notifyListener('settings');
+        }
+      }
+    });
   }
 
   async syncLocalDataToFirestore() {
     if (!this.isFirebaseEnabled || !this.firestore) return;
     try {
       console.log('Starting local data migration to Firestore...');
+
+      // 0. Sync Settings
+      const localSettings = await this.getSettings();
+      if (localSettings) {
+        const docRef = this.firestore.collection('settings').doc('global');
+        const docSnap = await docRef.get();
+        if (!docSnap.exists) {
+          await docRef.set(localSettings);
+          console.log('Uploaded settings to Firestore.');
+        } else {
+          const cloudSettings = docSnap.data();
+          if (!cloudSettings.gdrive_script_url && localSettings.gdrive_script_url) {
+            await docRef.update({ gdrive_script_url: localSettings.gdrive_script_url });
+            console.log('Merged local gdrive_script_url to Firestore settings.');
+          }
+        }
+      }
 
       // 1. Sync Cashiers
       const cashiers = await this.getCashiers();
@@ -822,6 +857,30 @@ class BokeoPOSDB {
       const tx = this.db.transaction('transactions', 'readwrite');
       tx.objectStore('transactions').delete(txId);
       tx.oncomplete = resolve;
+    });
+  }
+
+  _saveSettingsLocalOnly(settings) {
+    return new Promise((resolve) => {
+      const tx = this.db.transaction('settings', 'readwrite');
+      const store = tx.objectStore('settings');
+      settings.id = 'global';
+      store.put(settings);
+      tx.oncomplete = () => {
+        let fbConfig = null;
+        if (settings.firebase_config && settings.firebase_config.apiKey) {
+          fbConfig = settings.firebase_config;
+        } else if (typeof DEFAULT_FIREBASE_CONFIG !== 'undefined' && DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
+          fbConfig = DEFAULT_FIREBASE_CONFIG;
+        }
+        if (fbConfig) {
+          this._initFirebase(fbConfig);
+        } else {
+          this.isFirebaseEnabled = false;
+          this.firestore = null;
+        }
+        resolve();
+      };
     });
   }
 
@@ -1177,6 +1236,158 @@ class BokeoPOSDB {
           console.log('Petty cash sessions synced successfully from Google Sheets.');
         } catch (err) {
           console.error('Failed to parse or save synced petty cash sessions:', err);
+        }
+      }
+
+      if (salesText) {
+        try {
+          console.log('Parsing and updating sales transactions from Google Sheets...');
+          const salesRows = this._parseCSV(salesText);
+          const txSess = this.db.transaction('transactions', 'readwrite');
+          const storeSess = txSess.objectStore('transactions');
+          
+          let firebaseBatch = null;
+          if (this.isFirebaseEnabled && this.firestore) {
+            firebaseBatch = this.firestore.batch();
+          }
+
+          salesRows.forEach((row, idx) => {
+            if (idx === 0 || row.length < 10) return; // Skip header or invalid rows
+            const txId = row[0] ? row[0].trim() : '';
+            if (!txId) return;
+
+            // Reconstruct transaction object
+            const totalThb = parseFloat(row[18] ? row[18].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const totalLak = parseFloat(row[17] ? row[17].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const totalCny = parseFloat(row[19] ? row[19].replace(/[^\d\.\-]/g, '') : '0') || 0;
+
+            const subtotalLak = parseFloat(row[10] ? row[10].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const subtotalThb = parseFloat(row[11] ? row[11].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const subtotalCny = parseFloat(row[12] ? row[12].replace(/[^\d\.\-]/g, '') : '0') || 0;
+
+            const costLak = parseFloat(row[20] ? row[20].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const costThb = parseFloat(row[21] ? row[21].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const costCny = parseFloat(row[22] ? row[22].replace(/[^\d\.\-]/g, '') : '0') || 0;
+
+            const profitLak = parseFloat(row[23] ? row[23].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const profitThb = parseFloat(row[24] ? row[24].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const profitCny = parseFloat(row[25] ? row[25].replace(/[^\d\.\-]/g, '') : '0') || 0;
+
+            const discountPercent = parseFloat(row[13] ? row[13].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const discountAmountLak = parseFloat(row[14] ? row[14].replace(/[^\d\.\-]/g, '') : '0') || 0;
+
+            const vatPercent = parseFloat(row[15] ? row[15].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const vatAmountLak = parseFloat(row[16] ? row[16].replace(/[^\d\.\-]/g, '') : '0') || 0;
+
+            const paidAmount = parseFloat(row[8] ? row[8].replace(/[^\d\.\-]/g, '') : '0') || 0;
+            const changeAmount = parseFloat(row[9] ? row[9].replace(/[^\d\.\-]/g, '') : '0') || 0;
+
+            const earnedPoints = parseFloat(row[27] ? row[27].replace(/[^\d\.\-]/g, '') : '0') || 0;
+
+            let timestampStr = row[1] ? row[1].trim() : '';
+            let parsedTimestamp = new Date().toISOString();
+            if (timestampStr) {
+              try {
+                if (timestampStr.indexOf(' ') > 0) {
+                  parsedTimestamp = new Date(timestampStr.replace(' ', 'T') + '+07:00').toISOString();
+                } else {
+                  parsedTimestamp = new Date(timestampStr).toISOString();
+                }
+              } catch (e) {
+                console.warn('Failed to parse timestamp:', timestampStr, e);
+              }
+            }
+
+            const itemsStr = row[4] ? row[4].trim() : '';
+            const items = itemsStr.split(',').map(part => {
+              part = part.trim();
+              const match = part.match(/(.+)\s*\((\d+)\s*items?\)/);
+              if (match) {
+                const name = match[1].trim();
+                const qty = parseInt(match[2], 10) || 1;
+                const p = localProducts.find(prod => prod.name_lo === name || prod.name_en === name);
+                return {
+                  id: p ? p.id : '',
+                  code: p ? p.code : '',
+                  name_lo: name,
+                  name_en: p ? p.name_en : name,
+                  price_lak: p ? p.price_lak : 0,
+                  price_thb: p ? p.price_thb : 0,
+                  price_cny: p ? p.price_cny : 0,
+                  cost_thb: p ? p.cost_thb : 0,
+                  qty: qty
+                };
+              }
+              const p = localProducts.find(prod => prod.name_lo === part || prod.name_en === part);
+              return {
+                id: p ? p.id : '',
+                code: p ? p.code : '',
+                name_lo: part,
+                name_en: p ? p.name_en : part,
+                price_lak: p ? p.price_lak : 0,
+                price_thb: p ? p.price_thb : 0,
+                price_cny: p ? p.price_cny : 0,
+                cost_thb: p ? p.cost_thb : 0,
+                qty: 1
+              };
+            });
+
+            const posName = row[2] ? row[2].trim() : '';
+            const matchingPOS = settings.pos_points ? settings.pos_points.find(p => p.name === posName) : null;
+            const serviceType = matchingPOS ? matchingPOS.serviceType : 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ';
+
+            const txObj = {
+              id: txId,
+              timestamp: parsedTimestamp,
+              pos: posName,
+              serviceType: serviceType,
+              cashier: row[3] ? row[3].trim() : '',
+              items: items,
+              subtotal_lak: subtotalLak,
+              subtotal_thb: subtotalThb,
+              subtotal_cny: subtotalCny,
+              discount_percent: discountPercent,
+              discount_amount_lak: discountAmountLak,
+              discount_amount_thb: parseFloat((discountAmountLak / (settings.exchange_rate_lak || 700)).toFixed(2)),
+              discount_amount_cny: parseFloat((discountAmountLak / (settings.exchange_rate_lak || 700) * (settings.exchange_rate_cny || 0.2)).toFixed(2)),
+              vat_percent: vatPercent,
+              vat_amount_lak: vatAmountLak,
+              vat_amount_thb: parseFloat((vatAmountLak / (settings.exchange_rate_lak || 700)).toFixed(2)),
+              vat_amount_cny: parseFloat((vatAmountLak / (settings.exchange_rate_lak || 700) * (settings.exchange_rate_cny || 0.2)).toFixed(2)),
+              total_lak: totalLak,
+              total_thb: totalThb,
+              total_cny: totalCny,
+              cost_lak: costLak,
+              cost_thb: costThb,
+              cost_cny: costCny,
+              profit_lak: profitLak,
+              profit_thb: profitThb,
+              profit_cny: profitCny,
+              paid_currency: row[7] ? row[7].trim() : 'LAK',
+              paid_amount: paidAmount,
+              change_amount: changeAmount,
+              payment_type: row[5] ? row[5].trim() : 'ເງິນສົດ',
+              bank: row[6] && row[6].trim() !== '-' ? row[6].trim() : null,
+              member_id: row[26] && row[26].trim() !== '-' ? row[26].trim() : '-',
+              earned_points: earnedPoints
+            };
+
+            storeSess.put(txObj);
+
+            if (firebaseBatch) {
+              const docRef = this.firestore.collection('transactions').doc(txObj.id);
+              firebaseBatch.set(docRef, txObj, { merge: true });
+            }
+          });
+          
+          await new Promise(resolve => txSess.oncomplete = resolve);
+          if (firebaseBatch) {
+            await firebaseBatch.commit();
+          }
+          console.log('Transactions synced successfully from Google Sheets.');
+          this._notifyListener('transactions');
+        } catch (err) {
+          console.error('Failed to parse or save synced transactions:', err);
         }
       }
 

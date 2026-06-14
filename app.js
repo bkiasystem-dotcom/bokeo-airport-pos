@@ -409,6 +409,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
+    // Listen to Settings changes and reload UI
+    window.BokeoDB.on('settings', async () => {
+      state.settings = await window.BokeoDB.getSettings();
+      if (state.currentView === 'settings') {
+        renderSettingsPage();
+      }
+    });
+
     // Initial Google Sheets Auto-Sync on startup
     window.BokeoDB.syncWithGoogleSheets().then(async () => {
       state.products = await window.BokeoDB.getProducts();
@@ -585,35 +593,50 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       infoDiv.style.display = ''; // Ensure it's shown for cashiers
       
-      if (todaySessions.length > 0) {
-        // Last session's remaining cash becomes starting cash
-        const lastSession = todaySessions[todaySessions.length - 1];
-        els.setupPettyLak.value = formatNumber(lastSession.lak_remaining);
-        els.setupPettyThb.value = formatNumber(lastSession.thb_remaining);
-        els.setupPettyCny.value = formatNumber(lastSession.cny_remaining);
-        
-        // Disable editing for subsequent shifts of the day
+      const activeSession = todaySessions.find(p => !p.closed);
+
+      if (activeSession) {
+        // There is an active (unclosed) session today: lock it to the active session values
+        els.setupPettyLak.value = formatNumber(activeSession.lak_start);
+        els.setupPettyThb.value = formatNumber(activeSession.thb_start);
+        els.setupPettyCny.value = formatNumber(activeSession.cny_start);
+
         els.setupPettyLak.readOnly = true;
         els.setupPettyThb.readOnly = true;
         els.setupPettyCny.readOnly = true;
         els.setupPettyLak.style.backgroundColor = '#f3f4f6';
         els.setupPettyThb.style.backgroundColor = '#f3f4f6';
         els.setupPettyCny.style.backgroundColor = '#f3f4f6';
-        
-        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເງິນທອນຄົງເຫຼືອຫຼ້າສຸດຂອງມື້ນີ້ (ບໍ່ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(lastSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(lastSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(lastSession.cny_remaining)} ¥</span>`;
-      } else {
-        // First cashier of the day: reset to 0 and allow editing
-        els.setupPettyLak.value = '0';
-        els.setupPettyThb.value = '0';
-        els.setupPettyCny.value = '0';
-        
+
+        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ມີກະການຂາຍທີ່ກຳລັງເປີດຢູ່ (ບໍ່ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(activeSession.lak_start)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(activeSession.thb_start)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(activeSession.cny_start)} ¥</span>`;
+      } else if (todaySessions.length > 0) {
+        // All shifts today are closed: populate with last session's remaining balance, but keep EDITABLE
+        const lastSession = todaySessions[todaySessions.length - 1];
+        els.setupPettyLak.value = formatNumber(lastSession.lak_remaining);
+        els.setupPettyThb.value = formatNumber(lastSession.thb_remaining);
+        els.setupPettyCny.value = formatNumber(lastSession.cny_remaining);
+
         els.setupPettyLak.readOnly = false;
         els.setupPettyThb.readOnly = false;
         els.setupPettyCny.readOnly = false;
         els.setupPettyLak.style.backgroundColor = '';
         els.setupPettyThb.style.backgroundColor = '';
         els.setupPettyCny.style.backgroundColor = '';
-        
+
+        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະໃໝ່ (ດຶງເງິນທອນຄົງເຫຼືອຈາກກະກ່ອນໜ້າ, ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(lastSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(lastSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(lastSession.cny_remaining)} ¥</span>`;
+      } else {
+        // First cashier of the day: reset to 0 and allow editing
+        els.setupPettyLak.value = '0';
+        els.setupPettyThb.value = '0';
+        els.setupPettyCny.value = '0';
+
+        els.setupPettyLak.readOnly = false;
+        els.setupPettyThb.readOnly = false;
+        els.setupPettyCny.readOnly = false;
+        els.setupPettyLak.style.backgroundColor = '';
+        els.setupPettyThb.style.backgroundColor = '';
+        els.setupPettyCny.style.backgroundColor = '';
+
         infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະທຳອິດຂອງມື້ນີ້ (ເລີ່ມຕົ້ນສະຕັອກເງິນທອນໃໝ່)`;
       }
     } catch (e) {
