@@ -31,6 +31,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     lastTransaction: null,
   };
 
+  function getLocalYMD(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   // DOM Elements Cache
   const els = {
     setupOverlay: document.getElementById('setup-overlay'),
@@ -566,7 +573,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         els.setupBtn.innerHTML = `<i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)`;
       }
 
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalYMD();
       const allPetty = await window.BokeoDB.getPettyCashSessions();
       
       // Filter sessions for this POS on the same calendar date safely
@@ -716,7 +723,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.shiftStartTime = new Date();
 
     // Load or create petty cash session for today
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalYMD();
     const sessionId = `${todayStr}_${posObj.name.replace(/\s+/g, '_')}_${cashierName.replace(/\s+/g, '_')}_${Date.now()}`;
 
     let session = await window.BokeoDB.getPettyCashSession(sessionId);
@@ -807,7 +814,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Open Close Shift summary modal
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalYMD();
     const allTx = await window.BokeoDB.getTransactions();
     
     // Extract start time of this shift session. Fallback to petty cash session's creation time (parsed from id suffix) if state.shiftStartTime is lost.
@@ -908,7 +915,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const options = {
         margin: 5,
-        filename: `Shift_Report_${state.currentCashier}_${new Date().toISOString().split('T')[0]}.pdf`,
+        filename: `Shift_Report_${state.currentCashier}_${getLocalYMD()}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
         jsPDF: { unit: 'mm', format: [100, 180], orientation: 'portrait' }
@@ -991,10 +998,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.viewPanels.forEach(panel => {
       if (panel.id === `${viewName}-view`) {
         panel.classList.add('active');
+        // Reset scroll position to top to prevent browser programmatic scroll glitches
+        panel.scrollTop = 0;
+        const scrollChild = panel.querySelector(`.${viewName}-view`);
+        if (scrollChild) {
+          scrollChild.scrollTop = 0;
+        }
       } else {
         panel.classList.remove('active');
       }
     });
+
+    // Reset <main> element scroll position to top
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTop = 0;
+    }
 
     // Run view specific initializers
     if (viewName === 'pos') {
@@ -1729,7 +1748,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof html2pdf !== 'undefined' && state.settings.gdrive_script_url) {
       generateReceiptPDFBlob(transaction).then(pdfBlob => {
         if (pdfBlob) {
-          const dateStr = new Date(transaction.timestamp).toISOString().split('T')[0];
+          const dateStr = getLocalYMD(new Date(transaction.timestamp));
           const sanitizedPOS = transaction.pos.replace(/[\\\/:*?"<>|]/g, '_');
           const sanitizedType = transaction.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
           const filename = `${dateStr}/${sanitizedPOS}/${sanitizedType}/${transaction.id}.pdf`;
@@ -2004,7 +2023,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       wrapper.appendChild(tempDiv);
       document.body.appendChild(wrapper);
 
-      const dateStr = new Date(tx.timestamp).toISOString().split('T')[0];
+      const dateStr = getLocalYMD(new Date(tx.timestamp));
       const sanitizedPOS = tx.pos.replace(/[\\\/:*?"<>|]/g, '_');
       const sanitizedType = tx.payment_type.replace(/[\\\/:*?"<>|]/g, '_');
       const filename = `${dateStr}_${sanitizedPOS}_${sanitizedType}_${tx.id}.pdf`;
@@ -2270,7 +2289,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function initDashboard() {
     // Populate default date fields
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalYMD();
     els.startDateFilter.value = today;
     els.endDateFilter.value = today;
 
@@ -2443,7 +2462,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Filter by Date Range and POS
     dashboardTransactions = allTx.filter(tx => {
-      const txDate = tx.timestamp.split('T')[0];
+      const txDate = getLocalYMD(new Date(tx.timestamp));
       const matchDate = txDate >= start && txDate <= end;
       
       let matchPOS = false;
@@ -2654,7 +2673,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       labels.forEach(l => sums[l] = 0);
       
       dashboardTransactions.forEach(tx => {
-        const dateStr = tx.timestamp.split('T')[0];
+        const dateStr = getLocalYMD(new Date(tx.timestamp));
         if (sums[dateStr] !== undefined) {
           sums[dateStr] += getTxAmount(tx, selectedCurrency);
         }
@@ -2673,7 +2692,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       labels.forEach(l => sums[l] = 0);
       
       const chartTxs = allTx.filter(tx => {
-        const txDate = tx.timestamp.split('T')[0];
+        const txDate = getLocalYMD(new Date(tx.timestamp));
         const matchDate = txDate >= monthStart && txDate <= monthEnd;
         
         let matchPOS = false;
@@ -2693,7 +2712,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       chartTxs.forEach(tx => {
-        const dateStr = tx.timestamp.split('T')[0];
+        const dateStr = getLocalYMD(new Date(tx.timestamp));
         if (sums[dateStr] !== undefined) {
           sums[dateStr] += getTxAmount(tx, selectedCurrency);
         }
@@ -2717,19 +2736,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         return matchPOS;
       });
       
-      let minDate = new Date().toISOString().split('T')[0];
+      let minDate = getLocalYMD();
       let maxDate = minDate;
       if (chartTxs.length > 0) {
         const sortedTimestamps = chartTxs.map(t => t.timestamp).sort();
-        minDate = sortedTimestamps[0].split('T')[0];
-        maxDate = sortedTimestamps[sortedTimestamps.length - 1].split('T')[0];
+        minDate = getLocalYMD(new Date(sortedTimestamps[0]));
+        maxDate = getLocalYMD(new Date(sortedTimestamps[sortedTimestamps.length - 1]));
       }
       labels = getMonthsInRange(minDate, maxDate);
       const sums = {};
       labels.forEach(l => sums[l] = 0);
       
       chartTxs.forEach(tx => {
-        const monthStr = tx.timestamp.split('T')[0].slice(0, 7);
+        const monthStr = getLocalYMD(new Date(tx.timestamp)).slice(0, 7);
         if (sums[monthStr] !== undefined) {
           sums[monthStr] += getTxAmount(tx, selectedCurrency);
         }
@@ -2838,7 +2857,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // =========================================================================
     const posDailyData = {};
     dashboardTransactions.forEach(tx => {
-      const dateStr = tx.timestamp.split('T')[0];
+      const dateStr = getLocalYMD(new Date(tx.timestamp));
       const posName = tx.pos;
       if (!posDailyData[dateStr]) {
         posDailyData[dateStr] = {};
@@ -3063,7 +3082,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const color = colorPalette[idx % colorPalette.length];
       const data = labels.map(labelDate => {
         const txsOnDate = allTx.filter(tx => {
-          const txDate = tx.timestamp.split('T')[0];
+          const txDate = getLocalYMD(new Date(tx.timestamp));
           let dateMatches = false;
           if (posChartMode === 'daily') {
             dateMatches = txDate === labelDate;
@@ -3402,7 +3421,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Generate Daily POS Summary table for PDF
     const pdfPosDailyData = {};
     dashboardTransactions.forEach(tx => {
-      const dateStr = tx.timestamp.split('T')[0];
+      const dateStr = getLocalYMD(new Date(tx.timestamp));
       const posName = tx.pos;
       if (!pdfPosDailyData[dateStr]) {
         pdfPosDailyData[dateStr] = {};
@@ -4425,6 +4444,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (els.settingsMemberSearch) {
     els.settingsMemberSearch.addEventListener('input', () => {
       renderSettingsMembersTable();
+    });
+  }
+
+  // Prevent browser programmatic scrolling on panel containers
+  els.viewPanels.forEach(panel => {
+    panel.addEventListener('scroll', () => {
+      if (panel.scrollTop !== 0) {
+        panel.scrollTop = 0;
+      }
+    });
+  });
+
+  const mainEl = document.querySelector('main');
+  if (mainEl) {
+    mainEl.addEventListener('scroll', () => {
+      if (mainEl.scrollTop !== 0) {
+        mainEl.scrollTop = 0;
+      }
     });
   }
 

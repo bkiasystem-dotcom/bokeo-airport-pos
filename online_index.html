@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bokeo International Airport POS - ລະບົບຈຸດຂາຍ</title>
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="styles.css?v=3.0">
+  
+  <!-- FontAwesome for Premium Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Firebase Compat Core & Firestore CDN -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  
+  <!-- html2pdf.js CDN (Client-side PDF generator) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  
+  <!-- Chart.js CDN (Interactive Charts) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- =========================================================================
+       INITIAL POS CONFIGURATION SCREEN (Lao: ໜ້າຕັ້ງຄ່າທຳອິດ)
+       ========================================================================= -->
+  <div class="setup-overlay" id="setup-overlay">
+    <div class="setup-card">
+      <div class="setup-logo">
+        <i class="fas fa-plane-departure" style="font-size: 3rem; color: var(--text-primary); margin-bottom: 12px;"></i>
+        <h2>ສະໜາມບິນສາກົນບໍ່ແກ້ວ</h2>
+        <p>Bokeo International Airport POS Setup</p>
+      </div>
+
+      <div class="form-group">
+        <label for="setup-cashier"><i class="fas fa-user-tie"></i> ປ້ອນ ຫຼື ເລືອກພະນັກງານຂາຍ (Cashier)</label>
+        <input type="text" class="form-input" id="setup-cashier" list="cashier-list" placeholder="ພິມຊື່ ຫຼື ເລືອກ...">
+        <datalist id="cashier-list"></datalist>
+      </div>
+
+      <div class="form-group">
+        <label for="setup-pos"><i class="fas fa-map-marker-alt"></i> ເລືອກຈຸດຂາຍ (POS Location)</label>
+        <select class="form-select" id="setup-pos"></select>
+      </div>
+
+      <div class="form-group" id="setup-petty-group">
+        <label><i class="fas fa-coins"></i> ຕື່ມເງິນທອນເລີ່ມຕົ້ນ (Starting Petty Cash)</label>
+        <div class="form-group-row">
+          <div>
+            <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:700;">ກີບ (LAK)</span>
+            <input type="text" inputmode="numeric" class="form-input" id="setup-petty-lak" placeholder="0" value="0">
+          </div>
+          <div>
+            <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:700;">ບາດ (THB)</span>
+            <input type="text" inputmode="numeric" class="form-input" id="setup-petty-thb" placeholder="0" value="0">
+          </div>
+          <div>
+            <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:700;">ຢວນ (CNY)</span>
+            <input type="text" inputmode="numeric" class="form-input" id="setup-petty-cny" placeholder="0" value="0">
+          </div>
+        </div>
+      </div>
+
+      <button class="checkout-btn" id="setup-btn" style="margin-top: 24px;">
+        <i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)
+      </button>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MAIN APPLICATION LAYOUT
+       ========================================================================= -->
+  <div class="app-container">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand">
+        <i class="fas fa-plane-departure" style="font-size: 1.5rem;"></i>
+        <div class="brand-text">
+          <h1>Bokeo International Airport POS</h1>
+          <p>ສະໜາມບິນສາກົນບໍ່ແກ້ວ</p>
+        </div>
+      </div>
+      
+      <div class="header-meta">
+        <button class="pos-pill" id="header-refresh-btn" style="cursor: pointer; transition: var(--transition);">
+          <i class="fas fa-sync-alt"></i> <span>ອັບເດດຂໍ້ມູນ</span>
+        </button>
+        <button class="pos-pill" id="header-close-counter-btn" style="cursor: pointer; color: var(--danger-color); border-color: #fca5a5; transition: var(--transition);">
+          <i class="fas fa-power-off"></i> <span>ປິດເຄົາເຕີ້</span>
+        </button>
+        <div class="pos-pill" id="header-pos-name">
+          <i class="fas fa-terminal"></i> Loading...
+        </div>
+        <div class="cashier-pill" id="header-cashier-name">
+          <i class="fas fa-user-tie"></i> Loading...
+        </div>
+      </div>
+    </header>
+
+    <!-- App body with sidebar nav and views -->
+    <div class="app-body">
+      
+      <!-- Left Icon Sidebar Nav (Lao: ແຖບເມນູຂ້າງ) -->
+      <nav class="side-nav">
+        <div class="nav-item active" data-view="pos">
+          <i class="fas fa-shopping-basket"></i>
+          <span class="nav-item-tooltip">ຈຸດຂາຍ (POS)</span>
+        </div>
+        <div class="nav-item" data-view="dashboard">
+          <i class="fas fa-chart-line"></i>
+          <span class="nav-item-tooltip">ລາຍງານ (Reports)</span>
+        </div>
+        <div class="nav-item" data-view="stock">
+          <i class="fas fa-boxes"></i>
+          <span class="nav-item-tooltip">ຄັງສິນຄ້າ (Stock)</span>
+        </div>
+        <div class="nav-item" data-view="settings">
+          <i class="fas fa-cog"></i>
+          <span class="nav-item-tooltip">ຕັ້ງຄ່າ (Settings)</span>
+        </div>
+      </nav>
+
+      <!-- View Panels -->
+      <main style="flex: 1; height: 100%; position: relative; overflow: hidden;">
+        
+        <!-- 1. POS View (Lao: ໝວດຂາຍສິນຄ້າ) -->
+        <div class="view-panel active" id="pos-view">
+          <div class="pos-view">
+            
+            <!-- Mobile Toggle Tabs (Lao: ແຖບສະຫຼັບສະແດງຜົນໃນມືຖື) -->
+            <div class="mobile-pos-toggle" id="mobile-pos-toggle">
+              <button class="mobile-toggle-btn active" id="btn-show-catalog">
+                <i class="fas fa-th"></i> ສິນຄ້າ
+              </button>
+              <button class="mobile-toggle-btn" id="btn-show-cart">
+                <i class="fas fa-shopping-cart"></i> ກະຕ່າ (<span id="mobile-cart-count">0</span>)
+              </button>
+            </div>
+            
+            <!-- Main catalog screen -->
+            <div class="pos-main">
+              <div class="catalog-header">
+                <nav class="category-nav" id="category-nav"></nav>
+                <div class="catalog-search-container">
+                  <i class="fas fa-search search-icon"></i>
+                  <input type="text" id="catalog-search" placeholder="ຄົ້ນຫາສິນຄ້າ (ຊື່ ຫຼື ບາໂຄດ)..." autocomplete="off">
+                </div>
+              </div>
+              <div class="product-grid-container">
+                <div class="product-grid" id="product-grid"></div>
+              </div>
+            </div>
+
+            <!-- Cart Sidebar -->
+            <aside class="pos-sidebar">
+              <div class="cart-header">
+                <h2><i class="fas fa-shopping-cart"></i> ກະຕ່າສິນຄ້າ</h2>
+                <button class="clear-cart-btn" id="clear-cart-btn">ລ້າງກະຕ່າ</button>
+              </div>
+
+              <!-- Member Section -->
+              <div class="cart-member-section" id="cart-member-section">
+                <div class="member-search-container" id="member-search-container">
+                  <div style="position: relative; flex: 1;">
+                    <i class="fas fa-id-card search-icon" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: 0.85rem;"></i>
+                    <input type="text" id="cart-member-search" placeholder="ຄົ້ນຫາສະມາຊິກ (ເບີໂທ ຫຼື ID)..." autocomplete="off" style="width: 100%; padding: 8px 12px 8px 32px; border: 1px solid var(--border-color); border-radius: 20px; font-size: 0.8rem; background-color: var(--background-color); font-family: var(--font-family);">
+                    <div class="member-search-results" id="member-search-results" style="display: none; position: absolute; left: 0; right: 0; top: 100%; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; box-shadow: var(--shadow-md); z-index: 100; max-height: 200px; overflow-y: auto;"></div>
+                  </div>
+                  <button class="primary-btn" id="btn-open-register-modal" style="padding: 6px 12px; font-size: 0.75rem; border-radius: 20px; flex-shrink: 0;" title="ລົງທະບຽນສະມາຊິກໃໝ່">
+                    <i class="fas fa-user-plus"></i> ເພີ່ມ
+                  </button>
+                </div>
+                
+                <div class="selected-member-card" id="selected-member-card" style="display: none;">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                      <div class="member-name" id="selected-member-name" style="font-weight: 700; font-size: 0.85rem; color: var(--text-primary);"></div>
+                      <div class="member-id" id="selected-member-id" style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 2px;"></div>
+                    </div>
+                    <button class="clear-cart-btn" id="btn-clear-member" style="font-size: 0.72rem; padding: 0;"><i class="fas fa-times"></i> ຍົກເລີກ</button>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.75rem; border-top: 1px dashed var(--border-color); padding-top: 6px;">
+                    <div>ຄະແນນສະສົມ: <strong id="selected-member-points" style="color: var(--primary-accent);">0</strong></div>
+                    <div>ແຕ້ມທີ່ຈະໄດ້: <strong id="selected-member-earned" style="color: #10b981;">+0</strong></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- List of products in Cart -->
+              <div class="cart-items" id="cart-items"></div>
+
+              <!-- Pricing summary section -->
+              <div class="cart-footer">
+                <div class="currency-select-container">
+                  <span>ສະກຸນເງິນຊຳລະ:</span>
+                  <div class="currency-toggle">
+                    <button class="currency-opt active" data-curr="LAK">LAK (₭)</button>
+                    <button class="currency-opt" data-curr="THB">THB (฿)</button>
+                    <button class="currency-opt" data-curr="CNY">CNY (¥)</button>
+                  </div>
+                </div>
+
+                <div class="cart-totals">
+                  <div class="total-row">
+                    <span>ຍອດລວມຍ່ອຍ (Subtotal)</span>
+                    <span id="cart-subtotal">0</span>
+                  </div>
+                  <div class="total-row grand">
+                    <span>ຍອດຊຳລະທັງໝົດ</span>
+                    <span id="cart-total">0</span>
+                  </div>
+                </div>
+
+                <!-- Currency equivalents lookup -->
+                <div class="currency-equivalents" style="margin-bottom: 20px;">
+                  <div style="font-weight: 700; margin-bottom: 6px; font-size: 0.8rem;">ມູນຄ່າທຽບເທົ່າ:</div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span>ກີບ (LAK)</span>
+                    <span id="equiv-lak" style="font-weight: 700;">0 ₭</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span>ບາດ (THB)</span>
+                    <span id="equiv-thb" style="font-weight: 700;">0 ฿</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span>ຢວນ (CNY)</span>
+                    <span id="equiv-cny" style="font-weight: 700;">0 ¥</span>
+                  </div>
+                </div>
+
+                <button class="checkout-btn" id="checkout-btn" disabled>
+                  <i class="fas fa-cash-register"></i> ຊຳລະເງິນ (Checkout)
+                </button>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <!-- 2. Dashboard View (Lao: ແຜງວິເຄາະ ແລະ ລາຍງານການຂາຍ) -->
+        <div class="view-panel" id="dashboard-view">
+          <div class="dashboard-view">
+            <div class="view-header">
+              <h2><i class="fas fa-chart-line"></i> ສະຫຼຸບຍອດຂາຍ ແລະ ບັນຊີ</h2>
+              
+              <div class="dashboard-actions">
+                <div class="date-picker-row">
+                  <i class="fas fa-calendar-alt" style="color:var(--text-secondary);"></i>
+                  <input type="date" id="dash-start-date">
+                  <span style="font-weight: 700; color: var(--text-secondary);">ຫາ</span>
+                  <input type="date" id="dash-end-date">
+                </div>
+                
+                <select class="form-select" id="dash-pos-filter" style="width: auto; padding: 8px 16px; border-radius: 24px; font-weight:600;"></select>
+
+                <div class="rate-picker-row" id="report-rates-wrapper" style="display: none;">
+                  <i class="fas fa-coins" style="color:var(--text-secondary);"></i>
+                  <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">1 THB = </span>
+                  <input type="number" id="dash-rate-lak" placeholder="LAK" title="LAK rate per THB">
+                  <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">₭</span>
+                  <span style="border-left: 1px solid var(--border-color); height: 16px; margin: 0 4px;"></span>
+                  <input type="number" id="dash-rate-cny" placeholder="CNY" step="0.0001" title="CNY rate per THB">
+                  <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary);">¥</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Total stats grid -->
+            <div class="stats-grid" id="dash-stats"></div>
+
+            <!-- Sales Trend Chart Card -->
+            <div class="report-card" style="margin-bottom: 32px; flex-shrink: 0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <h3 style="margin-bottom:0;"><i class="fas fa-chart-line"></i> ກຣາຟສະແດງຍອດຂາຍ (Sales Trend Chart)</h3>
+                <div style="display:flex; gap: 8px; align-items:center; flex-wrap: wrap;">
+                  <div class="currency-toggle" style="margin-right: 12px;">
+                    <button class="currency-opt active" id="chart-btn-daily" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px;">ລາຍວັນ (Daily)</button>
+                    <button class="currency-opt" id="chart-btn-monthly" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px;">ລາຍເດືອນ (Monthly)</button>
+                    <button class="currency-opt" id="chart-btn-allmonths" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px;">ທຸກເດືອນ (All Months)</button>
+                  </div>
+                  <select id="chart-currency" class="form-select" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px; width: auto; font-weight:600; cursor:pointer;">
+                    <option value="COMBINED_LAK">ລວມເປັນ ກີບ (Combined LAK)</option>
+                    <option value="COMBINED_THB">ລວມເປັນ ບາດ (Combined THB)</option>
+                    <option value="COMBINED_CNY">ລວມເປັນ ຢວນ (Combined CNY)</option>
+                    <option value="LAK">ກີບ (LAK) ເທົ່ານັ້ນ</option>
+                    <option value="THB">ບາດ (THB) ເທົ່ານັ້ນ</option>
+                    <option value="CNY">ຢວນ (CNY) ເທົ່ານັ້ນ</option>
+                  </select>
+                </div>
+              </div>
+              <div style="height: 300px; position: relative; width: 100%;">
+                <canvas id="salesChart"></canvas>
+              </div>
+            </div>
+
+            <!-- Sales by POS Chart Card (Lao: ຍອດຂາຍແຍກຕາມຈຸດຂາຍ) -->
+            <div class="report-card" id="pos-sales-chart-card" style="margin-bottom: 32px; flex-shrink: 0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <h3 style="margin-bottom:0;"><i class="fas fa-chart-bar"></i> ຍອດຂາຍແຍກຕາມຈຸດຂາຍ (Sales by POS)</h3>
+                <div style="display:flex; gap: 8px; align-items:center; flex-wrap: wrap;">
+                  <div class="currency-toggle" style="margin-right: 12px;">
+                    <button class="currency-opt active" id="pos-chart-btn-daily" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px;">ລາຍວັນ (Daily)</button>
+                    <button class="currency-opt" id="pos-chart-btn-monthly" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px;">ລາຍເດືອນ (Monthly)</button>
+                    <button class="currency-opt" id="pos-chart-btn-yearly" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 12px;">ລາຍປີ (Yearly)</button>
+                  </div>
+                </div>
+              </div>
+              <div style="height: 300px; position: relative; width: 100%;">
+                <canvas id="posSalesChart"></canvas>
+              </div>
+            </div>
+
+            <div class="reports-split">
+              <!-- Report Transaction Table -->
+              <div class="report-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                  <h3>ລາຍການທຸລະກຳການຂາຍ</h3>
+                  <div style="display:flex; gap: 8px;">
+                    <button class="primary-btn" id="btn-export-lao-pdf"><i class="fas fa-file-pdf"></i> ສົ່ງອອກ PDF (ພາສາລາວ)</button>
+                    <button class="primary-btn" id="btn-export-cny-pdf"><i class="fas fa-file-pdf"></i> ສົ່ງອອກ PDF (中文/ພາສາຈີນ)</button>
+                  </div>
+                </div>
+                <div class="table-wrapper">
+                  <table class="report-table">
+                    <thead>
+                      <tr>
+                        <th>ເລກບິນ</th>
+                        <th>ວັນທີ-ເວລາ</th>
+                        <th>ຈຸດຂາຍ</th>
+                        <th>ພະນັກງານ</th>
+                        <th>ປະເພດການຈ່າຍ</th>
+                        <th>ຍອດຊຳລະ</th>
+                        <th>ການຈັດການ</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dash-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Daily Revenue Summary by POS Card (1/3 Right Column) -->
+              <div class="report-card" id="pos-summary-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                  <h3>ສະຫຼຸບລາຍຮັບແຍກຕາມຈຸດຂາຍລາຍວັນ</h3>
+                </div>
+                <div class="table-wrapper" style="overflow-y: auto; max-height: 450px;">
+                  <div id="pos-summary-container"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Stock View (Lao: ລະບົບຈັດການສາງສິນຄ້າ) -->
+        <div class="view-panel" id="stock-view">
+          <div class="stock-view">
+            <div class="view-header">
+              <h2><i class="fas fa-boxes"></i> ຄັງສະຕັອກສິນຄ້າ (Stock Management)</h2>
+              <input type="text" class="form-input" id="stock-search" placeholder="ຄົ້ນຫາລະຫັດ ຫຼື ຊື່ສິນຄ້າ..." style="width: 300px; border-radius: 24px;">
+            </div>
+
+            <!-- Low Stock Warnings -->
+            <div class="low-stock-alert-box" id="stock-low-stock-alert" style="display:none; margin-bottom: 20px;"></div>
+
+            <div class="report-card" style="flex:1;">
+              <div class="table-wrapper">
+                <table class="report-table">
+                  <thead>
+                    <tr>
+                      <th>ລະຫັດສິນຄ້າ</th>
+                      <th>ລາຍການສິນຄ້າ</th>
+                      <th>ໝວດໝູ່</th>
+                      <th>ຫົວໜ່ວຍ</th>
+                      <th>ລາຄາຕົ້ນທຶນ</th>
+                      <th style="text-align: center;">ຈຳນວນຄົງເຫຼືອ</th>
+                      <th>ການຈັດການ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="stock-table-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Settings View (Lao: ໜ້າການຕັ້ງຄ່າລະບົບ) -->
+        <div class="view-panel" id="settings-view">
+          <div class="settings-view">
+            <div class="view-header">
+              <h2><i class="fas fa-cog"></i> ຕັ້ງຄ່າລະບົບ (POS Settings)</h2>
+              <button class="primary-btn" id="settings-save-btn"><i class="fas fa-save"></i> ບັນທຶກການຕັ້ງຄ່າທັງໝົດ</button>
+            </div>
+
+            <div class="settings-grid">
+              
+              <!-- Left settings block -->
+              <div style="display:flex; flex-direction:column; gap:24px;">
+                <!-- Currency & security -->
+                <div class="settings-card">
+                  <h3><i class="fas fa-calculator"></i> ອັດຕາແລກປ່ຽນ ແລະ ລະຫັດຄວາມປອດໄພ</h3>
+                  <div class="settings-row">
+                    <div class="form-group">
+                      <label for="settings-rate-thb-lak">ອັດຕາແລກປ່ຽນ THB - LAK (ກີບ)</label>
+                      <input type="number" class="form-input" id="settings-rate-thb-lak" placeholder="700">
+                    </div>
+                    <div class="form-group">
+                      <label for="settings-rate-thb-cny">ອັດຕາແລກປ່ຽນ THB - CNY (ຢວນ)</label>
+                      <input type="number" step="0.01" class="form-input" id="settings-rate-thb-cny" placeholder="0.2">
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="settings-admin-pin">ລະຫັດ PIN ຜູ້ດູແລລະບົບ (Admin PIN - 4 ຕົວເລກ)</label>
+                    <input type="password" maxlength="4" class="form-input" id="settings-admin-pin" placeholder="1234">
+                  </div>
+                </div>
+
+                <!-- Google Drive Sync Setup -->
+                <div class="settings-card">
+                  <h3><i class="fab fa-google-drive"></i> ເຊື່ອມຕໍ່ Google Drive (Save PDF)</h3>
+                  <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 16px;">
+                    ປ້ອນ Google Apps Script Web App URL ເພື່ອອັບໂຫຼດໄຟລ໌ PDF ບິນໄປບັນທຶກໃນໂຟນເດີ Google Drive ໂດຍອັດຕະໂນມັດ.
+                  </p>
+                  <div class="form-group">
+                    <label for="settings-gdrive-script-url">Google Apps Script URL (Web App)</label>
+                    <input type="text" class="form-input" id="settings-gdrive-script-url" placeholder="https://script.google.com/macros/s/.../exec">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-gdrive-folder-id">Google Drive Folder ID (ໂຟນເດີເກັບ PDF ບິນ)</label>
+                    <input type="text" class="form-input" id="settings-gdrive-folder-id" placeholder="1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC">
+                  </div>
+                </div>
+
+                <!-- Receipt Customization Setup -->
+                <div class="settings-card">
+                  <h3><i class="fas fa-file-invoice"></i> ຕັ້ງຄ່າຂໍ້ມູນ ແລະ ຂໍ້ຄວາມເທິງໃບບິນ (Receipt Template Settings)</h3>
+                  <div class="form-group">
+                    <label for="settings-receipt-address">ທີ່ຢູ່ຮ້ານໃນບິນ (Receipt Address)</label>
+                    <input type="text" class="form-input" id="settings-receipt-address" placeholder="ຈຸດບໍລິການ POS, ສະໜາມບິນສາກົນບໍ່ແກ້ວ">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-phone">ເບີໂທລະສັບໃນບິນ (Receipt Phone)</label>
+                    <input type="text" class="form-input" id="settings-receipt-phone" placeholder="020 9999-8888">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-footer-lao">ຂໍ້ຄວາມຂອບໃຈພາສາລາວ (Lao Footer)</label>
+                    <input type="text" class="form-input" id="settings-receipt-footer-lao" placeholder="ຂໍຂອບໃຈ ແລະ ຍິນດີຕ້ອນຮັບອີກຄັ້ງ">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-footer-eng">ຂໍ້ຄວາມຂອບໃຈພາສາອັງກິດ (English Footer)</label>
+                    <input type="text" class="form-input" id="settings-receipt-footer-eng" placeholder="Thank you, Please visit again!">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-slogan-lao">ຄຳຂວັນ / ສະໂລແກນພາສາລາວ (Lao Slogan)</label>
+                    <input type="text" class="form-input" id="settings-receipt-slogan-lao" placeholder="ບໍລິການດ້ວຍໃຈ ຫ່ວງໃຍທຸກການເດີນທາງ">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-receipt-slogan-eng">ຄຳຂວັນ / ສະໂລແກນພາສາອັງກິດ (English Slogan)</label>
+                    <input type="text" class="form-input" id="settings-receipt-slogan-eng" placeholder="Service with heart, caring for every journey">
+                  </div>
+                </div>
+
+                <!-- Cloud Real-time Database Sync (Firebase) -->
+                <div class="settings-card">
+                  <h3><i class="fas fa-cloud-upload-alt"></i> ຕັ້ງຄ່າ Cloud Real-Time Sync (Firebase)</h3>
+                  <div class="form-group">
+                    <label for="settings-firebase-config">Firebase Credentials (JSON)</label>
+                    <textarea class="form-input" id="settings-firebase-config" rows="6" style="font-family: monospace; font-size: 0.8rem; resize: none;" placeholder='{&#10;  "apiKey": "...",&#10;  "authDomain": "...",&#10;  "projectId": "...",&#10;  "storageBucket": "...",&#10;  "messagingSenderId": "...",&#10;  "appId": "..."&#10;}'></textarea>
+                  </div>
+                </div>
+
+                <!-- Membership Points Settings -->
+                <div class="settings-card">
+                  <h3><i class="fas fa-id-card"></i> ຕັ້ງຄ່າຄະແນນສະມາຊິກ (Membership Points)</h3>
+                  <div class="form-group">
+                    <label for="settings-member-threshold">ເກນມູນຄ່າໃບບິນສະສົມຄະແນນ (ບາດ/THB)</label>
+                    <input type="number" class="form-input" id="settings-member-threshold" placeholder="500">
+                  </div>
+                  <div class="settings-row" style="margin-top: 12px;">
+                    <div class="form-group">
+                      <label for="settings-member-below">ຕ່ຳກວ່າເກນໄດ້ (ແຕ້ມ)</label>
+                      <input type="number" class="form-input" id="settings-member-below" placeholder="1">
+                    </div>
+                    <div class="form-group">
+                      <label for="settings-member-above">ເກີນ ຫຼື ເທົ່າເກນໄດ້ (ແຕ້ມ)</label>
+                      <input type="number" class="form-input" id="settings-member-above" placeholder="10">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right settings block -->
+              <div style="display:flex; flex-direction:column; gap:24px;">
+                <!-- QR Codes Setup -->
+                <div class="settings-card">
+                  <h3><i class="fas fa-qrcode"></i> ຕັ້ງຄ່າຮູບພາບຄິວອາໂຄດທະນາຄານ (LDB / BCEL)</h3>
+                  
+                  <div class="settings-row" style="grid-template-columns: 1fr; gap:12px;">
+                    <!-- BCEL -->
+                    <div style="border-bottom: 1px dashed var(--border-color); padding-bottom: 12px;">
+                      <strong style="font-size:0.85rem; display:block; margin-bottom:8px;">BCEL QR Codes</strong>
+                      <div style="display:flex; gap:16px;">
+                        <div>
+                          <span style="font-size:0.7rem; color:var(--text-secondary); display:block; text-align:center; font-weight:700;">LAK (ກີບ)</span>
+                          <div class="qr-preview-box" id="preview-bcel-lak"><i class="fas fa-qrcode"></i></div>
+                          <input type="file" id="upload-bcel-lak" accept="image/*" style="display:none;">
+                          <button class="secondary-btn" style="padding:4px 8px; font-size:0.7rem;" onclick="document.getElementById('upload-bcel-lak').click()"><i class="fas fa-upload"></i> ອັບໂຫຼດ</button>
+                        </div>
+                        <div>
+                          <span style="font-size:0.7rem; color:var(--text-secondary); display:block; text-align:center; font-weight:700;">THB (ບາດ)</span>
+                          <div class="qr-preview-box" id="preview-bcel-thb"><i class="fas fa-qrcode"></i></div>
+                          <input type="file" id="upload-bcel-thb" accept="image/*" style="display:none;">
+                          <button class="secondary-btn" style="padding:4px 8px; font-size:0.7rem;" onclick="document.getElementById('upload-bcel-thb').click()"><i class="fas fa-upload"></i> ອັບໂຫຼດ</button>
+                        </div>
+                        <div>
+                          <span style="font-size:0.7rem; color:var(--text-secondary); display:block; text-align:center; font-weight:700;">CNY (ຢວນ)</span>
+                          <div class="qr-preview-box" id="preview-bcel-cny"><i class="fas fa-qrcode"></i></div>
+                          <input type="file" id="upload-bcel-cny" accept="image/*" style="display:none;">
+                          <button class="secondary-btn" style="padding:4px 8px; font-size:0.7rem;" onclick="document.getElementById('upload-bcel-cny').click()"><i class="fas fa-upload"></i> ອັບໂຫຼດ</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- LDB -->
+                    <div>
+                      <strong style="font-size:0.85rem; display:block; margin-bottom:8px;">LDB QR Codes</strong>
+                      <div style="display:flex; gap:16px;">
+                        <div>
+                          <span style="font-size:0.7rem; color:var(--text-secondary); display:block; text-align:center; font-weight:700;">LAK (ກີບ)</span>
+                          <div class="qr-preview-box" id="preview-ldb-lak"><i class="fas fa-qrcode"></i></div>
+                          <input type="file" id="upload-ldb-lak" accept="image/*" style="display:none;">
+                          <button class="secondary-btn" style="padding:4px 8px; font-size:0.7rem;" onclick="document.getElementById('upload-ldb-lak').click()"><i class="fas fa-upload"></i> ອັບໂຫຼດ</button>
+                        </div>
+                        <div>
+                          <span style="font-size:0.7rem; color:var(--text-secondary); display:block; text-align:center; font-weight:700;">THB (ບາດ)</span>
+                          <div class="qr-preview-box" id="preview-ldb-thb"><i class="fas fa-qrcode"></i></div>
+                          <input type="file" id="upload-ldb-thb" accept="image/*" style="display:none;">
+                          <button class="secondary-btn" style="padding:4px 8px; font-size:0.7rem;" onclick="document.getElementById('upload-ldb-thb').click()"><i class="fas fa-upload"></i> ອັບໂຫຼດ</button>
+                        </div>
+                        <div>
+                          <span style="font-size:0.7rem; color:var(--text-secondary); display:block; text-align:center; font-weight:700;">CNY (ຢວນ)</span>
+                          <div class="qr-preview-box" id="preview-ldb-cny"><i class="fas fa-qrcode"></i></div>
+                          <input type="file" id="upload-ldb-cny" accept="image/*" style="display:none;">
+                          <button class="secondary-btn" style="padding:4px 8px; font-size:0.7rem;" onclick="document.getElementById('upload-ldb-cny').click()"><i class="fas fa-upload"></i> ອັບໂຫຼດ</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Cashier Profiles manager -->
+                <div class="settings-card">
+                  <h3><i class="fas fa-user-friends"></i> ຈັດການລາຍຊື່ພະນັກງານຂາຍ</h3>
+                  <div class="form-group" style="display:flex; gap:10px;">
+                    <input type="text" class="form-input" id="new-cashier-name" placeholder="ຊື່ພະນັກງານຂາຍຄົນໃໝ່...">
+                    <button class="primary-btn" id="btn-add-cashier" style="flex-shrink:0;">ເພີ່ມພະນັກງານ</button>
+                  </div>
+                  <div id="settings-cashiers-list" style="max-height:120px; overflow-y:auto; border:1px solid var(--border-color); border-radius: var(--radius-sm);"></div>
+                </div>
+
+                <!-- POS points manager -->
+                <div class="settings-card">
+                  <h3><i class="fas fa-hospital-user"></i> ຈັດການຈຸດຂາຍ (POS Outlets)</h3>
+                  <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+                    <input type="text" class="form-input" id="new-pos-name" placeholder="ຊື່ຈຸດຂາຍ...">
+                    <select class="form-select" id="new-pos-service">
+                      <option value="ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ">ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ (Consumer Shop)</option>
+                      <option value="ຫ້ອງ VIP">ຫ້ອງ VIP (VIP Lounge)</option>
+                      <option value="ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ">ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping)</option>
+                      <option value="ບໍລິການແທັກຊີ່">ບໍລິການແທັກຊີ່ (Taxi Counter)</option>
+                      <option value="ບໍລິການລານຈອດ">ບໍລິການລານຈອດ (Parking Lot)</option>
+                    </select>
+                    <button class="primary-btn" id="btn-add-pos">ເພີ່ມຈຸດຂາຍ</button>
+                  </div>
+                  <div id="settings-pos-list" style="max-height:150px; overflow-y:auto; border:1px solid var(--border-color); border-radius: var(--radius-sm);"></div>
+                </div>
+
+                <!-- Member Directory -->
+                <div class="settings-card">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+                    <h3 style="margin-bottom:0;"><i class="fas fa-users"></i> ລາຍຊື່ສະມາຊິກທັງໝົດ</h3>
+                    <button class="secondary-btn" id="btn-sync-members-settings" style="padding: 4px 8px; font-size: 0.75rem;"><i class="fas fa-sync-alt"></i> ອັບເດດ</button>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <input type="text" class="form-input" id="settings-member-search" placeholder="ຄົ້ນຫາສະມາຊິກ (ຊື່, ເບີໂທ, ລະຫັດ)..." style="border-radius: 20px; font-size: 0.8rem;">
+                  </div>
+                  <div class="table-wrapper" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                    <table class="report-table" style="font-size: 0.8rem;">
+                      <thead>
+                        <tr>
+                          <th>ລະຫັດ</th>
+                          <th>ຊື່ ແລະ ນາມສະກຸນ</th>
+                          <th>ເບີໂທ</th>
+                          <th style="text-align:center;">ຄະແນນ</th>
+                        </tr>
+                      </thead>
+                      <tbody id="settings-members-table-body"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODALS SECTION
+       ========================================================================= -->
+
+  <!-- 1. CHECKOUT MODAL -->
+  <div class="modal-overlay" id="checkout-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-wallet"></i> ຂັ້ນຕອນການຊຳລະເງິນ</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+
+      <div class="payment-summary-box">
+        <div class="payment-sum-row">
+          <span>ຈຸດຂາຍ (POS)</span>
+          <span style="font-weight: 700;" id="modal-pos-name">ຫ້ອງຂາຍເຄື່ອງ</span>
+        </div>
+        <div class="payment-sum-row">
+          <span>ພະນັກງານ (Cashier)</span>
+          <span id="modal-cashier-name">ທ້າວ ສົມພອນ</span>
+        </div>
+        
+        <!-- Discount and VAT Inputs -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color);">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label for="checkout-discount-input" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 700;">
+              <i class="fas fa-percentage"></i> ສ່ວນຫຼຸດ (Discount %)
+            </label>
+            <input type="number" min="0" max="100" class="form-input" id="checkout-discount-input" placeholder="0" value="0" style="padding: 6px 10px; font-size: 0.85rem; border-radius: 8px; background-color: #fcfbf7;">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label for="checkout-vat-input" style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 700;">
+              <i class="fas fa-percent"></i> ອາກອນ (VAT %)
+            </label>
+            <input type="number" min="0" max="100" class="form-input" id="checkout-vat-input" placeholder="0" value="0" style="padding: 6px 10px; font-size: 0.85rem; border-radius: 8px; background-color: #fcfbf7;">
+          </div>
+        </div>
+
+        <div class="payment-sum-row total" style="margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 8px;">
+          <span>ຍອດລວມຕ້ອງຊຳລະ</span>
+          <span id="checkout-total-display">0</span>
+        </div>
+      </div>
+
+      <div class="payment-method-selector">
+        <div class="method-card active" data-method="cash">
+          <i class="fas fa-money-bill-wave"></i>
+          <span>ເງິນສົດ (Cash)</span>
+        </div>
+        <div class="method-card" data-method="transfer">
+          <i class="fas fa-qrcode"></i>
+          <span>ເງິນໂອນ (Transfer)</span>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top: 16px;">
+        <label><i class="fas fa-coins"></i> ສະກຸນເງິນຊຳລະ (Payment Currency):</label>
+        <div class="currency-toggle" style="width: 100%; display: flex; justify-content: space-around;">
+          <button type="button" class="currency-opt" id="modal-curr-lak" data-curr="LAK">LAK (₭)</button>
+          <button type="button" class="currency-opt" id="modal-curr-thb" data-curr="THB">THB (฿)</button>
+          <button type="button" class="currency-opt" id="modal-curr-cny" data-curr="CNY">CNY (¥)</button>
+        </div>
+      </div>
+
+      <!-- Option A: CASH -->
+      <div id="cash-payment-section">
+        <div class="form-group">
+          <label for="amount-paid">ຮັບເງິນສົດຈາກລູກຄ້າ:</label>
+          <input type="text" inputmode="numeric" class="form-input" id="amount-paid" placeholder="ປ້ອນຈຳນວນເງິນ...">
+        </div>
+        <div class="payment-sum-row" style="font-size: 1.1rem; border-top:1px solid var(--border-color); padding-top:10px;">
+          <span>ເງິນທອນ (Change Due):</span>
+          <span id="change-due" style="font-weight: 800; color: var(--danger-color);">0</span>
+        </div>
+      </div>
+
+      <!-- Option B: TRANSFER -->
+      <div id="transfer-payment-section" style="display:none;">
+        <div class="form-group">
+          <label for="bank-select">ເລືອກທະນາຄານ:</label>
+          <select class="form-select" id="bank-select">
+            <option value="BCEL">BCEL OnePay</option>
+            <option value="LDB">LDB Bank</option>
+          </select>
+        </div>
+
+        <div class="qr-container" id="qr-container">
+          <div class="qr-image-wrapper">
+            <img id="qr-code-img" src="" alt="QR CODE">
+          </div>
+          <span class="qr-meta" id="qr-text">ກະລຸນາສະແກນ QR Code ເພື່ອຊຳລະ</span>
+        </div>
+      </div>
+
+      <button class="checkout-btn" id="confirm-payment-btn" style="margin-top: 24px;">
+        <i class="fas fa-print"></i> ຢືນຢັນການຊຳລະ ແລະ ພິມບິນ
+      </button>
+    </div>
+  </div>
+
+  <!-- 2. SECURITY PIN MODAL (Lao: ລະຫັດ PIN ຢືນຢັນຄວາມປອດໄພ) -->
+  <div class="modal-overlay" id="pin-modal">
+    <div class="modal-content" style="max-width: 320px; text-align: center; padding: 24px;">
+      <h3 style="margin-bottom: 8px;"><i class="fas fa-lock"></i> ຢືນຢັນລະຫັດ PIN</h3>
+      <p style="font-size: 0.8rem; color:var(--text-secondary); margin-bottom: 16px;">
+        ກະລຸນາໃສ່ລະຫັດ PIN 4 ຫຼັກ ເພື່ອອະນຸມັດການດຳເນີນການ
+      </p>
+
+      <div class="pin-dots">
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+      </div>
+
+      <div class="pin-pad-grid">
+        <button class="pin-btn pin-key" data-val="1">1</button>
+        <button class="pin-btn pin-key" data-val="2">2</button>
+        <button class="pin-btn pin-key" data-val="3">3</button>
+        <button class="pin-btn pin-key" data-val="4">4</button>
+        <button class="pin-btn pin-key" data-val="5">5</button>
+        <button class="pin-btn pin-key" data-val="6">6</button>
+        <button class="pin-btn pin-key" data-val="7">7</button>
+        <button class="pin-btn pin-key" data-val="8">8</button>
+        <button class="pin-btn pin-key" data-val="9">9</button>
+        <button class="pin-btn pin-key" data-val="clear" style="font-size:0.8rem; color:var(--danger-color);">ລ້າງ</button>
+        <button class="pin-btn pin-key" data-val="0">0</button>
+        <button class="pin-btn pin-key" data-val="back"><i class="fas fa-backspace"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. MEMBER REGISTRATION MODAL -->
+  <div class="modal-overlay" id="register-member-modal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3><i class="fas fa-user-plus"></i> ລົງທະບຽນສະມາຊິກໃໝ່</h3>
+        <button class="close-modal-btn" id="register-close-btn">&times;</button>
+      </div>
+
+      <div class="form-group">
+        <label for="reg-member-name"><i class="fas fa-user"></i> ຊື່ (First Name) *</label>
+        <input type="text" class="form-input" id="reg-member-name" placeholder="ປ້ອນຊື່...">
+      </div>
+
+      <div class="form-group" style="margin-top: 12px;">
+        <label for="reg-member-surname"><i class="fas fa-user-friends"></i> ນາມສະກຸນ (Surname) *</label>
+        <input type="text" class="form-input" id="reg-member-surname" placeholder="ປ້ອນນາມສະກຸນ...">
+      </div>
+
+      <div class="form-group" style="margin-top: 12px;">
+        <label for="reg-member-phone"><i class="fas fa-phone-alt"></i> ເບີໂທ (Phone Number) *</label>
+        <input type="text" class="form-input" id="reg-member-phone" placeholder="ປ້ອນເບີໂທ...">
+      </div>
+
+      <div class="form-group" style="margin-top: 12px;">
+        <label for="reg-member-email"><i class="fas fa-envelope"></i> ອີເມວ (Email - ຖ້າມີ)</label>
+        <input type="email" class="form-input" id="reg-member-email" placeholder="ປ້ອນອີເມວ...">
+      </div>
+
+      <button class="checkout-btn" id="confirm-register-member-btn" style="margin-top: 20px;">
+        <i class="fas fa-save"></i> ຢືນຢັນການລົງທະບຽນ (Register)
+      </button>
+    </div>
+  </div>
+
+  <!-- 3. RESTOCK PRODUCT MODAL -->
+  <div class="modal-overlay" id="restock-modal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3><i class="fas fa-boxes"></i> ເຕີມສິນຄ້າເຂົ້າສາງ</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+
+      <div class="form-group">
+        <label for="restock-product-select">ເລືອກສິນຄ້າ:</label>
+        <select class="form-select" id="restock-product-select"></select>
+      </div>
+
+      <div class="form-group">
+        <label for="restock-qty">ຈຳນວນທີ່ເຕີມ:</label>
+        <input type="number" class="form-input" id="restock-qty" placeholder="0">
+      </div>
+
+      <button class="checkout-btn" id="confirm-restock-btn" style="margin-top: 16px;">
+        <i class="fas fa-plus-circle"></i> ຢືນຢັນການເຕີມສິນຄ້າ
+      </button>
+    </div>
+  </div>
+
+  <!-- 4. CLOSE COUNTER / SHIFT REPORT MODAL -->
+  <div class="modal-overlay" id="close-counter-modal">
+    <div class="modal-content" style="max-width: 450px;">
+      <div class="modal-header">
+        <h3><i class="fas fa-power-off"></i> ສະຫຼຸບລາຍງານປິດເຄົາເຕີ້ (Close Shift)</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+
+      <div class="payment-summary-box" style="font-size: 0.85rem; line-height: 1.6;">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+          <span>ພະນັກງານ (Cashier):</span>
+          <strong id="shift-report-cashier"></strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 6px;">
+          <span>ຈຸດຂາຍ (POS):</span>
+          <strong id="shift-report-pos"></strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom: 12px; border-bottom: 1px dashed var(--border-color); padding-bottom: 6px;">
+          <span>ວັນທີປິດກະ:</span>
+          <strong id="shift-report-date"></strong>
+        </div>
+
+        <div style="font-weight: 700; margin-bottom: 6px; color:var(--text-secondary);">ເງິນທອນເລີ່ມຕົ້ນ (Starting Petty Cash):</div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px;">
+          <span>LAK (ກີບ):</span>
+          <strong id="shift-start-lak">0</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px;">
+          <span>THB (ບາດ):</span>
+          <strong id="shift-start-thb">0</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px; margin-bottom:12px; border-bottom: 1px dashed var(--border-color); padding-bottom: 6px;">
+          <span>CNY (ຢວນ):</span>
+          <strong id="shift-start-cny">0</strong>
+        </div>
+
+        <div style="font-weight: 700; margin-bottom: 6px; color:var(--text-secondary);">ຍອດຂາຍປະເພດເງິນສົດ (Cash Sales):</div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px;">
+          <span>LAK (ກີບ):</span>
+          <strong id="shift-sales-cash-lak">0</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px;">
+          <span>THB (ບາດ):</span>
+          <strong id="shift-sales-cash-thb">0</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px; margin-bottom:12px; border-bottom: 1px dashed var(--border-color); padding-bottom: 6px;">
+          <span>CNY (ຢວນ):</span>
+          <strong id="shift-sales-cash-cny">0</strong>
+        </div>
+
+        <div style="font-weight: 700; margin-bottom: 6px; color:var(--text-secondary);">ຍອດຂາຍປະເພດເງິນໂອນ (Transfer Sales):</div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px;">
+          <span>LAK (ກີບ):</span>
+          <strong id="shift-sales-trans-lak">0</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px;">
+          <span>THB (ບາດ):</span>
+          <strong id="shift-sales-trans-thb">0</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px; margin-bottom:12px; border-bottom: 1px dashed var(--border-color); padding-bottom: 6px;">
+          <span>CNY (ຢວນ):</span>
+          <strong id="shift-sales-trans-cny">0</strong>
+        </div>
+
+        <div style="font-weight: 700; margin-bottom: 6px; color:var(--primary-accent);">ເງິນທອນຄົງເຫຼືອທັງໝົດ (Total Drawer Cash):</div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px;">
+          <span>LAK (ກີບ):</span>
+          <strong id="shift-end-lak" style="color:var(--primary-accent);">0</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px;">
+          <span>THB (ບາດ):</span>
+          <strong id="shift-end-thb" style="color:var(--primary-accent);">0</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding-left:12px;">
+          <span>CNY (ຢວນ):</span>
+          <strong id="shift-end-cny" style="color:var(--primary-accent);">0</strong>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:20px;">
+        <button class="secondary-btn" id="btn-print-shift-report"><i class="fas fa-print"></i> ພິມລາຍງານປິດກະ</button>
+        <button class="checkout-btn" id="confirm-close-shift-btn" style="background-color:var(--danger-color);"><i class="fas fa-power-off"></i> ປິດເຄົາເຕີ້ທັນທີ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. RECEIPT PREVIEW MODAL -->
+  <div class="modal-overlay" id="receipt-modal">
+    <div class="modal-content" style="max-width: 420px; padding: 0; overflow: hidden; border-radius: 16px; border: none; box-shadow: var(--shadow-lg); background-color: #110f17;">
+      <div class="modal-header" style="background-color: #181522; color: #fff; padding: 16px 24px; margin-bottom: 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #282436;">
+        <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0; color: #fff; font-family: var(--font-family);">ໃບບິນຮັບເງິນ</h3>
+        <button class="close-modal-btn" style="color: #fff; opacity: 0.8; font-size: 1.5rem; background: none; border: none; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+      </div>
+      <div style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
+        <div id="receipt-preview-content" style="background: #fff; padding: 24px; border-radius: 8px; font-family: 'Courier New', 'Noto Sans Lao', monospace; font-size: 12px; color: #000; line-height: 1.4; box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-height: 420px; overflow-y: auto;">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px;">
+          <button class="secondary-btn" id="receipt-done-btn" style="background-color: #10b981; color: #fff; border: none; padding: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; font-family: var(--font-family); font-size: 0.9rem; transition: var(--transition);"><i class="fas fa-check-circle"></i> ຊຳລະສຳເລັດ</button>
+          <button class="primary-btn" id="receipt-download-btn" style="background-color: #7c3aed; color: #fff; border: none; padding: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--font-family); font-size: 0.9rem; transition: var(--transition);"><i class="fas fa-download"></i> ດາວໂຫຼດ PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       PRINTER INVOICE TEMPLATE (Lao: ໃບບິນພິມອອກ - ຊ້ອນໄວ້ໃນໜ້າຈໍ)
+       ========================================================================= -->
+  <div class="bill-print-container" id="bill-print-box"></div>
+
+  <!-- Hidden uploader for product menu images -->
+  <input type="file" id="hidden-product-image-uploader" accept="image/*" style="display: none;">
+
+  <!-- Load Database and Application Logic scripts -->
+  <script src="database.js?v=3.4"></script>
+  <script src="app.js?v=2.34"></script>
+
+</body>
+</html>
