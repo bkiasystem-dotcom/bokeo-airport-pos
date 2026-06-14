@@ -335,33 +335,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         pettyGroup.appendChild(infoDiv);
       }
     }
-    infoDiv.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ກຳລັງດຶງຂໍ້ມູນເງິນທອນຫຼ້າສຸດຈາກ Google Sheets, ກະລຸນາລໍຖ້າ...`;
+    infoDiv.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ກຳລັງກວດສອບການອັບເດດຂໍ້ມູນໃນພື້ນຫຼັງ...`;
     
     if (els.setupBtn) {
-      els.setupBtn.disabled = true;
-      els.setupBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ກຳລັງອັບເດດຂໍ້ມູນ... ກະລຸນາລໍຖ້າ`;
-      els.setupBtn.style.backgroundColor = '#9ca3af'; // Gray disabled style
+      els.setupBtn.disabled = false;
+      els.setupBtn.innerHTML = `<i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)`;
+      els.setupBtn.style.backgroundColor = '';
     }
 
-    // Sync from Google Sheets on startup to get the latest prices, stock, and petty cash sessions
-    try {
-      await window.BokeoDB.syncWithGoogleSheets();
-      // Reload products and cashiers after sync
+    // Call updateSetupStartingCash immediately with local data
+    updateSetupStartingCash();
+
+    // Run Google Sheets sync in the background without blocking the UI
+    window.BokeoDB.syncWithGoogleSheets().then(async (success) => {
+      console.log('Background startup sync finished. Success:', success);
       state.products = await window.BokeoDB.getProducts();
       state.cashiers = await window.BokeoDB.getCashiers();
-      // Repopulate options with the freshly synced cashier list
       populateSetupOptions();
-    } catch (e) {
-      console.warn('Startup sync failed, using local database:', e);
-    } finally {
-      // Re-enable "Start POS" button
-      if (els.setupBtn) {
-        els.setupBtn.disabled = false;
-        els.setupBtn.innerHTML = `<i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)`;
-        els.setupBtn.style.backgroundColor = ''; // Restore original style
-      }
       await updateSetupStartingCash();
-    }
+      
+      let infoDiv = document.getElementById('setup-petty-info');
+      if (infoDiv) {
+        if (success) {
+          infoDiv.innerHTML = `<i class="fas fa-check-circle" style="color:var(--success-color)"></i> ອັບເດດຂໍ້ມູນຫຼ້າສຸດສຳເລັດ`;
+        } else {
+          infoDiv.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:var(--warning-color)"></i> ໃຊ້ຂໍ້ມູນຫຼ້າສຸດໃນເຄື່ອງ (Offline)`;
+        }
+        setTimeout(() => {
+          const div = document.getElementById('setup-petty-info');
+          if (div) div.style.display = 'none';
+        }, 4000);
+      }
+    }).catch(e => {
+      console.warn('Background startup sync failed:', e);
+      let infoDiv = document.getElementById('setup-petty-info');
+      if (infoDiv) {
+        infoDiv.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:var(--warning-color)"></i> ໃຊ້ຂໍ້ມູນຫຼ້າສຸດໃນເຄື່ອງ (Offline)`;
+      }
+    });
 
     els.setupPOS.addEventListener('change', updateSetupStartingCash);
     checkLowStockAlerts();

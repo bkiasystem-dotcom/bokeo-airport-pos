@@ -17,6 +17,24 @@ const DEFAULT_FIREBASE_CONFIG = {
 const DB_NAME = 'BokeoAirportPOS_DB_v2';
 const DB_VERSION = 3;
 
+// Helper to fetch with a timeout (default 6 seconds)
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 6000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
 // Default Exchange Rates (1 THB = LAK / 1 THB = CNY)
 const DEFAULT_LAK_RATE = 700;
 const DEFAULT_CNY_RATE = 0.2; // 1 THB = 0.2 CNY (1 CNY = 5 THB)
@@ -304,13 +322,10 @@ class BokeoPOSDB {
       const store = tx.objectStore('products');
       const req = store.put(product);
       
-      req.onsuccess = async () => {
+      req.onsuccess = () => {
         if (this.isFirebaseEnabled && this.firestore) {
-          try {
-            await this.firestore.collection('products').doc(product.id).set(product);
-          } catch (e) {
-            console.error('Firestore saveProduct error:', e);
-          }
+          this.firestore.collection('products').doc(product.id).set(product)
+            .catch(e => console.error('Firestore saveProduct error:', e));
         }
         this._notifyListener('products');
         resolve(product);
@@ -325,13 +340,10 @@ class BokeoPOSDB {
       const store = tx.objectStore('products');
       const req = store.delete(productId);
 
-      req.onsuccess = async () => {
+      req.onsuccess = () => {
         if (this.isFirebaseEnabled && this.firestore) {
-          try {
-            await this.firestore.collection('products').doc(productId).delete();
-          } catch (e) {
-            console.error('Firestore deleteProduct error:', e);
-          }
+          this.firestore.collection('products').doc(productId).delete()
+            .catch(e => console.error('Firestore deleteProduct error:', e));
         }
         this._notifyListener('products');
         resolve();
@@ -349,7 +361,7 @@ class BokeoPOSDB {
       const store = tx.objectStore('products');
       const req = store.get(productId);
 
-      req.onsuccess = async () => {
+      req.onsuccess = () => {
         const product = req.result;
         if (product) {
           // Do not deduct stock if it's a service package
@@ -359,15 +371,11 @@ class BokeoPOSDB {
             store.put(product);
           }
           
-          tx.oncomplete = async () => {
+          tx.oncomplete = () => {
             if (this.isFirebaseEnabled && this.firestore && product.stock < 9999) {
-              try {
-                await this.firestore.collection('products').doc(productId).update({
-                  stock: product.stock
-                });
-              } catch (e) {
-                console.error('Firestore stock sync error:', e);
-              }
+              this.firestore.collection('products').doc(productId).update({
+                stock: product.stock
+              }).catch(e => console.error('Firestore stock sync error:', e));
             }
             this._notifyListener('products');
             resolve(product);
@@ -404,14 +412,11 @@ class BokeoPOSDB {
       const store = tx.objectStore('transactions');
       const req = store.put(txData);
 
-      req.onsuccess = async () => {
-        // Sync to cloud if online
+      req.onsuccess = () => {
+        // Sync to cloud in background (non-blocking)
         if (this.isFirebaseEnabled && this.firestore) {
-          try {
-            await this.firestore.collection('transactions').doc(txData.id).set(txData);
-          } catch (e) {
-            console.error('Firestore saveTransaction error:', e);
-          }
+          this.firestore.collection('transactions').doc(txData.id).set(txData)
+            .catch(e => console.error('Firestore saveTransaction error:', e));
         }
         this._notifyListener('transactions');
         resolve(txData);
@@ -426,13 +431,10 @@ class BokeoPOSDB {
       const store = tx.objectStore('transactions');
       const req = store.delete(txId);
 
-      req.onsuccess = async () => {
+      req.onsuccess = () => {
         if (this.isFirebaseEnabled && this.firestore) {
-          try {
-            await this.firestore.collection('transactions').doc(txId).delete();
-          } catch (e) {
-            console.error('Firestore deleteTransaction error:', e);
-          }
+          this.firestore.collection('transactions').doc(txId).delete()
+            .catch(e => console.error('Firestore deleteTransaction error:', e));
         }
         this._notifyListener('transactions');
         resolve();
@@ -461,13 +463,10 @@ class BokeoPOSDB {
       const store = tx.objectStore('cashiers');
       const req = store.put(cashier);
 
-      req.onsuccess = async () => {
+      req.onsuccess = () => {
         if (this.isFirebaseEnabled && this.firestore) {
-          try {
-            await this.firestore.collection('cashiers').doc(cashier.id).set(cashier);
-          } catch (e) {
-            console.error('Firestore saveCashier error:', e);
-          }
+          this.firestore.collection('cashiers').doc(cashier.id).set(cashier)
+            .catch(e => console.error('Firestore saveCashier error:', e));
         }
         this._notifyListener('cashiers');
         resolve(cashier);
@@ -482,13 +481,10 @@ class BokeoPOSDB {
       const store = tx.objectStore('cashiers');
       const req = store.delete(id);
 
-      req.onsuccess = async () => {
+      req.onsuccess = () => {
         if (this.isFirebaseEnabled && this.firestore) {
-          try {
-            await this.firestore.collection('cashiers').doc(id).delete();
-          } catch (e) {
-            console.error('Firestore deleteCashier error:', e);
-          }
+          this.firestore.collection('cashiers').doc(id).delete()
+            .catch(e => console.error('Firestore deleteCashier error:', e));
         }
         this._notifyListener('cashiers');
         resolve();
@@ -527,13 +523,10 @@ class BokeoPOSDB {
       const store = tx.objectStore('members');
       const req = store.put(member);
 
-      req.onsuccess = async () => {
+      req.onsuccess = () => {
         if (this.isFirebaseEnabled && this.firestore) {
-          try {
-            await this.firestore.collection('members').doc(member.id).set(member);
-          } catch (e) {
-            console.error('Firestore saveMember error:', e);
-          }
+          this.firestore.collection('members').doc(member.id).set(member)
+            .catch(e => console.error('Firestore saveMember error:', e));
         }
         this._notifyListener('members');
         resolve(member);
@@ -572,13 +565,10 @@ class BokeoPOSDB {
       const store = tx.objectStore('petty_cash');
       const req = store.put(session);
 
-      req.onsuccess = async () => {
+      req.onsuccess = () => {
         if (this.isFirebaseEnabled && this.firestore) {
-          try {
-            await this.firestore.collection('petty_cash').doc(session.id).set(session);
-          } catch (e) {
-            console.error('Firestore savePettyCashSession error:', e);
-          }
+          this.firestore.collection('petty_cash').doc(session.id).set(session)
+            .catch(e => console.error('Firestore savePettyCashSession error:', e));
         }
         resolve(session);
       };
@@ -852,17 +842,17 @@ class BokeoPOSDB {
       if (settings && settings.gdrive_script_url) {
         try {
           console.log('Attempting fetch via Apps Script Web App...');
-          const pricesRes = await fetch(`${settings.gdrive_script_url}?sheet=prices&t=${cacheBust}`);
+          const pricesRes = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=prices&t=${cacheBust}`);
           if (!pricesRes.ok) throw new Error('Failed to fetch prices from Apps Script');
           pricesText = await pricesRes.text();
           if (pricesText.trim().startsWith('Error:')) throw new Error(pricesText);
 
-          const stockRes = await fetch(`${settings.gdrive_script_url}?sheet=stock&t=${cacheBust}`);
+          const stockRes = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=stock&t=${cacheBust}`);
           if (!stockRes.ok) throw new Error('Failed to fetch stock from Apps Script');
           stockText = await stockRes.text();
           if (stockText.trim().startsWith('Error:')) throw new Error(stockText);
           
-          const pettyRes = await fetch(`${settings.gdrive_script_url}?sheet=petty_cash&t=${cacheBust}`);
+          const pettyRes = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=petty_cash&t=${cacheBust}`);
           if (pettyRes.ok) {
             pettyText = await pettyRes.text();
             if (pettyText.trim().startsWith('Error:')) {
@@ -871,7 +861,7 @@ class BokeoPOSDB {
             }
           }
           
-          const membersRes = await fetch(`${settings.gdrive_script_url}?sheet=members&t=${cacheBust}`);
+          const membersRes = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=members&t=${cacheBust}`);
           if (membersRes.ok) {
             membersText = await membersRes.text();
             if (membersText.trim().startsWith('Error:')) {
@@ -896,11 +886,11 @@ class BokeoPOSDB {
           const pricesGvizUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/gviz/tq?tqx=out:csv&gid=0&t=' + cacheBust;
           const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/gviz/tq?tqx=out:csv&gid=778238622&t=' + cacheBust;
 
-          const pricesRes = await fetch(pricesGvizUrl);
+          const pricesRes = await fetchWithTimeout(pricesGvizUrl);
           if (!pricesRes.ok) throw new Error('Failed to fetch prices from direct Gviz endpoint');
           pricesText = await pricesRes.text();
 
-          const stockRes = await fetch(stockGvizUrl);
+          const stockRes = await fetchWithTimeout(stockGvizUrl);
           if (!stockRes.ok) throw new Error('Failed to fetch stock from direct Gviz endpoint');
           stockText = await stockRes.text();
           console.log('Direct Google Sheets Gviz fetch successful.');
@@ -914,12 +904,12 @@ class BokeoPOSDB {
       // Method C: Last-resort fallback to AllOrigins JSON CORS proxy
       if (!pricesText || !stockText) {
         console.log('Attempting fetch via AllOrigins proxy...');
-        const pricesRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(pricesUrl)}`);
+        const pricesRes = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(pricesUrl)}`);
         if (!pricesRes.ok) throw new Error('Failed to fetch prices sheet CSV via proxy');
         const pricesJson = await pricesRes.json();
         pricesText = pricesJson.contents;
 
-        const stockRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(stockUrl)}`);
+        const stockRes = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(stockUrl)}`);
         if (!stockRes.ok) throw new Error('Failed to fetch stock sheet CSV via proxy');
         const stockJson = await stockRes.json();
         stockText = stockJson.contents;
