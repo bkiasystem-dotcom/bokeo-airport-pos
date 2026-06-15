@@ -194,7 +194,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     settingsMemberAbove: document.getElementById('settings-member-above'),
     btnSyncMembersSettings: document.getElementById('btn-sync-members-settings'),
     settingsMemberSearch: document.getElementById('settings-member-search'),
-    settingsMembersTableBody: document.getElementById('settings-members-table-body')
+    settingsMembersTableBody: document.getElementById('settings-members-table-body'),
+    
+    // History & WhatsApp DOM Elements
+    historyBackBtn: document.getElementById('history-back-btn'),
+    historySearchInput: document.getElementById('history-search-input'),
+    historyListContainer: document.getElementById('history-list-container'),
+    historyTotalCount: document.getElementById('history-total-count'),
+    historyFilterChips: document.querySelectorAll('.history-filter-chips .filter-chip'),
+    settingsWhatsappEnabled: document.getElementById('settings-whatsapp-enabled'),
+    settingsWhatsappGateway: document.getElementById('settings-whatsapp-gateway'),
+    settingsWhatsappPhone: document.getElementById('settings-whatsapp-phone'),
+    settingsWhatsappApikey: document.getElementById('settings-whatsapp-apikey'),
+    settingsWhatsappUrl: document.getElementById('settings-whatsapp-url')
   };
 
 
@@ -232,7 +244,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           ldb_lak: '',
           ldb_thb: '',
           ldb_cny: ''
-        }
+        },
+        whatsapp_enabled: false,
+        whatsapp_gateway: 'callmebot',
+        whatsapp_phone: '',
+        whatsapp_apikey: '',
+        whatsapp_url: ''
       };
       await window.BokeoDB.saveSettings(state.settings);
     } else {
@@ -309,6 +326,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       if (!state.settings.hasOwnProperty('receipt_slogan_eng')) {
         state.settings.receipt_slogan_eng = 'Service with heart, caring for every journey';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('whatsapp_enabled')) {
+        state.settings.whatsapp_enabled = false;
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('whatsapp_gateway')) {
+        state.settings.whatsapp_gateway = 'callmebot';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('whatsapp_phone')) {
+        state.settings.whatsapp_phone = '';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('whatsapp_apikey')) {
+        state.settings.whatsapp_apikey = '';
+        settingsUpdated = true;
+      }
+      if (!state.settings.hasOwnProperty('whatsapp_url')) {
+        state.settings.whatsapp_url = '';
         settingsUpdated = true;
       }
       if (settingsUpdated) {
@@ -1000,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         panel.classList.add('active');
         // Reset scroll position to top to prevent browser programmatic scroll glitches
         panel.scrollTop = 0;
-        const scrollChild = panel.querySelector(`.${viewName}-view`);
+        const scrollChild = panel.querySelector(`.${viewName}-view`) || panel.querySelector(`.history-view-container`);
         if (scrollChild) {
           scrollChild.scrollTop = 0;
         }
@@ -1008,6 +1045,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         panel.classList.remove('active');
       }
     });
+
+    if (viewName === 'history') {
+      renderHistoryView();
+    }
 
     // Reset <main> element scroll position to top
     const mainEl = document.querySelector('main');
@@ -1721,6 +1762,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 2. Save Transaction to database
     await window.BokeoDB.saveTransaction(transaction);
+
+    // Send WhatsApp notification in background (automatically notify WhatsApp group)
+    sendWhatsAppNotification(transaction);
 
     // Update local member points in IndexedDB
     if (state.selectedMember) {
@@ -3810,6 +3854,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (els.settingsMemberAbove) {
       els.settingsMemberAbove.value = s.member_points_above !== undefined ? s.member_points_above : 10;
     }
+
+    // Populate WhatsApp settings
+    if (els.settingsWhatsappEnabled) {
+      els.settingsWhatsappEnabled.checked = s.whatsapp_enabled || false;
+    }
+    if (els.settingsWhatsappGateway) {
+      els.settingsWhatsappGateway.value = s.whatsapp_gateway || 'callmebot';
+    }
+    if (els.settingsWhatsappPhone) {
+      els.settingsWhatsappPhone.value = s.whatsapp_phone || '';
+    }
+    if (els.settingsWhatsappApikey) {
+      els.settingsWhatsappApikey.value = s.whatsapp_apikey || '';
+    }
+    if (els.settingsWhatsappUrl) {
+      els.settingsWhatsappUrl.value = s.whatsapp_url || '';
+    }
+
     renderSettingsMembersTable();
   }
 
@@ -3973,6 +4035,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (els.settingsGDriveFolderId) {
       state.settings.gdrive_folder_id = els.settingsGDriveFolderId.value.trim();
+    }
+
+    // Save WhatsApp settings
+    if (els.settingsWhatsappEnabled) {
+      state.settings.whatsapp_enabled = els.settingsWhatsappEnabled.checked;
+    }
+    if (els.settingsWhatsappGateway) {
+      state.settings.whatsapp_gateway = els.settingsWhatsappGateway.value;
+    }
+    if (els.settingsWhatsappPhone) {
+      state.settings.whatsapp_phone = els.settingsWhatsappPhone.value.trim();
+    }
+    if (els.settingsWhatsappApikey) {
+      state.settings.whatsapp_apikey = els.settingsWhatsappApikey.value.trim();
+    }
+    if (els.settingsWhatsappUrl) {
+      state.settings.whatsapp_url = els.settingsWhatsappUrl.value.trim();
     }
     if (els.settingsReceiptAddress) {
       state.settings.receipt_address = els.settingsReceiptAddress.value.trim();
@@ -4463,6 +4542,231 @@ document.addEventListener('DOMContentLoaded', async () => {
         mainEl.scrollTop = 0;
       }
     });
+  }
+
+  /* =========================================================================
+     TRANSACTION HISTORY VIEW RENDERING & FILTERING
+     ========================================================================= */
+  let historyFilter = 'all';
+  let historySearchQuery = '';
+
+  if (els.historyBackBtn) {
+    els.historyBackBtn.addEventListener('click', () => {
+      switchView('pos');
+    });
+  }
+
+  if (els.historySearchInput) {
+    els.historySearchInput.addEventListener('input', (e) => {
+      historySearchQuery = e.target.value.toLowerCase().trim();
+      renderHistoryView();
+    });
+  }
+
+  if (els.historyFilterChips) {
+    els.historyFilterChips.forEach(chip => {
+      chip.addEventListener('click', (e) => {
+        els.historyFilterChips.forEach(c => c.classList.remove('active'));
+        e.target.classList.add('active');
+        historyFilter = e.target.getAttribute('data-filter');
+        renderHistoryView();
+      });
+    });
+  }
+
+  async function renderHistoryView() {
+    if (!els.historyListContainer) return;
+    els.historyListContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i> ກຳລັງໂຫຼດ...</div>';
+
+    const allTx = await window.BokeoDB.getTransactions();
+    allTx.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    const filteredTx = allTx.filter(tx => {
+      const matchesSearch = !historySearchQuery || 
+        tx.id.toLowerCase().includes(historySearchQuery) || 
+        (tx.cashier && tx.cashier.toLowerCase().includes(historySearchQuery)) ||
+        (tx.pos && tx.pos.toLowerCase().includes(historySearchQuery)) ||
+        (tx.payment_type && tx.payment_type.toLowerCase().includes(historySearchQuery));
+
+      if (!matchesSearch) return false;
+
+      if (historyFilter === 'all') return true;
+      if (historyFilter === 'today') {
+        const todayStr = new Date().toDateString();
+        const txDateStr = new Date(tx.timestamp).toDateString();
+        return todayStr === txDateStr;
+      }
+      if (historyFilter === 'cash') {
+        return tx.payment_type === 'ເງິນສົດ';
+      }
+      if (historyFilter === 'transfer') {
+        return tx.payment_type === 'ໂອນ';
+      }
+      if (historyFilter === 'card') {
+        return tx.payment_type === 'ບັດ' || (tx.payment_type && tx.payment_type.includes('ບັດ'));
+      }
+      return true;
+    });
+
+    els.historyListContainer.innerHTML = '';
+    if (filteredTx.length === 0) {
+      els.historyListContainer.innerHTML = '<div style="text-align:center; padding:40px; color:#94a3b8;"><i class="fas fa-receipt" style="font-size:2rem; display:block; margin-bottom:12px; opacity:0.3;"></i> ບໍ່ມີທຸລະກຳ</div>';
+      if (els.historyTotalCount) els.historyTotalCount.textContent = '0';
+      return;
+    }
+
+    if (els.historyTotalCount) els.historyTotalCount.textContent = filteredTx.length;
+
+    filteredTx.forEach(tx => {
+      const card = document.createElement('div');
+      card.className = 'history-card';
+      
+      if (tx.payment_type === 'ເງິນສົດ') {
+        card.style.borderLeftColor = '#10b981';
+      } else if (tx.payment_type === 'ໂອນ') {
+        card.style.borderLeftColor = '#3b82f6';
+      } else {
+        card.style.borderLeftColor = '#f59e0b';
+      }
+
+      const dateObj = new Date(tx.timestamp);
+      const day = dateObj.getDate();
+      const monthLao = ['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'][dateObj.getMonth()];
+      const year = dateObj.getFullYear();
+      const hours = String(dateObj.getHours()).padStart(2, '0');
+      const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+      const seconds = String(dateObj.getSeconds()).padStart(2, '0');
+      const formattedDate = `${day} ${monthLao} ${year} | ${hours}:${minutes}:${seconds}`;
+
+      let payIcon = '<i class="fas fa-money-bill-wave"></i>';
+      let payMethodText = `${tx.payment_type || 'ເງິນສົດ'} ${tx.paid_currency || 'LAK'}`;
+      if (tx.payment_type === 'ໂອນ') {
+        payIcon = '<i class="fas fa-qrcode"></i>';
+        payMethodText = `${tx.bank || 'BCEL QR'} ${tx.paid_currency || 'LAK'}`;
+      } else if (tx.payment_type && (tx.payment_type.includes('ບັດ') || tx.payment_type === 'ບັດ')) {
+        payIcon = '<i class="fas fa-credit-card"></i>';
+        payMethodText = `${tx.bank || 'ບັດ VISA'} ${tx.paid_currency || 'LAK'}`;
+      }
+
+      card.innerHTML = `
+        <div class="history-card-left">
+          <div class="history-card-id">${tx.id}</div>
+          <div class="history-card-date">${formattedDate}</div>
+          <div class="history-card-type">${payIcon} <span>${payMethodText}</span></div>
+        </div>
+        <div class="history-card-right">
+          <span class="history-card-status">ສຳເລັດ</span>
+          <div class="history-card-amount">${formatNumber(tx.total_lak)} LAK</div>
+        </div>
+      `;
+      
+      card.addEventListener('click', () => {
+        showReceiptPreviewForTx(tx);
+      });
+
+      els.historyListContainer.appendChild(card);
+    });
+  }
+
+  function showReceiptPreviewForTx(tx) {
+    if (!els.receiptModal || !els.receiptPreviewContent) return;
+    state.lastTransaction = tx;
+    els.receiptPreviewContent.innerHTML = buildReceiptHTML(tx);
+    els.receiptModal.classList.add('active');
+  }
+
+  /* =========================================================================
+     AUTOMATIC WHATSAPP NOTIFICATIONS INTEGRATION
+     ========================================================================= */
+  async function sendWhatsAppNotification(tx) {
+    const s = state.settings;
+    if (!s || !s.whatsapp_enabled) return;
+
+    let itemsText = '';
+    tx.items.forEach(item => {
+      itemsText += `- ${item.name_lo} x${item.qty}\n`;
+    });
+
+    const dateObj = new Date(tx.timestamp);
+    const day = dateObj.getDate();
+    const monthLao = ['ມັງກອນ', 'ກຸມພາ', 'ມີນາ', 'ເມສາ', 'ພຶດສະພາ', 'ມິຖຸນາ', 'ກໍລະກົດ', 'ສິງຫາ', 'ກັນຍາ', 'ຕຸລາ', 'ພະຈິກ', 'ທັນວາ'][dateObj.getMonth()];
+    const year = dateObj.getFullYear();
+    const hours = String(dateObj.getHours()).padStart(2, '0');
+    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+    const seconds = String(dateObj.getSeconds()).padStart(2, '0');
+    const formattedDate = `${day} ${monthLao} ${year} ${hours}:${minutes}:${seconds}`;
+
+    let payDetail = `${tx.payment_type}`;
+    if (tx.payment_type === 'ໂອນ' && tx.bank) {
+      payDetail += ` (${tx.bank})`;
+    }
+
+    const message = `🔔 *ແຈ້ງເຕືອນຍອດຂາຍໃຫມ່ (New POS Sale)* ✈️\n` +
+                    `--------------------------------\n` +
+                    `🧾 ບິນເລກທີ: *${tx.id}*\n` +
+                    `🏪 ຈຸດຂາຍ: *${tx.pos}*\n` +
+                    `👤 ພະນັກງານ: *${tx.cashier}*\n` +
+                    `📅 ເວລາ: *${formattedDate}*\n\n` +
+                    `📦 *ລາຍການສິນຄ້າ:*\n${itemsText}\n` +
+                    `💵 *ຍອດລວມ:* \n` +
+                    `- LAK: *${formatNumber(tx.total_lak)} LAK*\n` +
+                    `- THB: *${formatNumber(tx.total_thb)} THB*\n` +
+                    `- CNY: *${formatNumber(tx.total_cny)} CNY*\n\n` +
+                    `💳 *ການຊຳລະເງິນ:*\n` +
+                    `- ວິທີ: *${payDetail}*\n` +
+                    `- ຮັບເງິນ: *${formatNumber(tx.paid_amount)} ${tx.paid_currency}*\n` +
+                    `- ເງິນທອນ: *${formatNumber(tx.change_amount)} ${tx.paid_currency}*\n` +
+                    `--------------------------------\n` +
+                    `✨ ຂອບໃຈທີ່ໃຊ້ບໍລິການ BKD POS ✨`;
+
+    if (s.whatsapp_gateway === 'callmebot') {
+      const phone = s.whatsapp_phone;
+      const apikey = s.whatsapp_apikey;
+      if (!phone || !apikey) {
+        console.warn('CallMeBot WhatsApp configuration is incomplete.');
+        return;
+      }
+
+      const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(message)}&apikey=${encodeURIComponent(apikey)}`;
+      try {
+        console.log('Sending WhatsApp notification via CallMeBot...');
+        fetch(url, { mode: 'no-cors' })
+          .then(() => console.log('WhatsApp notification sent successfully.'))
+          .catch(err => console.error('Error sending WhatsApp notification:', err));
+      } catch (err) {
+        console.error('CallMeBot notification failed:', err);
+      }
+    } else if (s.whatsapp_gateway === 'webhook') {
+      const url = s.whatsapp_url;
+      if (!url) {
+        console.warn('Custom Webhook URL is not configured.');
+        return;
+      }
+
+      try {
+        console.log('Sending WhatsApp notification via Webhook...');
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: message,
+            transaction: tx
+          })
+        })
+        .then(res => {
+          if (res.ok) {
+            console.log('Webhook WhatsApp notification sent successfully.');
+          } else {
+            console.error('Webhook notification failed with status:', res.status);
+          }
+        })
+        .catch(err => console.error('Error sending Webhook WhatsApp notification:', err));
+      } catch (err) {
+        console.error('Webhook notification failed:', err);
+      }
+    }
   }
 
   // Load database content on start

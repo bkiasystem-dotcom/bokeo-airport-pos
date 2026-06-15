@@ -109,6 +109,10 @@
           <i class="fas fa-shopping-basket"></i>
           <span class="nav-item-tooltip">ຈຸດຂາຍ (POS)</span>
         </div>
+        <div class="nav-item" data-view="history">
+          <i class="fas fa-history"></i>
+          <span class="nav-item-tooltip">ປະຫວັດທຸລະກຳ (History)</span>
+        </div>
         <div class="nav-item" data-view="dashboard">
           <i class="fas fa-chart-line"></i>
           <span class="nav-item-tooltip">ລາຍງານ (Reports)</span>
@@ -236,6 +240,51 @@
                 </button>
               </div>
             </aside>
+          </div>
+        </div>
+
+        <!-- History View (Lao: ປະຫວັດທຸລະກຳ) -->
+        <div class="view-panel" id="history-view">
+          <div class="history-view-container">
+            <!-- Header -->
+            <div class="history-header">
+              <button class="history-back-btn" id="history-back-btn">
+                <i class="fas fa-chevron-left"></i> ກັບຄືນ
+              </button>
+              <div class="history-title-group">
+                <h2 class="history-main-title">ປະຫວັດທຸລະກຳ</h2>
+                <span class="history-subtitle">ສະໜາມບິນສາກົນບໍ່ແກ້ວ</span>
+              </div>
+              <div class="history-logo">
+                <i class="fas fa-plane"></i>
+                <span>BKD</span>
+              </div>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="history-search-wrapper">
+              <i class="fas fa-search search-icon"></i>
+              <input type="text" class="history-search-input" id="history-search-input" placeholder="ຄົ້ນຫາໃບເກັບເງິນ...">
+            </div>
+
+            <!-- Filter Chips -->
+            <div class="history-filter-chips">
+              <button class="filter-chip active" data-filter="all">ທັງໝົດ</button>
+              <button class="filter-chip" data-filter="today">ວັນນີ້</button>
+              <button class="filter-chip" data-filter="cash">ເງິນສົດ</button>
+              <button class="filter-chip" data-filter="transfer">QR</button>
+              <button class="filter-chip" data-filter="card">ບັດ</button>
+            </div>
+
+            <!-- Transaction List Container -->
+            <div class="history-list" id="history-list-container">
+              <!-- Cards will be populated dynamically -->
+            </div>
+
+            <!-- Footer -->
+            <div class="history-footer">
+              ທຸລະກຳທັງໝົດ: <span id="history-total-count">0</span>
+            </div>
           </div>
         </div>
 
@@ -486,6 +535,37 @@
                       <label for="settings-member-above">ເກີນ ຫຼື ເທົ່າເກນໄດ້ (ແຕ້ມ)</label>
                       <input type="number" class="form-input" id="settings-member-above" placeholder="10">
                     </div>
+                  </div>
+                </div>
+
+                <!-- WhatsApp Notification Settings -->
+                <div class="settings-card">
+                  <h3><i class="fab fa-whatsapp"></i> ຕັ້ງຄ່າການແຈ້ງເຕືອນຜ່ານ WhatsApp</h3>
+                  <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom: 16px;">
+                    ເປີດການແຈ້ງເຕືອນຍອດຂາຍອັດຕະໂນມັດໄປຫາກຸ່ມ WhatsApp (ຜ່ານ CallMeBot ຫຼື Webhook).
+                  </p>
+                  <div class="form-group" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="settings-whatsapp-enabled" style="width: 20px; height: 20px; cursor: pointer;">
+                    <label for="settings-whatsapp-enabled" style="font-weight: bold; cursor: pointer;">ເປີດການແຈ້ງເຕືອນ (Enable Notifications)</label>
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-whatsapp-gateway">ປະເພດການເຊື່ອມຕໍ່ (Gateway Type)</label>
+                    <select class="form-select" id="settings-whatsapp-gateway">
+                      <option value="callmebot">CallMeBot (Free API for personal/groups)</option>
+                      <option value="webhook">Custom Webhook (JSON POST)</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-whatsapp-phone">ເບີໂທລະສັບ / Group ID / Receiver (ສຳລັບ CallMeBot)</label>
+                    <input type="text" class="form-input" id="settings-whatsapp-phone" placeholder="e.g. +85620XXXXXXXX or Group Name">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-whatsapp-apikey">API Key / Token (ສຳລັບ CallMeBot)</label>
+                    <input type="text" class="form-input" id="settings-whatsapp-apikey" placeholder="e.g. 123456">
+                  </div>
+                  <div class="form-group" style="margin-top: 12px;">
+                    <label for="settings-whatsapp-url">Custom Webhook URL (ສຳລັບ Webhook)</label>
+                    <input type="text" class="form-input" id="settings-whatsapp-url" placeholder="https://your-api-gateway.com/webhook">
                   </div>
                 </div>
               </div>

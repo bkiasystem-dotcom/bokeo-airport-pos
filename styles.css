@@ -1810,3 +1810,245 @@ body {
     transform: translateY(0);
   }
 }
+
+/* =========================================================================
+   TRANSACTION HISTORY VIEW (DARK THEME)
+   ========================================================================= */
+#history-view {
+  background-color: #0b0f19;
+  color: #ffffff;
+  padding: 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.history-back-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 20px;
+  background-color: rgba(148, 163, 184, 0.1);
+  transition: var(--transition);
+}
+
+.history-back-btn:hover {
+  color: #ffffff;
+  background-color: rgba(148, 163, 184, 0.2);
+}
+
+.history-title-group {
+  text-align: center;
+}
+
+.history-main-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0;
+  color: #ffffff;
+}
+
+.history-subtitle {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  display: block;
+}
+
+.history-logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #1e293b;
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.history-logo i {
+  color: #3b82f6;
+  font-size: 0.9rem;
+}
+
+.history-logo span {
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+}
+
+.history-search-wrapper {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.history-search-wrapper .search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.history-search-input {
+  width: 100%;
+  background-color: #161f30;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 24px;
+  padding: 12px 16px 12px 44px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  outline: none;
+  transition: var(--transition);
+}
+
+.history-search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.history-filter-chips {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none; /* Hide scrollbar for Firefox */
+}
+
+.history-filter-chips::-webkit-scrollbar {
+  display: none; /* Hide scrollbar for Chrome/Safari */
+}
+
+.history-filter-chips .filter-chip {
+  background-color: #161f30;
+  border: 1px solid rgba(255,255,255,0.03);
+  color: #94a3b8;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition);
+}
+
+.history-filter-chips .filter-chip:hover {
+  color: #ffffff;
+  background-color: #1e293b;
+}
+
+.history-filter-chips .filter-chip.active {
+  background-color: #1e293b;
+  color: #ffffff;
+  border-color: rgba(255,255,255,0.1);
+  font-weight: 600;
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 2px;
+}
+
+.history-card {
+  background-color: #161f30;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-left: 4px solid #10b981;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transition: var(--transition);
+}
+
+.history-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+}
+
+.history-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-card-id {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #ffffff;
+}
+
+.history-card-date {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.history-card-type {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-card-type i {
+  color: #64748b;
+}
+
+.history-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.history-card-status {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 20px;
+}
+
+.history-card-amount {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #ffffff;
+}
+
+.history-footer {
+  margin-top: 16px;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+  padding: 12px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
