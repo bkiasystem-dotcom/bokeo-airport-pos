@@ -1086,7 +1086,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           item.style.display = 'flex';
         }
       } else {
-        if (view === 'pos' || view === 'dashboard') {
+        if (view === 'pos' || view === 'dashboard' || view === 'history') {
           item.style.display = 'flex';
         } else {
           item.style.display = 'none';
