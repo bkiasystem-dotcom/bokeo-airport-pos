@@ -999,7 +999,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const targetView = e.currentTarget.getAttribute('data-view');
       
       // Check permission for admin areas (Stock, Settings)
-      if (targetView === 'stock' || targetView === 'settings') {
+      if (targetView === 'settings') {
+        promptPIN(() => {
+          switchView(targetView);
+        });
+      } else if (targetView === 'stock') {
         const isAdminPOS = state.currentPOS && [
           'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
           'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
