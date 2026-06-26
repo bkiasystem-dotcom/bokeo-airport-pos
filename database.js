@@ -1047,6 +1047,17 @@ class BokeoPOSDB {
       // Get current local products
       const localProducts = await this.getProducts();
 
+      // Snapshot existing product images (images live locally, NOT in the Sheet).
+      // Used to carry images over if a product gets recreated during sync.
+      const _imgByKey = {};
+      localProducts.forEach(p => {
+        if (p && p.image) {
+          _imgByKey['id:' + p.id] = p.image;
+          if (p.code) _imgByKey['code:' + p.code] = p.image;
+          if (p.name_lo) _imgByKey['name:' + String(p.name_lo).trim().toLowerCase()] = p.image;
+        }
+      });
+
       // Parse Exchange Rates from prices sheet
       let rateLak = settings.exchange_rate_lak;
       let rateCny = settings.exchange_rate_cny;
@@ -1147,6 +1158,11 @@ class BokeoPOSDB {
             max_stock: defaultStock,
             unit: defaultUnit
           };
+          // Carry over a previously-uploaded image if one exists for this id/code/name
+          const _img = _imgByKey['id:' + productId]
+            || _imgByKey['code:' + productId]
+            || (nameLo ? _imgByKey['name:' + String(nameLo).trim().toLowerCase()] : null);
+          if (_img) newProduct.image = _img;
           localProducts.push(newProduct);
         }
       });
