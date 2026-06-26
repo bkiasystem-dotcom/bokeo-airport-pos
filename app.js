@@ -1986,8 +1986,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="font-size: 10px; color:#444; border:1px dashed #ccc; border-radius:6px; padding:8px; margin-bottom:12px;">
         <div style="text-align:center; font-weight:700; color:#000; margin-bottom:4px;">ລາຄາລວມ 3 ສະກຸນເງິນ (Total in 3 Currencies)</div>
         <div style="display:flex; justify-content:space-between;"><span>ກີບ (LAK)</span><span style="font-weight:600;color:#000;">${formatNumber(tx.total_lak)} ₭</span></div>
-        <div style="display:flex; justify-content:space-between;"><span>ບາດ (THB)</span><span style="font-weight:600;color:#000;">${formatNumber(tx.total_thb)} ฿</span></div>
         <div style="display:flex; justify-content:space-between;"><span>ຢວນ (CNY)</span><span style="font-weight:600;color:#000;">${formatNumber(tx.total_cny)} ¥</span></div>
+        <div style="display:flex; justify-content:space-between;"><span>ບາດ (THB)</span><span style="font-weight:600;color:#000;">${formatNumber(tx.total_thb)} ฿</span></div>
         <div style="text-align:center; color:#888; margin-top:4px; font-size:9px;">ອັດຕາແລກປ່ຽນ 1 THB = ${formatNumber(state.settings.exchange_rate_lak)} LAK = ${state.settings.exchange_rate_cny} CNY</div>
       </div>
 
@@ -4118,14 +4118,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.settings.receipt_slogan_eng = els.settingsReceiptSloganEng.value.trim();
     }
 
-    // Apply Rate Updates to Product lists
-    state.products.forEach(p => {
-      // Recalculate price in LAK & CNY
-      p.price_lak = Math.round(p.price_thb * rateLak);
-      p.price_cny = parseFloat((p.price_thb * rateCny).toFixed(2));
-      window.BokeoDB.saveProduct(p);
-    });
-
+    // NOTE: Product prices are kept exactly as defined in the Google Sheet price table.
+    // The exchange rate is used ONLY for converting combined totals to an equivalent
+    // single currency in reports/receipts — it does NOT recalculate product prices.
     await window.BokeoDB.saveSettings(state.settings);
     logAct('SETTINGS_SAVE', `ບັນທຶກການຕັ້ງຄ່າ | rate 1THB=${rateLak}LAK, ${rateCny}CNY`);
     alert('ບັນທຶກການຕັ້ງຄ່າສຳເລັດແລ້ວ');
