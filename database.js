@@ -15,7 +15,7 @@ const DEFAULT_FIREBASE_CONFIG = {
 };
 
 const DB_NAME = 'BokeoAirportPOS_DB_v2';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 // Helper to fetch with a timeout (default 6 seconds)
 async function fetchWithTimeout(resource, options = {}) {
@@ -165,6 +165,14 @@ class BokeoPOSDB {
         // Members Store
         if (!db.objectStoreNames.contains('members')) {
           db.createObjectStore('members', { keyPath: 'id' });
+        }
+
+        // Activity Log Store (audit trail of user actions)
+        if (!db.objectStoreNames.contains('activity_log')) {
+          const logStore = db.createObjectStore('activity_log', { keyPath: 'id' });
+          logStore.createIndex('timestamp', 'timestamp', { unique: false });
+          logStore.createIndex('action', 'action', { unique: false });
+          logStore.createIndex('cashier', 'cashier', { unique: false });
         }
       };
     });
@@ -440,6 +448,63 @@ class BokeoPOSDB {
         resolve();
       };
       req.onerror = () => reject(req.error);
+    });
+  }
+
+  /* =========================================================================
+     ACTIVITY LOG (AUDIT TRAIL)
+     ========================================================================= */
+
+  /**
+   * Record a user/system action into the activity_log store.
+   * entry = { action, detail, cashier, pos } ; id + timestamp are auto-filled.
+   * Failures are swallowed so logging never blocks the main flow.
+   */
+  async logActivity(entry) {
+    try {
+      const record = {
+        id: 'LOG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+        timestamp: new Date().toISOString(),
+        action: entry.action || 'UNKNOWN',
+        detail: entry.detail || '',
+        cashier: entry.cashier || '-',
+        pos: entry.pos || '-'
+      };
+      await new Promise((resolve) => {
+        const tx = this.db.transaction('activity_log', 'readwrite');
+        tx.objectStore('activity_log').put(record);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
+      if (this.isFirebaseEnabled && this.firestore) {
+        this.firestore.collection('activity_log').doc(record.id).set(record)
+          .catch(e => console.error('Firestore logActivity error:', e));
+      }
+      this._notifyListener('activity_log');
+      return record;
+    } catch (e) {
+      console.error('logActivity failed:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Return activity logs, newest first. Optional limit (default 500).
+   */
+  async getActivityLogs(limit = 500) {
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction('activity_log', 'readonly');
+        const store = tx.objectStore('activity_log');
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const all = (req.result || []).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+          resolve(limit ? all.slice(0, limit) : all);
+        };
+        req.onerror = () => resolve([]);
+      } catch (e) {
+        resolve([]);
+      }
     });
   }
 

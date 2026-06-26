@@ -38,6 +38,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `${year}-${month}-${day}`;
   }
 
+  // Audit-trail helper: records a user/system action (never blocks main flow)
+  async function logAct(action, detail) {
+    try {
+      await window.BokeoDB.logActivity({
+        action: action,
+        detail: detail || '',
+        cashier: state.currentCashier || '-',
+        pos: state.currentPOS ? state.currentPOS.name : '-'
+      });
+    } catch (e) { console.error('logAct error:', e); }
+  }
+
+  // Export the activity log to a CSV file (run window.exportActivityLogCSV() or wire to a button)
+  window.exportActivityLogCSV = async function () {
+    const logs = await window.BokeoDB.getActivityLogs(5000);
+    const header = 'timestamp,action,cashier,pos,detail\n';
+    const rows = logs.map(l => [
+      l.timestamp, l.action, l.cashier, l.pos,
+      '"' + String(l.detail || '').replace(/"/g, '""') + '"'
+    ].join(',')).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'activity_log_' + getLocalYMD() + '.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // DOM Elements Cache
   const els = {
     setupOverlay: document.getElementById('setup-overlay'),
@@ -781,6 +808,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await window.BokeoDB.savePettyCashSession(session);
     }
     state.pettyCashSession = session;
+    logAct('SHIFT_OPEN', `ເປີດກະ POS=${posObj.name} | ເງິນທອນເລີ່ມ: LAK=${pettyLak}, THB=${pettyThb}, CNY=${pettyCny}`);
 
     // Update Header UI
     els.headerPOSName.innerHTML = `<i class="fas fa-terminal"></i> ${posObj.name}`;
@@ -969,6 +997,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Mark petty cash session as closed
       state.pettyCashSession.closed = true;
       await window.BokeoDB.savePettyCashSession(state.pettyCashSession);
+      logAct('SHIFT_CLOSE', `ປິດກະ ${state.pettyCashSession.id}`);
 
       // Sync daily petty cash drawer balance to Google Sheet
       syncPettyCashToGoogleSheets(state.pettyCashSession);
@@ -1747,6 +1776,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       profit_lak: profitLAK,
       profit_thb: profitTHB,
       profit_cny: profitCNY,
+      rate_lak: rateLak,
+      rate_cny: rateCny,
       paid_currency: state.currentCurrency,
       paid_amount: paid,
       change_amount: change,
@@ -1766,6 +1797,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 2. Save Transaction to database
     await window.BokeoDB.saveTransaction(transaction);
+    logAct('SALE', `ຂາຍ ${transaction.id} = ${formatNumber(transaction.total_lak)}₭ / ${formatNumber(transaction.total_thb)}฿ / ${formatNumber(transaction.total_cny)}¥ (${transaction.payment_type})`);
 
     // Send WhatsApp notification in background (automatically notify WhatsApp group)
     sendWhatsAppNotification(transaction);
@@ -1777,7 +1809,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 3. Update Remaining Petty Cash Session (only cash change reduces petty float)
-    if (activePaymentMethod === 'cash') {
+    if (activePaymentMethod === 'cash' && state.pettyCashSession) {
       if (state.currentCurrency === 'LAK') {
         state.pettyCashSession.lak_remaining -= change;
       } else if (state.currentCurrency === 'THB') {
@@ -1949,6 +1981,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="font-size: 13px; font-weight: 800; color: #000; display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding-bottom: 8px; margin-bottom: 12px;">
         <span>ລວມທັງໝົດ</span>
         <span>${formattedTotal} ${symbol}</span>
+      </div>
+
+      <div style="font-size: 10px; color:#444; border:1px dashed #ccc; border-radius:6px; padding:8px; margin-bottom:12px;">
+        <div style="text-align:center; font-weight:700; color:#000; margin-bottom:4px;">ລາຄາລວມ 3 ສະກຸນເງິນ (Total in 3 Currencies)</div>
+        <div style="display:flex; justify-content:space-between;"><span>ກີບ (LAK)</span><span style="font-weight:600;color:#000;">${formatNumber(tx.total_lak)} ₭</span></div>
+        <div style="display:flex; justify-content:space-between;"><span>ບາດ (THB)</span><span style="font-weight:600;color:#000;">${formatNumber(tx.total_thb)} ฿</span></div>
+        <div style="display:flex; justify-content:space-between;"><span>ຢວນ (CNY)</span><span style="font-weight:600;color:#000;">${formatNumber(tx.total_cny)} ¥</span></div>
+        <div style="text-align:center; color:#888; margin-top:4px; font-size:9px;">ອັດຕາແລກປ່ຽນ 1 THB = ${formatNumber(state.settings.exchange_rate_lak)} LAK = ${state.settings.exchange_rate_cny} CNY</div>
       </div>
 
       ${tx.payment_type === 'ເງິນສົດ' ? `
@@ -2293,6 +2333,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Verify PIN
         if (pinInput === state.settings.admin_pin) {
           els.pinModal.classList.remove('active');
+          logAct('PIN_UNLOCK', 'ປົດລັອກ Admin PIN ສຳເລັດ');
           if (state.pinTargetAction) {
             state.pinTargetAction();
             state.pinTargetAction = null;
@@ -3264,6 +3305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const confirmDelete = confirm(`ທ່ານຕ້ອງການລຶບບິນ ${txId} ແທ້ຫຼືບໍ່?`);
       if (confirmDelete) {
         await window.BokeoDB.deleteTransaction(txId);
+        logAct('VOID_TX', `ລຶບບິນ ${txId}`);
         // Reload products/dashboard
         state.products = await window.BokeoDB.getProducts();
         await loadDashboardData();
@@ -4085,6 +4127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     await window.BokeoDB.saveSettings(state.settings);
+    logAct('SETTINGS_SAVE', `ບັນທຶກການຕັ້ງຄ່າ | rate 1THB=${rateLak}LAK, ${rateCny}CNY`);
     alert('ບັນທຶກການຕັ້ງຄ່າສຳເລັດແລ້ວ');
     
     // Refresh products in memory
@@ -4490,6 +4533,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const registered = await registerMemberToGoogleSheets(tempMember);
         await window.BokeoDB.saveMember(registered);
+        logAct('MEMBER_REGISTER', `ລົງທະບຽນສະມາຊິກ ${registered.id} (${name} ${surname})`);
         
         state.members = await window.BokeoDB.getMembers();
         selectCartMember(registered);

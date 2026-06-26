@@ -1,6 +1,14 @@
 /* Google Fonts: Outfit (modern sans-serif) & Noto Sans Lao (for Lao script) */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
 
+/* Self-hosted Noto Sans Lao (works offline / unreliable networks) */
+@font-face{font-family:'Noto Sans Lao';font-style:normal;font-weight:300;font-display:swap;src:url('fonts/NotoSansLao-300.woff2') format('woff2');}
+@font-face{font-family:'Noto Sans Lao';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/NotoSansLao-400.woff2') format('woff2');}
+@font-face{font-family:'Noto Sans Lao';font-style:normal;font-weight:500;font-display:swap;src:url('fonts/NotoSansLao-500.woff2') format('woff2');}
+@font-face{font-family:'Noto Sans Lao';font-style:normal;font-weight:600;font-display:swap;src:url('fonts/NotoSansLao-600.woff2') format('woff2');}
+@font-face{font-family:'Noto Sans Lao';font-style:normal;font-weight:700;font-display:swap;src:url('fonts/NotoSansLao-700.woff2') format('woff2');}
+
+
 :root {
   /* Design Tokens & Colors (Teal, White & Cream Palette) */
   --bg-color: #faf8f5; /* Warm Cream */
@@ -15,7 +23,7 @@
   --warning-color: #b45309; /* Warm Amber */
   --danger-color: #991b1b; /* Crimson Red */
   
-  --font-family: 'Outfit', 'Noto Sans Lao', system-ui, -apple-system, sans-serif;
+  --font-family: 'Noto Sans Lao', 'Outfit', system-ui, -apple-system, sans-serif;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -1601,7 +1609,7 @@ body {
     height: auto !important;
     width: 80mm !important;
     overflow: visible !important;
-    font-family: 'Outfit', 'Noto Sans Lao', system-ui, -apple-system, sans-serif !important;
+    font-family: 'Noto Sans Lao', 'Outfit', system-ui, -apple-system, sans-serif !important;
     font-size: 11px !important;
     margin: 0 !important;
     padding: 0 !important;
