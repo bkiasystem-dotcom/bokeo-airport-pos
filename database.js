@@ -15,7 +15,7 @@ const DEFAULT_FIREBASE_CONFIG = {
 };
 
 const DB_NAME = 'BokeoAirportPOS_DB_v2';
-const DB_VERSION = 4;
+const DB_VERSION = 3;
 
 // Helper to fetch with a timeout (default 6 seconds)
 async function fetchWithTimeout(resource, options = {}) {
@@ -165,14 +165,6 @@ class BokeoPOSDB {
         // Members Store
         if (!db.objectStoreNames.contains('members')) {
           db.createObjectStore('members', { keyPath: 'id' });
-        }
-
-        // Activity Log Store (audit trail of user actions)
-        if (!db.objectStoreNames.contains('activity_log')) {
-          const logStore = db.createObjectStore('activity_log', { keyPath: 'id' });
-          logStore.createIndex('timestamp', 'timestamp', { unique: false });
-          logStore.createIndex('action', 'action', { unique: false });
-          logStore.createIndex('cashier', 'cashier', { unique: false });
         }
       };
     });
@@ -332,7 +324,7 @@ class BokeoPOSDB {
       
       req.onsuccess = () => {
         if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('products').doc(product.id).set(this._noImage(product))
+          this.firestore.collection('products').doc(product.id).set(product)
             .catch(e => console.error('Firestore saveProduct error:', e));
         }
         this._notifyListener('products');
@@ -448,63 +440,6 @@ class BokeoPOSDB {
         resolve();
       };
       req.onerror = () => reject(req.error);
-    });
-  }
-
-  /* =========================================================================
-     ACTIVITY LOG (AUDIT TRAIL)
-     ========================================================================= */
-
-  /**
-   * Record a user/system action into the activity_log store.
-   * entry = { action, detail, cashier, pos } ; id + timestamp are auto-filled.
-   * Failures are swallowed so logging never blocks the main flow.
-   */
-  async logActivity(entry) {
-    try {
-      const record = {
-        id: 'LOG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
-        timestamp: new Date().toISOString(),
-        action: entry.action || 'UNKNOWN',
-        detail: entry.detail || '',
-        cashier: entry.cashier || '-',
-        pos: entry.pos || '-'
-      };
-      await new Promise((resolve) => {
-        const tx = this.db.transaction('activity_log', 'readwrite');
-        tx.objectStore('activity_log').put(record);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => resolve();
-      });
-      if (this.isFirebaseEnabled && this.firestore) {
-        this.firestore.collection('activity_log').doc(record.id).set(record)
-          .catch(e => console.error('Firestore logActivity error:', e));
-      }
-      this._notifyListener('activity_log');
-      return record;
-    } catch (e) {
-      console.error('logActivity failed:', e);
-      return null;
-    }
-  }
-
-  /**
-   * Return activity logs, newest first. Optional limit (default 500).
-   */
-  async getActivityLogs(limit = 500) {
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction('activity_log', 'readonly');
-        const store = tx.objectStore('activity_log');
-        const req = store.getAll();
-        req.onsuccess = () => {
-          const all = (req.result || []).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
-          resolve(limit ? all.slice(0, limit) : all);
-        };
-        req.onerror = () => resolve([]);
-      } catch (e) {
-        resolve([]);
-      }
     });
   }
 
@@ -880,29 +815,9 @@ class BokeoPOSDB {
   _saveProductLocalOnly(product) {
     return new Promise((resolve) => {
       const tx = this.db.transaction('products', 'readwrite');
-      const store = tx.objectStore('products');
-      // Preserve a locally-uploaded image: cloud docs do not carry the (large) base64 image,
-      // so never let an image-less cloud update wipe the local product photo.
-      const getReq = store.get(product.id);
-      getReq.onsuccess = () => {
-        const existing = getReq.result;
-        if (existing && existing.image && !product.image) {
-          product.image = existing.image;
-        }
-        store.put(product);
-      };
-      getReq.onerror = () => store.put(product);
+      tx.objectStore('products').put(product);
       tx.oncomplete = resolve;
     });
-  }
-
-  // Return a shallow copy of a product WITHOUT the heavy base64 image (for Firestore writes).
-  // Firestore docs are capped at ~1MB; product photos can exceed that and break sync.
-  _noImage(product) {
-    if (!product || !product.image) return product;
-    const copy = Object.assign({}, product);
-    delete copy.image;
-    return copy;
   }
 
   _deleteProductLocalOnly(productId) {
@@ -974,8 +889,8 @@ class BokeoPOSDB {
       console.log('Starting Google Sheets Sync...');
       
       const cacheBust = Date.now();
-      const pricesUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent('ລາຄາສິນຄ້າ') + '&t=' + cacheBust;
-      const stockUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent('ສະຕັອກສິນຄ້າລ່າສຸດ') + '&t=' + cacheBust;
+      const pricesUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/export?format=csv&gid=0&t=' + cacheBust;
+      const stockUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/export?format=csv&gid=778238622&t=' + cacheBust;
 
       let pricesText = '';
       let stockText = '';
@@ -1028,8 +943,8 @@ class BokeoPOSDB {
       if (!pricesText || !stockText) {
         try {
           console.log('Attempting direct Google Sheets Gviz fetch...');
-          const pricesGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent('ລາຄາສິນຄ້າ') + '&t=' + cacheBust;
-          const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent('ສະຕັອກສິນຄ້າລ່າສຸດ') + '&t=' + cacheBust;
+          const pricesGvizUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/gviz/tq?tqx=out:csv&gid=0&t=' + cacheBust;
+          const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/gviz/tq?tqx=out:csv&gid=778238622&t=' + cacheBust;
 
           const pricesRes = await fetchWithTimeout(pricesGvizUrl);
           if (!pricesRes.ok) throw new Error('Failed to fetch prices from direct Gviz endpoint');
@@ -1066,17 +981,10 @@ class BokeoPOSDB {
 
       // Get current local products
       const localProducts = await this.getProducts();
-
-      // Snapshot existing product images (images live locally, NOT in the Sheet).
-      // Used to carry images over if a product gets recreated during sync.
-      const _imgByKey = {};
-      localProducts.forEach(p => {
-        if (p && p.image) {
-          _imgByKey['id:' + p.id] = p.image;
-          if (p.code) _imgByKey['code:' + p.code] = p.image;
-          if (p.name_lo) _imgByKey['name:' + String(p.name_lo).trim().toLowerCase()] = p.image;
-        }
-      });
+      // Snapshot products before merge so we only write CHANGED products to Firestore
+      // (prevents blowing the Firestore free quota by re-writing everything on every poll).
+      const _preSyncSnap = {};
+      localProducts.forEach(p => { _preSyncSnap[p.id] = JSON.stringify(p); });
 
       // Parse Exchange Rates from prices sheet
       let rateLak = settings.exchange_rate_lak;
@@ -1178,11 +1086,6 @@ class BokeoPOSDB {
             max_stock: defaultStock,
             unit: defaultUnit
           };
-          // Carry over a previously-uploaded image if one exists for this id/code/name
-          const _img = _imgByKey['id:' + productId]
-            || _imgByKey['code:' + productId]
-            || (nameLo ? _imgByKey['name:' + String(nameLo).trim().toLowerCase()] : null);
-          if (_img) newProduct.image = _img;
           localProducts.push(newProduct);
         }
       });
@@ -1253,18 +1156,26 @@ class BokeoPOSDB {
         });
         await new Promise(resolve => tx.oncomplete = resolve);
 
-        // Sync with Firebase Firestore if online
+        // Sync with Firebase Firestore if online — ONLY write products that actually changed
         if (this.isFirebaseEnabled && this.firestore) {
           const batch = this.firestore.batch();
+          let _dirty = 0;
           updatedProducts.forEach(p => {
-            const docRef = this.firestore.collection('products').doc(p.id);
-            batch.set(docRef, this._noImage(p));
+            if (_preSyncSnap[p.id] !== JSON.stringify(p)) { // new or changed only
+              batch.set(this.firestore.collection('products').doc(p.id), p);
+              _dirty++;
+            }
           });
           idsToDelete.forEach(id => {
-            const docRef = this.firestore.collection('products').doc(id);
-            batch.delete(docRef);
+            batch.delete(this.firestore.collection('products').doc(id));
+            _dirty++;
           });
-          await batch.commit();
+          if (_dirty > 0) {
+            await batch.commit();
+            console.log('Firestore products: wrote ' + _dirty + ' changed/removed.');
+          } else {
+            console.log('Firestore products: no changes — skipped write (saves quota).');
+          }
         }
       } else {
         // Fallback safety if no products imported (should not happen since we return earlier on error)
