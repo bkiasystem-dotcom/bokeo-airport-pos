@@ -332,7 +332,7 @@ class BokeoPOSDB {
       
       req.onsuccess = () => {
         if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('products').doc(product.id).set(product)
+          this.firestore.collection('products').doc(product.id).set(this._noImage(product))
             .catch(e => console.error('Firestore saveProduct error:', e));
         }
         this._notifyListener('products');
@@ -880,9 +880,29 @@ class BokeoPOSDB {
   _saveProductLocalOnly(product) {
     return new Promise((resolve) => {
       const tx = this.db.transaction('products', 'readwrite');
-      tx.objectStore('products').put(product);
+      const store = tx.objectStore('products');
+      // Preserve a locally-uploaded image: cloud docs do not carry the (large) base64 image,
+      // so never let an image-less cloud update wipe the local product photo.
+      const getReq = store.get(product.id);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        if (existing && existing.image && !product.image) {
+          product.image = existing.image;
+        }
+        store.put(product);
+      };
+      getReq.onerror = () => store.put(product);
       tx.oncomplete = resolve;
     });
+  }
+
+  // Return a shallow copy of a product WITHOUT the heavy base64 image (for Firestore writes).
+  // Firestore docs are capped at ~1MB; product photos can exceed that and break sync.
+  _noImage(product) {
+    if (!product || !product.image) return product;
+    const copy = Object.assign({}, product);
+    delete copy.image;
+    return copy;
   }
 
   _deleteProductLocalOnly(productId) {
@@ -1238,7 +1258,7 @@ class BokeoPOSDB {
           const batch = this.firestore.batch();
           updatedProducts.forEach(p => {
             const docRef = this.firestore.collection('products').doc(p.id);
-            batch.set(docRef, p);
+            batch.set(docRef, this._noImage(p));
           });
           idsToDelete.forEach(id => {
             const docRef = this.firestore.collection('products').doc(id);
