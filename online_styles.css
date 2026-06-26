@@ -2061,3 +2061,11 @@ body {
   border-top: 1px solid rgba(255,255,255,0.05);
 }
 
+
+
+/* Custom cashier dropdown (replaces native datalist; aligns to input width) */
+.cashier-dropdown{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--surface-color,#fff);border:1px solid var(--border-color,#e6dfd3);border-radius:12px;box-shadow:0 8px 24px rgba(28,25,23,.12);max-height:220px;overflow-y:auto;z-index:1000;display:none;}
+.cashier-dropdown.open{display:block;}
+.cashier-dropdown .cdd-item{padding:10px 14px;cursor:pointer;font-family:var(--font-family);font-size:.9rem;color:var(--text-primary,#1c1917);border-bottom:1px solid var(--bg-color,#faf8f5);}
+.cashier-dropdown .cdd-item:last-child{border-bottom:none;}
+.cashier-dropdown .cdd-item:hover{background:var(--bg-color,#faf8f5);}

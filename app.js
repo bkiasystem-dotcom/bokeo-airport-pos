@@ -748,6 +748,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Custom cashier dropdown (aligns under the input, full width — replaces native datalist)
+  (function bindCashierDropdown() {
+    const input = els.setupCashier;
+    const dd = document.getElementById('cashier-dropdown');
+    if (!input || !dd) return;
+
+    function render(filter) {
+      const q = (filter || '').trim().toLowerCase();
+      const list = (state.cashiers || []).filter(c => !q || (c.name || '').toLowerCase().includes(q));
+      if (list.length === 0) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
+      dd.innerHTML = list.map(c => '<div class="cdd-item"></div>').join('');
+      const items = dd.querySelectorAll('.cdd-item');
+      list.forEach((c, i) => {
+        items[i].textContent = c.name;
+        items[i].addEventListener('mousedown', function (e) {
+          e.preventDefault();           // keep focus so blur-hide doesn't beat the click
+          input.value = c.name;
+          dd.classList.remove('open');
+        });
+      });
+      dd.classList.add('open');
+    }
+
+    input.addEventListener('focus', () => render(input.value));
+    input.addEventListener('input', () => render(input.value));
+    input.addEventListener('blur', () => setTimeout(() => dd.classList.remove('open'), 150));
+  })();
+
   // Handle POS Setup Submission
   els.setupBtn.addEventListener('click', async () => {
     const cashierName = els.setupCashier.value.trim();
