@@ -950,8 +950,8 @@ class BokeoPOSDB {
       console.log('Starting Google Sheets Sync...');
       
       const cacheBust = Date.now();
-      const pricesUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/export?format=csv&gid=0&t=' + cacheBust;
-      const stockUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/export?format=csv&gid=778238622&t=' + cacheBust;
+      const pricesUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent('ລາຄາສິນຄ້າ') + '&t=' + cacheBust;
+      const stockUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent('ສະຕັອກສິນຄ້າລ່າສຸດ') + '&t=' + cacheBust;
 
       let pricesText = '';
       let stockText = '';
@@ -1004,8 +1004,8 @@ class BokeoPOSDB {
       if (!pricesText || !stockText) {
         try {
           console.log('Attempting direct Google Sheets Gviz fetch...');
-          const pricesGvizUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/gviz/tq?tqx=out:csv&gid=0&t=' + cacheBust;
-          const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1OC7R901qARu9lkx0_GR7FMqihKYX6Rzi5UvOyrf6fUs/gviz/tq?tqx=out:csv&gid=778238622&t=' + cacheBust;
+          const pricesGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent('ລາຄາສິນຄ້າ') + '&t=' + cacheBust;
+          const stockGvizUrl = 'https://docs.google.com/spreadsheets/d/1K3_qyglY9K_DXw9aSOHZWj8wanQwFjX2THaf1Rprojg/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent('ສະຕັອກສິນຄ້າລ່າສຸດ') + '&t=' + cacheBust;
 
           const pricesRes = await fetchWithTimeout(pricesGvizUrl);
           if (!pricesRes.ok) throw new Error('Failed to fetch prices from direct Gviz endpoint');
