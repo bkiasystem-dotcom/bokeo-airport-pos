@@ -3617,6 +3617,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     reportDiv.innerHTML = `
       <div style="text-align:center; margin-bottom: 24px;">
+        <img src="logo.png" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
         <h2 style="font-size: 1.6rem; margin-bottom: 4px;">${t.title}</h2>
         <h4 style="font-size: 0.95rem; font-weight: 500; color: #444; margin-bottom: 8px;">${t.sub}</h4>
         <p style="font-size: 0.85rem; color: #555;">${t.date} | ${t.pos}</p>
@@ -3718,20 +3719,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.body.appendChild(reportDiv);
 
-    if (typeof html2pdf !== 'undefined') {
+    if (typeof html2pdf === 'undefined') {
+      document.body.removeChild(reportDiv);
+      alert('ບໍ່ສາມາດສ້າງ PDF ໄດ້: ໂຫຼດ library html2pdf ບໍ່ສຳເລັດ.\nກວດເບິ່ງວ່າໄຟລ໌ html2pdf.bundle.min.js ມີຢູ່ໃນ GitHub ບໍ່ ແລະ ກວດອິນເຕີເນັດ.');
+      return;
+    }
+
+    // ລໍຖ້າຮູບໂລໂກ້ໂຫຼດກ່ອນ render (ປ້ອງກັນ logo ບໍ່ທັນຂຶ້ນໃນ PDF)
+    const logoImg = reportDiv.querySelector('img');
+    if (logoImg && !logoImg.complete) {
+      await new Promise(res => { logoImg.onload = res; logoImg.onerror = res; setTimeout(res, 2000); });
+    }
+
+    try {
       const options = {
         margin: 10,
         filename: `Sales_Report_${lang.toUpperCase()}_${start}_to_${end}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css', 'legacy'] }
       };
 
       await html2pdf().set(options).from(reportDiv).save();
+    } catch (err) {
+      console.error('PDF export error:', err);
+      alert('ເກີດຂໍ້ຜິດພາດໃນການສ້າງ PDF:\n' + (err && err.message ? err.message : err));
+    } finally {
+      if (reportDiv.parentNode) document.body.removeChild(reportDiv);
     }
-    
-    document.body.removeChild(reportDiv);
   }
 
   /* =========================================================================
@@ -4770,7 +4786,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           .then(() => console.log('WhatsApp notification sent successfully.'))
           .catch(err => console.error('Error sending WhatsApp notification:', err));
       } catch (err) {
-        console.error('CallMeBot notification failed:', err);
+               console.error('CallMeBot notification failed:', err);
       }
     } else if (s.whatsapp_gateway === 'webhook') {
       const url = s.whatsapp_url;
