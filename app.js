@@ -3858,7 +3858,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.settingsRatesThbLak.value = s.exchange_rate_lak;
     els.settingsRatesThbCny.value = s.exchange_rate_cny;
     els.settingsAdminPin.value = s.admin_pin;
-    els.settingsFirebaseConfig.value = s.firebase_config ? JSON.stringify(s.firebase_config, null, 2) : '';
+    if (els.settingsFirebaseConfig) els.settingsFirebaseConfig.value = s.firebase_config ? JSON.stringify(s.firebase_config, null, 2) : '';
     els.settingsGDriveScriptUrl.value = s.gdrive_script_url || '';
     if (els.settingsGDriveFolderId) {
       els.settingsGDriveFolderId.value = s.gdrive_folder_id || '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC';
@@ -4053,7 +4053,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rateLak = parseFloat(els.settingsRatesThbLak.value) || DEFAULT_LAK_RATE;
     const rateCny = parseFloat(els.settingsRatesThbCny.value) || DEFAULT_CNY_RATE;
     const adminPin = els.settingsAdminPin.value.trim();
-    const fbRaw = els.settingsFirebaseConfig.value.trim();
+    const fbRaw = els.settingsFirebaseConfig ? els.settingsFirebaseConfig.value.trim() : '';
 
     if (adminPin.length !== 4 || isNaN(adminPin)) {
       alert('ລະຫັດ PIN ຕ້ອງເປັນຕົວເລກ 4 ຕົວ');

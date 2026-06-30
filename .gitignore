@@ -1,0 +1,15 @@
+# ไຟล์ขยะ / temp — ไม่ต้อง track
+html2pdf.js-*.tgz
+package/
+node_modules/
+*.map
+.DS_Store
+Thumbs.db
+
+# ไฟล์รุ่นเก่า / ซ้ำซ้อน (เก็บไว้ในเครื่องได้ แต่ไม่ขึ้น GitHub Pages)
+online_index.html
+online_styles.css
+index_FULL_paste_all.html
+AppsScript_FULL_ກັອບທັງໝົດ.gs
+AppsScript_doGet_ADD_to_existing.gs
+AppsScript_ProductImage_ADD_to_existing.gs
