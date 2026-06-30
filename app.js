@@ -1632,7 +1632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     els.qrContainer.classList.add('active');
     
-    if (qrSrc && qrSrc.startsWith('data:image')) {
+    if (qrSrc && (qrSrc.startsWith('data:image') || qrSrc.startsWith('http'))) {
       els.qrCodeImg.src = qrSrc;
       els.qrText.textContent = `ສະແດງຄິວອາໂຄດ ${bank} (${currency})`;
     } else {
@@ -3915,7 +3915,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const src = state.settings.qr_codes[key];
     const previewBox = document.getElementById(`preview-${key.replace('_', '-')}`);
     
-    if (src && src.startsWith('data:image')) {
+    if (src && (src.startsWith('data:image') || src.startsWith('http'))) {
       previewBox.innerHTML = `<img src="${src}" alt="QR">`;
     } else {
       previewBox.innerHTML = `<i class="fas fa-qrcode"></i>`;

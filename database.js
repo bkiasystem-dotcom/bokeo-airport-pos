@@ -39,6 +39,10 @@ async function fetchWithTimeout(resource, options = {}) {
 const DEFAULT_LAK_RATE = 700;
 const DEFAULT_CNY_RATE = 0.2; // 1 THB = 0.2 CNY (1 CNY = 5 THB)
 
+// ===== ໃສ່ URL Apps Script /exec ຂອງເຈົ້າທີ່ນີ້ ໃຫ້ທຸກເຄື່ອງເຊື່ອມຕໍ່ໂดยไม่ต้องตั้งใน Settings =====
+// ตัวอย่าง: 'https://script.google.com/macros/s/AKfycbx..../exec'
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbx7yBLkEA50BMKqhv-h7swHhMaEAs-U0jSRCY0xyJBdf8fAM-RH3g5zjavmWcKWkvXk/exec';
+
 // Default Cashiers
 const DEFAULT_CASHIERS = [
   { id: 'c1', name: 'ທ້າວ ສົມພອນ' },
@@ -184,19 +188,15 @@ class BokeoPOSDB {
   async _loadSettingsAndInitFirebase() {
     try {
       const settings = await this.getSettings();
-      let fbConfig = null;
-
-      if (settings && settings.firebase_config && settings.firebase_config.apiKey) {
-        fbConfig = settings.firebase_config;
-      } else if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
-        fbConfig = DEFAULT_FIREBASE_CONFIG;
+      // Auto-apply the shared Apps Script URL so every device connects without manual entry.
+      if (settings && !settings.gdrive_script_url && DEFAULT_GAS_URL) {
+        settings.gdrive_script_url = DEFAULT_GAS_URL;
+        await this.saveSettings(settings);
+        console.log('Applied shared Apps Script URL from DEFAULT_GAS_URL.');
       }
-
-      if (fbConfig) {
-        this._initFirebase(fbConfig);
-      }
+      // Firebase is disabled — data syncs via Google Sheets only.
     } catch (e) {
-      console.warn('Failed to load settings or initialize Firebase:', e);
+      console.warn('Failed to load settings:', e);
     }
   }
 
@@ -964,6 +964,9 @@ class BokeoPOSDB {
       let pettyText = '';
       let membersText = '';
       let salesText = '';
+      let cashiersText = '';
+      let qrText = '';
+      let productImagesText = '';
       const settings = await this.getSettings();
 
       if (settings && settings.gdrive_script_url) {
@@ -1003,6 +1006,33 @@ class BokeoPOSDB {
             if (salesText.trim().startsWith('Error:')) {
               console.warn('Apps Script sales fetch returned error:', salesText);
               salesText = '';
+            }
+          }
+
+          const cashiersRes = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=cashiers&t=${cacheBust}`);
+          if (cashiersRes.ok) {
+            cashiersText = await cashiersRes.text();
+            if (cashiersText.trim().startsWith('Error:')) {
+              console.warn('Apps Script cashiers fetch returned error:', cashiersText);
+              cashiersText = '';
+            }
+          }
+
+          const qrRes = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=qr&t=${cacheBust}`);
+          if (qrRes.ok) {
+            qrText = await qrRes.text();
+            if (qrText.trim().startsWith('Error:')) {
+              console.warn('Apps Script qr fetch returned error:', qrText);
+              qrText = '';
+            }
+          }
+
+          const piRes = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=product_images&t=${cacheBust}`);
+          if (piRes.ok) {
+            productImagesText = await piRes.text();
+            if (productImagesText.trim().startsWith('Error:')) {
+              console.warn('Apps Script product_images fetch returned error:', productImagesText);
+              productImagesText = '';
             }
           }
           console.log('Apps Script Web App fetch successful.');
@@ -1089,6 +1119,16 @@ class BokeoPOSDB {
       let currentCategory = 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ';
       const categoriesList = ['ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', 'ຫ້ອງ VIP', 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', 'ບໍລິການແທັກຊີ່', 'ບໍລິການລານຈອດ', 'ບໍລິການລານຈອດລົດ'];
       const importedIds = new Set();
+      // Shared product images from Google Drive (file name = product id) -> { productId: url }
+      const _imgUrlByCode = {};
+      if (productImagesText) {
+        this._parseCSV(productImagesText).forEach((row, idx) => {
+          if (idx === 0) return;
+          const code = row[0] ? row[0].trim() : '';
+          const url = row[1] ? row[1].trim() : '';
+          if (code && url) _imgUrlByCode[code] = url;
+        });
+      }
 
       pricesRows.forEach(row => {
         if (row.length < 1) return;
@@ -1143,6 +1183,7 @@ class BokeoPOSDB {
           if (nameEn) matchedProduct.name_en = nameEn;
           if (nameLo) matchedProduct.name_lo = nameLo;
           matchedProduct.category = currentCategory;
+          if (_imgUrlByCode[productId]) matchedProduct.image = _imgUrlByCode[productId];
           if (!matchedProduct.max_stock) matchedProduct.max_stock = matchedProduct.stock;
         } else {
           // Create new product
@@ -1163,6 +1204,7 @@ class BokeoPOSDB {
             max_stock: defaultStock,
             unit: defaultUnit
           };
+          if (_imgUrlByCode[productId]) newProduct.image = _imgUrlByCode[productId];
           localProducts.push(newProduct);
         }
       });
@@ -1265,6 +1307,50 @@ class BokeoPOSDB {
       this._notifyListener('products');
 
       // Sync members from Google Sheets if available
+      if (qrText) {
+        try {
+          console.log('Parsing QR code links from Google Drive...');
+          const qrRows = this._parseCSV(qrText);
+          const validKeys = ['bcel_lak','bcel_thb','bcel_cny','ldb_lak','ldb_thb','ldb_cny'];
+          if (!settings.qr_codes) settings.qr_codes = {};
+          let changed = false;
+          qrRows.forEach((row, idx) => {
+            if (idx === 0) return; // header: name,url
+            const name = row[0] ? row[0].trim().toLowerCase() : '';
+            const url = row[1] ? row[1].trim() : '';
+            if (validKeys.indexOf(name) !== -1 && url) {
+              settings.qr_codes[name] = url;
+              changed = true;
+            }
+          });
+          if (changed) await this.saveSettings(settings);
+          console.log('QR code links synced from Google Drive.');
+        } catch (err) {
+          console.error('Failed to parse QR links:', err);
+        }
+      }
+
+      if (cashiersText) {
+        try {
+          console.log('Parsing and updating cashiers from Google Sheets...');
+          const cashierRows = this._parseCSV(cashiersText);
+          const txC = this.db.transaction('cashiers', 'readwrite');
+          const storeC = txC.objectStore('cashiers');
+          cashierRows.forEach((row, idx) => {
+            if (idx === 0) return; // skip header
+            const name = row[0] ? row[0].trim() : '';
+            if (!name) return;
+            // Column B is Department (not a unique id) -> use the name itself as the id
+            storeC.put({ id: name, name: name });
+          });
+          await new Promise(resolve => txC.oncomplete = resolve);
+          console.log('Cashiers synced successfully from Google Sheets.');
+          this._notifyListener('cashiers');
+        } catch (err) {
+          console.error('Failed to parse or save synced cashiers:', err);
+        }
+      }
+
       if (membersText) {
         try {
           console.log('Parsing and updating members from Google Sheets...');
