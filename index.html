@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 
-  <!-- html2pdf.js CDN (Client-side PDF generator) -->
+  <!-- html2pdf.js (local copy — ບໍ່ຂຶ້ນກັບ CDN) -->
   <script src="html2pdf.bundle.min.js?v=15"></script>
 </head>
 <body>
@@ -133,6 +133,25 @@
               <div class="cart-items" id="cart-items"></div>
               <!-- Pricing summary section -->
               <div class="cart-footer">
+                <!-- ສ່ວນສະມາຊິກ (Member) -->
+                <div class="cart-member-section" id="cart-member-section" style="padding-bottom:12px; border-bottom:1px solid var(--border-color); margin-bottom:12px;">
+                  <div id="member-search-container" style="display:flex; gap:8px; align-items:flex-start;">
+                    <div style="flex:1; position:relative;">
+                      <input type="text" class="form-input" id="cart-member-search" autocomplete="off" placeholder="ຄົ້ນຫາສະມາຊິກ (ຊື່ / ID / ເບີໂທ)..." style="width:100%;">
+                      <div id="member-search-results" style="display:none; position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid var(--border-color); border-radius:8px; box-shadow:0 6px 16px rgba(0,0,0,0.12); z-index:60; max-height:220px; overflow-y:auto; margin-top:4px;"></div>
+                    </div>
+                    <button class="secondary-btn" id="btn-open-register-modal" style="flex-shrink:0; padding:9px 12px; white-space:nowrap;"><i class="fas fa-user-plus"></i> ສະມາຊິກໃໝ່</button>
+                  </div>
+                  <div id="selected-member-card" style="display:none; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px; position:relative;">
+                    <button id="btn-clear-member" style="position:absolute; top:6px; right:8px; background:none; border:none; cursor:pointer; color:var(--danger-color); font-size:1rem; line-height:1;"><i class="fas fa-times"></i></button>
+                    <div style="font-weight:700; color:var(--text-primary);" id="selected-member-name">-</div>
+                    <div style="font-size:0.72rem; color:var(--text-secondary); margin-bottom:6px;" id="selected-member-id">-</div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.82rem;">
+                      <span>ຄະແນນສະສົມ: <strong style="color:var(--primary-accent);" id="selected-member-points">0</strong></span>
+                      <span>ຈະໄດ້ຮັບ: <strong style="color:#16a34a;" id="selected-member-earned">+0</strong></span>
+                    </div>
+                  </div>
+                </div>
                 <div class="currency-select-container">
                   <span>ສະກຸນເງິນຊຳລະ:</span>
                   <div class="currency-toggle">
@@ -230,7 +249,10 @@
           <div class="stock-view">
             <div class="view-header">
               <h2><i class="fas fa-boxes"></i> ຄັງສະຕັອກສິນຄ້າ (Stock Management)</h2>
-              <input type="text" class="form-input" id="stock-search" placeholder="ຄົ້ນຫາລະຫັດ ຫຼື ຊື່ສິນຄ້າ..." style="width: 300px; border-radius: 24px;">
+              <div style="display:flex; gap:12px; align-items:center;">
+                <input type="text" class="form-input" id="stock-search" placeholder="ຄົ້ນຫາລະຫັດ ຫຼື ຊື່ສິນຄ້າ..." style="width: 280px; border-radius: 24px;">
+                <button class="primary-btn" id="btn-print-stock" onclick="window.printStockSummary()" style="white-space:nowrap;"><i class="fas fa-print"></i> ພິມສະຫຼຸບສະຕັອກ</button>
+              </div>
             </div>
             <!-- Low Stock Warnings -->
             <div class="low-stock-alert-box" id="stock-low-stock-alert" style="display:none; margin-bottom: 20px;"></div>
@@ -584,6 +606,34 @@
         <button class="secondary-btn" id="btn-print-shift-report"><i class="fas fa-print"></i> ພິມລາຍງານປິດກະ</button>
         <button class="checkout-btn" id="confirm-close-shift-btn" style="background-color:var(--danger-color);"><i class="fas fa-power-off"></i> ປິດເຄົາເຕີ້ທັນທີ</button>
       </div>
+    </div>
+  </div>
+  <!-- 6. REGISTER MEMBER MODAL -->
+  <div class="modal-overlay" id="register-member-modal">
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3><i class="fas fa-user-plus"></i> ລົງທະບຽນສະມາຊິກໃໝ່</h3>
+        <button class="close-modal-btn" id="register-close-btn">&times;</button>
+      </div>
+      <div class="form-group">
+        <label for="reg-member-name">ຊື່ (Name) *</label>
+        <input type="text" class="form-input" id="reg-member-name" placeholder="ຊື່...">
+      </div>
+      <div class="form-group">
+        <label for="reg-member-surname">ນາມສະກຸນ (Surname) *</label>
+        <input type="text" class="form-input" id="reg-member-surname" placeholder="ນາມສະກຸນ...">
+      </div>
+      <div class="form-group">
+        <label for="reg-member-phone">ເບີໂທ (Phone) *</label>
+        <input type="text" inputmode="numeric" class="form-input" id="reg-member-phone" placeholder="020...">
+      </div>
+      <div class="form-group">
+        <label for="reg-member-email">ອີເມວ (Email)</label>
+        <input type="email" class="form-input" id="reg-member-email" placeholder="(ບໍ່ບັງຄັບ)">
+      </div>
+      <button class="checkout-btn" id="confirm-register-member-btn" style="margin-top: 8px;">
+        <i class="fas fa-save"></i> ຢືນຢັນການລົງທະບຽນ (Register)
+      </button>
     </div>
   </div>
   <!-- 5. RECEIPT PREVIEW MODAL -->
