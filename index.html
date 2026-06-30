@@ -6,7 +6,7 @@
   <title>Bokeo International Airport POS - ລະບົບຈຸດຂາຍ</title>
 
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=9">
 
   <!-- FontAwesome for Premium Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -588,6 +588,22 @@
       </div>
     </div>
   </div>
+  <!-- 5. RECEIPT PREVIEW MODAL -->
+  <div class="modal-overlay" id="receipt-modal">
+    <div class="modal-content" style="max-width: 380px;">
+      <div class="modal-header">
+        <h3><i class="fas fa-receipt"></i> ໃບບິນຮັບເງິນ</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div id="receipt-preview-content" style="background:#fff; padding:8px; max-height:55vh; overflow-y:auto; border:1px solid var(--border-color); border-radius:8px;"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px;">
+        <button class="secondary-btn" id="receipt-print-btn"><i class="fas fa-print"></i> ພິມບິນ</button>
+        <button class="secondary-btn" id="receipt-download-btn"><i class="fas fa-download"></i> ດາວໂຫຼດ PDF</button>
+      </div>
+      <button class="checkout-btn" id="receipt-done-btn" style="margin-top:10px;"><i class="fas fa-check"></i> ສຳເລັດ</button>
+    </div>
+  </div>
+
   <!-- =========================================================================
        PRINTER INVOICE TEMPLATE (Lao: ໃບບິນພິມອອກ - ຊ້ອນໄວ້ໃນໜ້າຈໍ)
        ========================================================================= -->
@@ -595,7 +611,7 @@
   <!-- Hidden uploader for product menu images -->
   <input type="file" id="hidden-product-image-uploader" accept="image/*" style="display: none;">
   <!-- Load Database and Application Logic scripts -->
-  <script src="database.js?v=7"></script>
-  <script src="app.js?v=7"></script>
+  <script src="database.js?v=9"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

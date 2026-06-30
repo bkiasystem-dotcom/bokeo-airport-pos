@@ -575,9 +575,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       els.receiptDoneBtn.addEventListener('click', closeReceiptModal);
     }
 
-    const receiptCloseBtn = els.receiptModal.querySelector('.close-modal-btn');
-    if (receiptCloseBtn) {
-      receiptCloseBtn.addEventListener('click', closeReceiptModal);
+    if (els.receiptModal) {
+      const receiptCloseBtn = els.receiptModal.querySelector('.close-modal-btn');
+      if (receiptCloseBtn) {
+        receiptCloseBtn.addEventListener('click', closeReceiptModal);
+      }
     }
   }
 
@@ -2524,7 +2526,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!els.startDateFilter || !els.endDateFilter) return;
     const start = els.startDateFilter.value;
     const end = els.endDateFilter.value;
-    const selectedPOS = els.dashPOSFilter.value;
+    const selectedPOS = els.dashPOSFilter ? els.dashPOSFilter.value : 'all';
 
     const isAdminPOS = state.currentPOS && [
       'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
@@ -2532,8 +2534,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
     ].includes(state.currentPOS.name);
 
-    const rateLak = parseFloat(els.reportRateLak.value) || state.settings.exchange_rate_lak;
-    const rateCny = parseFloat(els.reportRateCny.value) || state.settings.exchange_rate_cny;
+    const rateLak = ((els.reportRateLak && parseFloat(els.reportRateLak.value)) || state.settings.exchange_rate_lak);
+    const rateCny = ((els.reportRateCny && parseFloat(els.reportRateCny.value)) || state.settings.exchange_rate_cny);
 
     const allTx = await window.BokeoDB.getTransactions();
     const allPetty = await window.BokeoDB.getPettyCashSessions();

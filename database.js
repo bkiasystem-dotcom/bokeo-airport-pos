@@ -990,6 +990,15 @@ class BokeoPOSDB {
               membersText = '';
             }
           }
+
+          const salesRes = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=sales&t=${cacheBust}`);
+          if (salesRes.ok) {
+            salesText = await salesRes.text();
+            if (salesText.trim().startsWith('Error:')) {
+              console.warn('Apps Script sales fetch returned error:', salesText);
+              salesText = '';
+            }
+          }
           console.log('Apps Script Web App fetch successful.');
         } catch (err) {
           console.warn('Apps Script Web App fetch failed, falling back to direct Gviz fetch:', err);
@@ -1077,12 +1086,13 @@ class BokeoPOSDB {
 
       pricesRows.forEach(row => {
         if (row.length < 1) return;
-        const colA = row[0] ? row[0].trim() : '';
+        const colA = row[0] ? row[0].replace(/\s+/g, ' ').trim() : '';
         const colB = row[1] ? row[1].trim() : '';
         const colC = row[2] ? row[2].trim() : '';
 
-        // Check if this is a category header row
-        if (categoriesList.includes(colA) && !colB && !colC) {
+        // Check if this is a category header row (normalised colA; B/C not required to be empty,
+        // because a product row's colA is an ID that will never match a category name)
+        if (categoriesList.includes(colA)) {
           currentCategory = (colA === 'ບໍລິການລານຈອດລົດ') ? 'ບໍລິການລານຈອດ' : colA;
           return;
         }
