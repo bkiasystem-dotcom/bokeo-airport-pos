@@ -641,13 +641,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       infoDiv.style.display = ''; // Ensure it's shown for cashiers
       
-      const activeSession = todaySessions.find(p => !p.closed);
+      // lock เฉพาะกะที่ "เปิดอยู่ + ตื่มเงินทอนแล้ว (start>0)" เท่านั้น
+      const activeSession = todaySessions.find(p => !p.closed && ((p.lak_start || 0) > 0 || (p.thb_start || 0) > 0 || (p.cny_start || 0) > 0));
 
       if (activeSession) {
-        // There is an active (unclosed) session today: lock it to the active session values
-        els.setupPettyLak.value = formatNumber(activeSession.lak_start);
-        els.setupPettyThb.value = formatNumber(activeSession.thb_start);
-        els.setupPettyCny.value = formatNumber(activeSession.cny_start);
+        // กะที่ตื่มเงินทอนแล้วและยังเปิดอยู่: ล็อก + แสดงเงินทอน "คงเหลือ"
+        els.setupPettyLak.value = formatNumber(activeSession.lak_remaining);
+        els.setupPettyThb.value = formatNumber(activeSession.thb_remaining);
+        els.setupPettyCny.value = formatNumber(activeSession.cny_remaining);
 
         els.setupPettyLak.readOnly = true;
         els.setupPettyThb.readOnly = true;
@@ -656,7 +657,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         els.setupPettyThb.style.backgroundColor = '#f3f4f6';
         els.setupPettyCny.style.backgroundColor = '#f3f4f6';
 
-        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ມີກະການຂາຍທີ່ກຳລັງເປີດຢູ່ (ບໍ່ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(activeSession.lak_start)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(activeSession.thb_start)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(activeSession.cny_start)} ¥</span>`;
+        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ມີກະທີ່ກຳລັງເປີດຢູ່ — ສະແດງເງິນທອນ <b>ຄົງເຫຼືອ</b> (ບໍ່ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(activeSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(activeSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(activeSession.cny_remaining)} ¥</span>`;
       } else if (todaySessions.length > 0) {
         // All shifts today are closed: populate with last session's remaining balance, but keep EDITABLE
         const lastSession = todaySessions[todaySessions.length - 1];
