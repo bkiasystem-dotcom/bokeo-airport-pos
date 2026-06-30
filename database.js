@@ -204,6 +204,12 @@ class BokeoPOSDB {
    * Set up Firebase App & Firestore
    */
   _initFirebase(config) {
+    // ===== Firebase DISABLED — data syncs via Google Sheets only (no Firestore quota) =====
+    this.isFirebaseEnabled = false;
+    this.firestore = null;
+    console.log('Firebase is disabled — using Google Sheets sync only.');
+    return;
+    /* eslint-disable no-unreachable */
     try {
       if (typeof firebase !== 'undefined') {
         // Prevent duplicate app initialization
