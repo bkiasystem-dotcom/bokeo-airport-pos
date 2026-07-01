@@ -2154,18 +2154,33 @@ document.addEventListener('DOMContentLoaded', async () => {
    * Recreates folder structures: YYYY-MM-DD -> POS Name -> Payment Type -> File
    */
   // บันทึก transaction ลง Google Sheet โดยตรง (best-effort, ไม่พึ่ง html2pdf/PDF)
+  function showToast(msg, type) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:9999; padding:12px 22px; border-radius:10px; font-weight:700; font-size:0.9rem; color:#fff; box-shadow:0 6px 20px rgba(0,0,0,0.25);' + (type === 'error' ? 'background:#c0392b;' : 'background:#0f766e;');
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.transition = 'opacity 0.4s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2600);
+  }
+
   async function logTransactionToSheet(transaction) {
     const scriptUrl = state.settings.gdrive_script_url;
-    if (!scriptUrl) return;
+    if (!scriptUrl) { showToast('⚠ ຍັງບໍ່ໄດ້ຕັ້ງ Apps Script URL — ບໍ່ໄດ້ບັນທຶກຂຶ້ນ Sheet', 'error'); return; }
     try {
-      await fetch(scriptUrl, {
+      const r = await fetch(scriptUrl, {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ action: 'log_transaction', transaction: transaction })
       });
+      const d = await r.json().catch(() => ({ success: true }));
+      if (d && d.success !== false) {
+        showToast('✓ ບັນທຶກຂຶ້ນ Google Sheet ສຳເລັດ', 'success');
+      } else {
+        showToast('⚠ ບັນທຶກຂຶ້ນ Sheet ບໍ່ສຳເລັດ: ' + (d.sheetError || ''), 'error');
+      }
     } catch (err) {
-      console.error('logTransactionToSheet failed (จะลองใหม่รอบ sync ถัดไป):', err);
+      showToast('⚠ ບັນທຶກຂຶ້ນ Sheet ບໍ່ໄດ້ (ກວດອິນເຕີເນັດ)', 'error');
+      console.error('logTransactionToSheet failed:', err);
     }
   }
 
@@ -3681,7 +3696,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     reportDiv.innerHTML = `
       <div style="text-align:center; margin-bottom: 24px;">
-        <img src="logo.png?v=20" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
+        <img src="logo.png?v=21" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
         <h2 style="font-size: 1.6rem; margin-bottom: 4px;">${t.title}</h2>
         <h4 style="font-size: 0.95rem; font-weight: 500; color: #444; margin-bottom: 8px;">${t.sub}</h4>
         <p style="font-size: 0.85rem; color: #555;">${t.date} | ${t.pos}</p>
@@ -3852,7 +3867,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
     const body =
       '<div style="text-align:center;margin-bottom:14px;">' +
-      '<img src="logo.png?v=20" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
+      '<img src="logo.png?v=21" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
       '<h2 style="margin:4px 0;color:#0d3b66;">ສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2>' +
       '<div style="font-size:0.85rem;color:#555;">ສະໜາມບິນສາກົນບໍ່ແກ້ວ · ພິມວັນທີ: ' + dateStr + '</div>' +
       '</div>' +
