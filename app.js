@@ -3785,7 +3785,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           <div style="font-size:0.85rem; line-height:1.8; text-align:left;">
             <div>ເລກທີ: ................. /ອລລ</div>
-            <div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: .................</div>
+            <div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: ${new Date().toLocaleDateString('en-GB')}</div>
           </div>
         </div>
         <div style="text-align:center; margin-top:18px;">
@@ -3931,10 +3931,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dateStr = new Date().toLocaleString('lo-LA');
     // ສະຫຼຸບລາຍເດືອນ (ຖ້າເລືອກ): ຂາຍອອກ = ຈາກ Sales ເດືອนນั้ນ, ເพิ่มเข้า = ຕາມ column J (ໝາຍເຫດ/ວັນທີ)
     const _sm = (document.getElementById('stock-month') && document.getElementById('stock-month').value) || '';
-    let _soldById = {}, _soldByName = {}, _periodLabel = '';
+    let _soldById = {}, _soldByName = {}, _periodLabel = '', _stkTitleSuffix = ' ປະຈຳວັນ / 每日';
     if (_sm) {
       const _pp = _sm.split('-'); const _Y = _pp[0]; const _M = _pp[1];
-      _periodLabel = ' — ເດືອນ / 月份 ' + _M + '/' + _Y;
+      _periodLabel = '';
+      _stkTitleSuffix = ' ປະຈຳເດືອນ ' + _M + '/' + _Y + ' / 月份';
       const _all = await window.BokeoDB.getTransactions();
       _all.forEach(function (tx) {
         const _d = new Date(tx.timestamp);
@@ -3991,9 +3992,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             '<img src="' + BKIA_LOGO + '" style="height:62px;" onerror="this.style.display=\'none\'">' +
             '<div style="font-size:0.9rem; line-height:1.5;"><div style="font-weight:700;">ບໍລິສັດ ສະໜາມບິນສາກົນ ບໍ່ແກ້ວ</div><div>ພະແນກ ອາຄານ ແລະ ລານຈອດລົດ</div></div>' +
           '</div>' +
-          '<div style="font-size:0.85rem; line-height:1.8;"><div>ເລກທີ: ................. /ອລລ</div><div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: .................</div></div>' +
+          '<div style="font-size:0.85rem; line-height:1.8;"><div>ເລກທີ: ................. /ອລລ</div><div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: ' + new Date().toLocaleDateString('en-GB') + '</div></div>' +
         '</div>' +
-        '<div style="text-align:center; margin-top:16px;"><h2 style="font-size:1.4rem; margin:0; color:#0d3b66;">ບົດລາຍງານສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ<br><span style="font-size:1rem;">库存商品结余汇总报告</span></h2><p style="font-size:0.85rem; color:#555; margin-top:4px;">ພິມວັນທີ: ' + dateStr + _periodLabel + '</p></div>' +
+        '<div style="text-align:center; margin-top:16px;"><h2 style="font-size:1.4rem; margin:0; color:#0d3b66;">ບົດລາຍງານສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ' + _stkTitleSuffix + '<br><span style="font-size:1rem;">库存商品结余汇总报告</span></h2><p style="font-size:0.85rem; color:#555; margin-top:4px;">ພິມວັນທີ: ' + dateStr + _periodLabel + '</p></div>' +
       '</div>';
     const _stkSigners = ['ຜູ້ສະຫຼຸບ / 汇总人', 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ / 航站楼与停车场部主管', 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ / 财务与会计部主管'];
     if (document.getElementById('stock-sign-head-division') && document.getElementById('stock-sign-head-division').checked) _stkSigners.push('ຫົວໜ້າສາຍງານ / 业务线主管');
