@@ -4057,13 +4057,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     els.stockTableBody.innerHTML = '';
     const query = els.stockSearch.value.toLowerCase();
 
-    // Show products
-    const filtered = state.products.filter(p => 
-      p.id.toLowerCase().includes(query) || 
-      p.name_lo.toLowerCase().includes(query) || 
-      p.name_en.toLowerCase().includes(query) ||
-      p.category.toLowerCase().includes(query)
-    );
+    // Show products (ຕັດສິນຄ້າບໍລິການ ບໍ່ຈຳກັດສະຕັອກ = VIP/ແທັກຊີ່/ລານຈອດ ອອກ)
+    const filtered = state.products.filter(p => {
+      if (p.stock >= 9999) return false;
+      return p.id.toLowerCase().includes(query) ||
+        p.name_lo.toLowerCase().includes(query) ||
+        p.name_en.toLowerCase().includes(query) ||
+        p.category.toLowerCase().includes(query);
+    });
 
     filtered.forEach(p => {
       const tr = document.createElement('tr');
