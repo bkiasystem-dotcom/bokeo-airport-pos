@@ -3736,7 +3736,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isCustomRates = (rateLak !== state.settings.exchange_rate_lak) || (rateCny !== state.settings.exchange_rate_cny);
     const rateWarningBanner = `
       <div style="background-color: ${isCustomRates ? '#fffbeb' : '#f0fdf4'}; border: 1px solid ${isCustomRates ? '#fef3c7' : '#dcfce7'}; border-radius: 8px; padding: 12px; margin-bottom: 24px; text-align: center; color: ${isCustomRates ? '#b45309' : '#166534'}; font-weight: 600; font-size: 0.85rem; page-break-inside: avoid; break-inside: avoid;">
-        <div>${isCustomRates ? '⚠️ ໃຊ້ອັດຕາແລກປ່ຽນກຳນົດເອງ / 采用自定义汇率' : 'ℹ️ ອັດຕາແລກປ່ຽນມາດຕະຖານ / 系统当前汇率'}: 1 THB = ${formatNumber(rateLak)} LAK | 1 THB = ${rateCny} CNY</div>
+        <div>${isCustomRates ? '⚠️ ໃຊ້ອັດຕາແລກປ່ຽນກຳນົດເອງ / 采用自定义汇率' : 'ℹ️ ອັດຕາແລກປ່ຽນມາດຕະຖານ / 标准汇率'}: 1 THB = ${formatNumber(rateLak)} LAK | 1 THB = ${rateCny} CNY</div>
         <div style="font-size: 0.75rem; margin-top: 2px; font-weight: normal; opacity: 0.95;">${isCustomRates ? 'Custom Exchange Rates: recalculated using custom rates.' : 'Standard Exchange Rates: using active system rates.'}</div>
       </div>
     `;
@@ -3995,9 +3995,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       totalValue += val;
       const lowStyle = (!isService && p.stock <= 3) ? ' background:#fee2e2;' : '';
       return '<tr style="' + lowStyle + '">' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;">' + _catBi(p.category) + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;font-weight:700;">' + (p.code || p.id) + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.name_lo || '') + '</td>' +
-        '<td style="border:1px solid #ccc;padding:5px 7px;">' + _catBi(p.category) + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.unit || 'ຊິ້ນ') + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;text-align:right;">' + formatNumber(p.cost_thb) + ' B</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;color:#c0392b;">' + (isService ? '-' : formatNumber(_soldInPeriod(p))) + '</td>' +
@@ -4033,9 +4033,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       _lh +
       '<table style="width:100%;border-collapse:collapse;font-size:0.78rem;">' +
       '<thead><tr style="background:#0d3b66;color:#fff;">' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ໝວດໝູ່ / 类别</th>' +
       '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ລະຫັດ / 编号</th>' +
       '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ລາຍການສິນຄ້າ / 商品名称</th>' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ໝວດໝູ່ / 类别</th>' +
       '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ຫົວໜ່ວຍ / 单位</th>' +
       '<th style="border:1px solid #ccc;padding:7px;text-align:right;">ຕົ້ນທຶນ / 成本</th>' +
       '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຂາຍອອກ / 售出</th>' +
@@ -4079,9 +4079,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       tr.innerHTML = `
+        <td>${p.category}</td>
         <td style="font-weight:700;">${p.code || p.id}</td>
         <td>${p.name_lo}</td>
-        <td>${p.category}</td>
         <td>${p.unit || 'ຊິ້ນ'}</td>
         <td>${formatNumber(p.cost_thb)} ฿</td>
         <td style="font-weight:700; text-align: center;">${stockHtml}</td>
