@@ -6,14 +6,14 @@
   <title>Bokeo International Airport POS - ລະບົບຈຸດຂາຍ</title>
 
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=32">
+  <link rel="stylesheet" href="styles.css?v=33">
 
   <!-- FontAwesome for Premium Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 
   <!-- html2pdf.js (local copy — ບໍ່ຂຶ້ນກັບ CDN) -->
-  <script src="html2pdf.bundle.min.js?v=32"></script>
+  <script src="html2pdf.bundle.min.js?v=33"></script>
 </head>
 <body>
   <!-- =========================================================================
@@ -267,7 +267,9 @@
                   <input type="text" class="form-input" id="stock-search" placeholder="ຄົ້ນຫາລະຫັດ ຫຼື ຊື່ສິນຄ້າ..." style="width: 240px; border-radius: 24px;">
                   <button class="primary-btn" id="btn-print-stock" onclick="window.printStockSummary()" style="white-space:nowrap;"><i class="fas fa-print"></i> ພິມສະຫຼຸບສະຕັອກ</button>
                 </div>
-                <div style="display:flex; gap:12px; align-items:center; font-size:0.8rem;">
+                <div style="display:flex; gap:12px; align-items:center; font-size:0.8rem; flex-wrap:wrap; justify-content:flex-end;">
+                  <span style="font-weight:600;">ສະຫຼຸບເດືອນ:</span>
+                  <input type="month" id="stock-month" title="ວ່າງ = ຍອດສະສົມປັດຈຸບັນ" style="padding:3px 6px; border-radius:6px; border:1px solid var(--border-color);">
                   <span style="font-weight:600;">ເພີ່ມບ່ອນເຊັນ:</span>
                   <label style="cursor:pointer;"><input type="checkbox" id="stock-sign-head-division"> ຫົວໜ້າສາຍງານ</label>
                   <label style="cursor:pointer;"><input type="checkbox" id="stock-sign-director"> ຜູ້ອຳນວຍການ</label>
@@ -679,7 +681,7 @@
   <!-- Hidden uploader for product menu images -->
   <input type="file" id="hidden-product-image-uploader" accept="image/*" style="display: none;">
   <!-- Load Database and Application Logic scripts -->
-  <script src="database.js?v=32"></script>
-  <script src="app.js?v=32"></script>
+  <script src="database.js?v=33"></script>
+  <script src="app.js?v=33"></script>
 </body>
 </html>

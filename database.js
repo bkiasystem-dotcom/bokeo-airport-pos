@@ -1223,6 +1223,7 @@ class BokeoPOSDB {
         // ขายออก (F=5) และ เพิ่มเข้า (H=7) สำหรับรายงานสต๊อก
         const soldVal = Math.round(parseFloat((row[5] ? row[5].trim() : '0').replace(/[^\d\.\-]/g, '')) || 0);
         const addedVal = Math.round(parseFloat((row[7] ? row[7].trim() : '0').replace(/[^\d\.\-]/g, '')) || 0);
+        const noteVal = row[9] ? row[9].trim() : '';
 
         const serviceCategories = ['ຫ້ອງ VIP', 'ບໍລິການແທັກຊີ່', 'ບໍລິການລານຈອດ'];
         if (code) {
@@ -1232,6 +1233,7 @@ class BokeoPOSDB {
               matchedProduct.stock = stockVal;
               matchedProduct.sold = soldVal;
               matchedProduct.added = addedVal;
+              matchedProduct.note = noteVal;
               matchedProduct.max_stock = Math.max(matchedProduct.max_stock || 0, stockVal);
             } else {
               matchedProduct.stock = 9999;
@@ -1249,6 +1251,7 @@ class BokeoPOSDB {
               matchedProduct.stock = stockVal;
               matchedProduct.sold = soldVal;
               matchedProduct.added = addedVal;
+              matchedProduct.note = noteVal;
               matchedProduct.max_stock = Math.max(matchedProduct.max_stock || 0, stockVal);
             } else {
               matchedProduct.stock = 9999;

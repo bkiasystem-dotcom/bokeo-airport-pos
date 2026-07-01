@@ -3923,12 +3923,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ພິມສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ (Admin)
-  function printStockSummary() {
+  async function printStockSummary() {
     if (!state.products || state.products.length === 0) {
       alert('ບໍ່ມີຂໍ້ມູນສິນຄ້າເພື່ອພິມ');
       return;
     }
     const dateStr = new Date().toLocaleString('lo-LA');
+    // ສະຫຼຸບລາຍເດືອນ (ຖ້າເລືອກ): ຂາຍອອກ = ຈາກ Sales ເດືອนນั้ນ, ເพิ่มเข้า = ຕາມ column J (ໝາຍເຫດ/ວັນທີ)
+    const _sm = (document.getElementById('stock-month') && document.getElementById('stock-month').value) || '';
+    let _soldById = {}, _soldByName = {}, _periodLabel = '';
+    if (_sm) {
+      const _pp = _sm.split('-'); const _Y = _pp[0]; const _M = _pp[1];
+      _periodLabel = ' — ເດືອນ / 月份 ' + _M + '/' + _Y;
+      const _all = await window.BokeoDB.getTransactions();
+      _all.forEach(function (tx) {
+        const _d = new Date(tx.timestamp);
+        if (_d.getFullYear() === Number(_Y) && (_d.getMonth() + 1) === Number(_M)) {
+          (tx.items || []).forEach(function (it) {
+            const q = it.qty || 0;
+            if (it.id) _soldById[it.id] = (_soldById[it.id] || 0) + q;
+            const nm = (it.name_lo || '').trim();
+            if (nm) _soldByName[nm] = (_soldByName[nm] || 0) + q;
+          });
+        }
+      });
+    }
+    const _soldInPeriod = function (p) {
+      if (!_sm) return p.sold || 0;
+      return (_soldById[p.id] || 0) || (_soldByName[(p.name_lo || '').trim()] || 0);
+    };
+    const _addedInPeriod = function (p) {
+      if (!_sm) return p.added || 0;
+      const _pp = _sm.split('-'); const _Y = _pp[0]; const _M = _pp[1];
+      const note = String(p.note || '');
+      if (note.indexOf('/' + _M + '/' + _Y) !== -1 || note.indexOf('/' + String(Number(_M)) + '/' + _Y) !== -1) return p.added || 0;
+      return 0;
+    };
     let totalValue = 0;
     const sorted = state.products.filter(function (p) { return !(p.stock >= 9999); }).sort((x, y) =>
       (x.category || '').localeCompare(y.category || '') || (x.id || '').localeCompare(y.id || ''));
@@ -3944,8 +3974,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.category || '') + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.unit || 'ຊິ້ນ') + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;text-align:right;">' + formatNumber(p.cost_thb) + ' B</td>' +
-        '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;color:#c0392b;">' + (isService ? '-' : formatNumber(p.sold || 0)) + '</td>' +
-        '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;color:#16a34a;">' + (isService ? '-' : formatNumber(p.added || 0)) + '</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;color:#c0392b;">' + (isService ? '-' : formatNumber(_soldInPeriod(p))) + '</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;color:#16a34a;">' + (isService ? '-' : formatNumber(_addedInPeriod(p))) + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;font-weight:700;">' + stockDisplay + '</td>' +
         '</tr>';
     }).join('');
@@ -3963,7 +3993,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           '</div>' +
           '<div style="font-size:0.85rem; line-height:1.8;"><div>ເລກທີ: ................. /ອລລ</div><div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: .................</div></div>' +
         '</div>' +
-        '<div style="text-align:center; margin-top:16px;"><h2 style="font-size:1.4rem; margin:0; color:#0d3b66;">ບົດລາຍງານສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ<br><span style="font-size:1rem;">库存商品结余汇总报告</span></h2><p style="font-size:0.85rem; color:#555; margin-top:4px;">ພິມວັນທີ: ' + dateStr + '</p></div>' +
+        '<div style="text-align:center; margin-top:16px;"><h2 style="font-size:1.4rem; margin:0; color:#0d3b66;">ບົດລາຍງານສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ<br><span style="font-size:1rem;">库存商品结余汇总报告</span></h2><p style="font-size:0.85rem; color:#555; margin-top:4px;">ພິມວັນທີ: ' + dateStr + _periodLabel + '</p></div>' +
       '</div>';
     const _stkSigners = ['ຜູ້ສະຫຼຸບ / 汇总人', 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ / 航站楼与停车场部主管', 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ / 财务与会计部主管'];
     if (document.getElementById('stock-sign-head-division') && document.getElementById('stock-sign-head-division').checked) _stkSigners.push('ຫົວໜ້າສາຍງານ / 业务线主管');
