@@ -3761,7 +3761,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:14px;">
           <div style="display:flex; align-items:center; gap:12px;">
-            <img src="logo.png?v=25" alt="" style="height:62px;" onerror="this.style.display='none';" />
+            <img src="logo.png?v=27" alt="" style="height:62px;" onerror="this.style.display='none';" />
             <div style="font-size:0.9rem; line-height:1.5;">
               <div style="font-weight:700;">ບໍລິສັດ ສະໜາມບິນສາກົນ ບໍ່ແກ້ວ</div>
               <div>ພະແນກ ອາຄານ ແລະ ລານຈອດລົດ</div>
@@ -3869,35 +3869,41 @@ document.addEventListener('DOMContentLoaded', async () => {
      NATIVE PRINT HELPERS (browser print -> Save as PDF). ບໍ່ພຶ່ງ html2pdf/CDN
      ========================================================================= */
   function printHTMLReport(bodyHTML, title) {
-    const baseHref = location.href.substring(0, location.href.lastIndexOf('/') + 1);
-    const old = document.getElementById('print-report-frame');
-    if (old && old.parentNode) old.parentNode.removeChild(old);
-    const iframe = document.createElement('iframe');
-    iframe.id = 'print-report-frame';
-    iframe.style.cssText = 'position:fixed; left:-10000px; top:0; width:210mm; height:297mm; border:0;';
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow.document;
-    const html =
-      '<!DOCTYPE html><html lang="lo"><head><meta charset="utf-8">' +
-      '<base href="' + baseHref + '">' +
-      '<title>' + title + '</title>' +
-      '<link rel="stylesheet" href="styles.css">' +
-      '<style>@page{size:A4;margin:12mm;}' +
-      "html,body{background:#fff;color:#000;margin:0;padding:0;font-family:'Noto Sans Lao','Outfit',sans-serif;}</style>" +
-      '</head><body>' + bodyHTML + '</body></html>';
-    doc.open(); doc.write(html); doc.close();
-    const win = iframe.contentWindow;
+    // พิมพ์จากหน้าหลักโดยตรง (เต็มหน้า A4 แน่นอน) — ซ่อนทุกอย่างยกเว้นรายงานตอนพิมพ์
+    const oldArea = document.getElementById('print-report-area');
+    if (oldArea) oldArea.remove();
+    const oldStyle = document.getElementById('print-report-style');
+    if (oldStyle) oldStyle.remove();
+
+    document.title = title;
+    const style = document.createElement('style');
+    style.id = 'print-report-style';
+    style.textContent =
+      '@media screen { #print-report-area { display: none; } }' +
+      '@media print {' +
+      '  html, body { width: auto !important; height: auto !important; min-width: 0 !important; font-size: 12px !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }' +
+      '  body > *:not(#print-report-area) { display: none !important; }' +
+      '  #print-report-area { display: block !important; position: static !important; width: 100% !important; margin: 0 !important; padding: 0 !important; color: #000; background: #fff; font-family: \'Noto Sans Lao\', \'Outfit\', sans-serif; }' +
+      '  @page { size: A4; margin: 12mm; }' +
+      '}';
+    const area = document.createElement('div');
+    area.id = 'print-report-area';
+    area.innerHTML = bodyHTML;
+    document.head.appendChild(style);
+    document.body.appendChild(area);
+
     let done = false;
     function cleanup() {
       if (done) return; done = true;
-      setTimeout(function () { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 300);
+      setTimeout(function () { if (area.parentNode) area.remove(); if (style.parentNode) style.remove(); }, 400);
     }
-    win.onafterprint = cleanup;
+    window.addEventListener('afterprint', cleanup, { once: true });
+
     function go() {
-      try { win.focus(); win.print(); }
+      try { window.focus(); window.print(); }
       catch (e) { alert('ບໍ່ສາມາດພິມໄດ້: ' + e.message); cleanup(); }
     }
-    const imgs = doc.images; const n = imgs.length; let c = 0;
+    const imgs = area.querySelectorAll('img'); const n = imgs.length; let c = 0;
     if (!n) { setTimeout(go, 200); return; }
     for (let i = 0; i < n; i++) {
       if (imgs[i].complete) { if (++c === n) setTimeout(go, 150); }
@@ -3941,7 +3947,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         '</div>' +
         '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:14px;">' +
           '<div style="display:flex; align-items:center; gap:12px;">' +
-            '<img src="logo.png?v=25" style="height:62px;" onerror="this.style.display=\'none\'">' +
+            '<img src="logo.png?v=27" style="height:62px;" onerror="this.style.display=\'none\'">' +
             '<div style="font-size:0.9rem; line-height:1.5;"><div style="font-weight:700;">ບໍລິສັດ ສະໜາມບິນສາກົນ ບໍ່ແກ້ວ</div><div>ພະແນກ ອາຄານ ແລະ ລານຈອດລົດ</div></div>' +
           '</div>' +
           '<div style="font-size:0.85rem; line-height:1.8;"><div>ເລກທີ: ................. /ອລລ</div><div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: .................</div></div>' +
