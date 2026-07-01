@@ -3761,7 +3761,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:14px;">
           <div style="display:flex; align-items:center; gap:12px;">
-            <img src="logo.png?v=24" alt="" style="height:62px;" onerror="this.style.display='none';" />
+            <img src="logo.png?v=25" alt="" style="height:62px;" onerror="this.style.display='none';" />
             <div style="font-size:0.9rem; line-height:1.5;">
               <div style="font-weight:700;">ບໍລິສັດ ສະໜາມບິນສາກົນ ບໍ່ແກ້ວ</div>
               <div>ພະແນກ ອາຄານ ແລະ ລານຈອດລົດ</div>
@@ -3874,7 +3874,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (old && old.parentNode) old.parentNode.removeChild(old);
     const iframe = document.createElement('iframe');
     iframe.id = 'print-report-frame';
-    iframe.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;';
+    iframe.style.cssText = 'position:fixed; left:-10000px; top:0; width:210mm; height:297mm; border:0;';
     document.body.appendChild(iframe);
     const doc = iframe.contentWindow.document;
     const html =
@@ -3932,12 +3932,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;font-weight:700;">' + stockDisplay + '</td>' +
         '</tr>';
     }).join('');
+    const _lh =
+      '<div style="margin-bottom:18px;">' +
+        '<div style="text-align:center; line-height:1.5;">' +
+          '<div style="font-size:1.05rem; font-weight:700;">ສາທາລະນະລັດ ປະຊາທິປະໄຕ ປະຊາຊົນລາວ</div>' +
+          '<div style="font-size:0.9rem; font-weight:700;">ສັນຕິພາບ ເອກະລາດ ປະຊາທິປະໄຕ ເອກະພາບ ວັດທະນະຖາວອນ</div>' +
+          '<div style="width:180px; border-bottom:1.5px solid #333; margin:6px auto 0;"></div>' +
+        '</div>' +
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:14px;">' +
+          '<div style="display:flex; align-items:center; gap:12px;">' +
+            '<img src="logo.png?v=25" style="height:62px;" onerror="this.style.display=\'none\'">' +
+            '<div style="font-size:0.9rem; line-height:1.5;"><div style="font-weight:700;">ບໍລິສັດ ສະໜາມບິນສາກົນ ບໍ່ແກ້ວ</div><div>ພະແນກ ອາຄານ ແລະ ລານຈອດລົດ</div></div>' +
+          '</div>' +
+          '<div style="font-size:0.85rem; line-height:1.8;"><div>ເລກທີ: ................. /ອລລ</div><div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: .................</div></div>' +
+        '</div>' +
+        '<div style="text-align:center; margin-top:16px;"><h2 style="font-size:1.4rem; margin:0; color:#0d3b66;">ບົດລາຍງານສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2><p style="font-size:0.85rem; color:#555; margin-top:4px;">ພິມວັນທີ: ' + dateStr + '</p></div>' +
+      '</div>';
+    const _sign =
+      '<div style="margin-top:40px; display:flex; flex-direction:row-reverse; justify-content:space-between; gap:10px; font-size:0.8rem; page-break-inside:avoid;">' +
+      ['ຜູ້ສະຫຼຸບ', 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ', 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ'].map(function (nm) {
+        return '<div style="text-align:center; flex:1;"><p style="margin-bottom:44px; font-weight:600;">' + nm + '</p><p style="border-top:1px dashed #333; padding-top:4px;">ລາຍເຊັນ ແລະ ຊື່</p></div>';
+      }).join('') + '</div>';
     const body =
-      '<div style="text-align:center;margin-bottom:14px;">' +
-      '<img src="logo.png?v=24" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
-      '<h2 style="margin:4px 0;color:#0d3b66;">ສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2>' +
-      '<div style="font-size:0.85rem;color:#555;">ສະໜາມບິນສາກົນບໍ່ແກ້ວ · ພິມວັນທີ: ' + dateStr + '</div>' +
-      '</div>' +
+      _lh +
       '<table style="width:100%;border-collapse:collapse;font-size:0.78rem;">' +
       '<thead><tr style="background:#0d3b66;color:#fff;">' +
       '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ລະຫັດ</th>' +
@@ -3950,7 +3967,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຄົງເຫຼືອ</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table>' +
       '<div style="margin-top:12px;text-align:right;font-weight:700;font-size:0.9rem;color:#0d3b66;">' +
-      'ມູນຄ່າສະຕັອກລວມ (ຕາມຕົ້ນທຶນ): ' + formatNumber(totalValue) + ' B&nbsp;&nbsp;|&nbsp;&nbsp;ລາຍການທັງໝົດ: ' + state.products.length + '</div>';
+      'ມູນຄ່າສະຕັອກລວມ (ຕາມຕົ້ນທຶນ): ' + formatNumber(totalValue) + ' B&nbsp;&nbsp;|&nbsp;&nbsp;ລາຍການທັງໝົດ: ' + state.products.length + '</div>' + _sign;
     printHTMLReport(body, 'Stock_Summary_' + getLocalYMD());
   }
   window.printStockSummary = printStockSummary;
