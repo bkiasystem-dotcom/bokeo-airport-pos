@@ -1215,12 +1215,14 @@ class BokeoPOSDB {
         const code = row[0] ? row[0].trim() : '';
         const name = row[2] ? row[2].trim() : '';
         
-        // Use remaining stock (index 6, "ຈຳນວນລວມ"), fallback to starting stock (index 4, "ຈຳນວນຄັງສາງ")
-        let stockStr = row[6] ? row[6].trim() : '';
-        if (!stockStr || stockStr === '') {
-          stockStr = row[4] ? row[4].trim() : '0';
-        }
-        const stockVal = Math.round(parseFloat(stockStr.replace(/[^\d\.]/g, '')) || 0);
+        // คงเหลือจริง = คอลัมน์ I (index 8, "ຈຳນວນລວມໃໝ່" = หลังเติม), fallback G(6) แล้ว E(4)
+        let stockStr = row[8] ? row[8].trim() : '';
+        if (!stockStr || stockStr === '') stockStr = row[6] ? row[6].trim() : '';
+        if (!stockStr || stockStr === '') stockStr = row[4] ? row[4].trim() : '0';
+        const stockVal = Math.round(parseFloat(stockStr.replace(/[^\d\.\-]/g, '')) || 0);
+        // ขายออก (F=5) และ เพิ่มเข้า (H=7) สำหรับรายงานสต๊อก
+        const soldVal = Math.round(parseFloat((row[5] ? row[5].trim() : '0').replace(/[^\d\.\-]/g, '')) || 0);
+        const addedVal = Math.round(parseFloat((row[7] ? row[7].trim() : '0').replace(/[^\d\.\-]/g, '')) || 0);
 
         const serviceCategories = ['ຫ້ອງ VIP', 'ບໍລິການແທັກຊີ່', 'ບໍລິການລານຈອດ'];
         if (code) {
@@ -1228,6 +1230,8 @@ class BokeoPOSDB {
           if (matchedProduct) {
             if (!serviceCategories.includes(matchedProduct.category)) {
               matchedProduct.stock = stockVal;
+              matchedProduct.sold = soldVal;
+              matchedProduct.added = addedVal;
               matchedProduct.max_stock = Math.max(matchedProduct.max_stock || 0, stockVal);
             } else {
               matchedProduct.stock = 9999;
@@ -1243,6 +1247,8 @@ class BokeoPOSDB {
           if (matchedProduct) {
             if (!serviceCategories.includes(matchedProduct.category)) {
               matchedProduct.stock = stockVal;
+              matchedProduct.sold = soldVal;
+              matchedProduct.added = addedVal;
               matchedProduct.max_stock = Math.max(matchedProduct.max_stock || 0, stockVal);
             } else {
               matchedProduct.stock = 9999;
