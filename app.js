@@ -2517,6 +2517,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (els.reportRateLak) els.reportRateLak.addEventListener('input', loadDashboardData);
       if (els.reportRateCny) els.reportRateCny.addEventListener('input', loadDashboardData);
 
+      // เลือกเดือน (report-month) เมื่อเลือก "สรุปประจำเดือน"
+      const _periodSel = document.getElementById('report-period');
+      const _monthInput = document.getElementById('report-month');
+      if (_periodSel && _monthInput) {
+        const _applyPeriod = function () {
+          if (_periodSel.value === 'monthly') {
+            _monthInput.style.display = 'inline-block';
+            if (!_monthInput.value) { const d = new Date(); _monthInput.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+            const parts = _monthInput.value.split('-'); const y = Number(parts[0]); const m = Number(parts[1]);
+            if (y && m) {
+              const last = new Date(y, m, 0).getDate();
+              if (els.startDateFilter) els.startDateFilter.value = y + '-' + String(m).padStart(2, '0') + '-01';
+              if (els.endDateFilter) els.endDateFilter.value = y + '-' + String(m).padStart(2, '0') + '-' + String(last).padStart(2, '0');
+              loadDashboardData();
+            }
+          } else {
+            _monthInput.style.display = 'none';
+          }
+        };
+        _periodSel.addEventListener('change', _applyPeriod);
+        _monthInput.addEventListener('change', _applyPeriod);
+      }
+
       // Bind new chart toggles
       const btnDaily = document.getElementById('chart-btn-daily');
       const btnMonthly = document.getElementById('chart-btn-monthly');
@@ -3761,7 +3784,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:14px;">
           <div style="display:flex; align-items:center; gap:12px;">
-            <img src="logo.png?v=27" alt="" style="height:62px;" onerror="this.style.display='none';" />
+            <img src="logo.png?v=30" alt="" style="height:62px;" onerror="this.style.display='none';" />
             <div style="font-size:0.9rem; line-height:1.5;">
               <div style="font-weight:700;">ບໍລິສັດ ສະໜາມບິນສາກົນ ບໍ່ແກ້ວ</div>
               <div>ພະແນກ ອາຄານ ແລະ ລານຈອດລົດ</div>
@@ -3919,7 +3942,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const dateStr = new Date().toLocaleString('lo-LA');
     let totalValue = 0;
-    const sorted = state.products.slice().sort((x, y) =>
+    const sorted = state.products.filter(function (p) { return !(p.stock >= 9999); }).sort((x, y) =>
       (x.category || '').localeCompare(y.category || '') || (x.id || '').localeCompare(y.id || ''));
     const rows = sorted.map(p => {
       const isService = p.stock >= 9999;
@@ -3947,16 +3970,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         '</div>' +
         '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:14px;">' +
           '<div style="display:flex; align-items:center; gap:12px;">' +
-            '<img src="logo.png?v=27" style="height:62px;" onerror="this.style.display=\'none\'">' +
+            '<img src="logo.png?v=30" style="height:62px;" onerror="this.style.display=\'none\'">' +
             '<div style="font-size:0.9rem; line-height:1.5;"><div style="font-weight:700;">ບໍລິສັດ ສະໜາມບິນສາກົນ ບໍ່ແກ້ວ</div><div>ພະແນກ ອາຄານ ແລະ ລານຈອດລົດ</div></div>' +
           '</div>' +
           '<div style="font-size:0.85rem; line-height:1.8;"><div>ເລກທີ: ................. /ອລລ</div><div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: .................</div></div>' +
         '</div>' +
         '<div style="text-align:center; margin-top:16px;"><h2 style="font-size:1.4rem; margin:0; color:#0d3b66;">ບົດລາຍງານສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2><p style="font-size:0.85rem; color:#555; margin-top:4px;">ພິມວັນທີ: ' + dateStr + '</p></div>' +
       '</div>';
+    const _stkSigners = ['ຜູ້ສະຫຼຸບ', 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ', 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ'];
+    if (document.getElementById('stock-sign-head-division') && document.getElementById('stock-sign-head-division').checked) _stkSigners.push('ຫົວໜ້າສາຍງານ');
+    if (document.getElementById('stock-sign-director') && document.getElementById('stock-sign-director').checked) _stkSigners.push('ຜູ້ອຳນວຍການ');
     const _sign =
       '<div style="margin-top:40px; display:flex; flex-direction:row-reverse; justify-content:space-between; gap:10px; font-size:0.8rem; page-break-inside:avoid;">' +
-      ['ຜູ້ສະຫຼຸບ', 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ', 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ'].map(function (nm) {
+      _stkSigners.map(function (nm) {
         return '<div style="text-align:center; flex:1;"><p style="margin-bottom:44px; font-weight:600;">' + nm + '</p><p style="border-top:1px dashed #333; padding-top:4px;">ລາຍເຊັນ ແລະ ຊື່</p></div>';
       }).join('') + '</div>';
     const body =
@@ -3973,7 +3999,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຄົງເຫຼືອ</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table>' +
       '<div style="margin-top:12px;text-align:right;font-weight:700;font-size:0.9rem;color:#0d3b66;">' +
-      'ມູນຄ່າສະຕັອກລວມ (ຕາມຕົ້ນທຶນ): ' + formatNumber(totalValue) + ' B&nbsp;&nbsp;|&nbsp;&nbsp;ລາຍການທັງໝົດ: ' + state.products.length + '</div>' + _sign;
+      'ມູນຄ່າສະຕັອກລວມ (ຕາມຕົ້ນທຶນ): ' + formatNumber(totalValue) + ' B&nbsp;&nbsp;|&nbsp;&nbsp;ລາຍການທັງໝົດ: ' + sorted.length + '</div>' + _sign;
     printHTMLReport(body, 'Stock_Summary_' + getLocalYMD());
   }
   window.printStockSummary = printStockSummary;
@@ -4015,9 +4041,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${formatNumber(p.cost_thb)} ฿</td>
         <td style="font-weight:700; text-align: center;">${stockHtml}</td>
         <td>
-          <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="window.openRestockModal('${p.id}')">
-            <i class="fas fa-plus"></i> ເຕີມສິນຄ້າ
-          </button>
+          ${p.stock >= 9999 ? '<span style="color:var(--text-secondary);">-</span>' : `<button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="window.openRestockModal('${p.id}')"><i class="fas fa-plus"></i> ເຕີມສິນຄ້າ</button>`}
         </td>
       `;
       els.stockTableBody.appendChild(tr);
