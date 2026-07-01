@@ -3031,7 +3031,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       posContainer.innerHTML = posSummaryHTML;
     }
 
-    renderPOSChart(allTx);
+    try { renderPOSChart(allTx); } catch (e) { console.warn('renderPOSChart skipped:', e); }
   }
 
   function updatePOSChartToggles() {
@@ -3045,6 +3045,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function renderPOSChart(allTx) {
+    if (!els.startDateFilter || !els.endDateFilter || !els.dashPOSFilter) return;
     const start = els.startDateFilter.value;
     const end = els.endDateFilter.value;
     const selectedPOS = els.dashPOSFilter.value;
@@ -3053,8 +3054,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const selectedCurrency = chartCurrency ? chartCurrency.value : 'COMBINED_LAK';
     const symbol = getCurrencySymbol(selectedCurrency);
 
-    const rateLak = parseFloat(els.reportRateLak.value) || state.settings.exchange_rate_lak;
-    const rateCny = parseFloat(els.reportRateCny.value) || state.settings.exchange_rate_cny;
+    const rateLak = ((els.reportRateLak && parseFloat(els.reportRateLak.value)) || state.settings.exchange_rate_lak);
+    const rateCny = ((els.reportRateCny && parseFloat(els.reportRateCny.value)) || state.settings.exchange_rate_cny);
 
     function getTxAmount(tx, currency) {
       const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
@@ -3370,8 +3371,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       friendlyPOSCn = `销售点: ${translatedPOS}`;
     }
 
-    const rateLak = parseFloat(els.reportRateLak.value) || state.settings.exchange_rate_lak;
-    const rateCny = parseFloat(els.reportRateCny.value) || state.settings.exchange_rate_cny;
+    const rateLak = ((els.reportRateLak && parseFloat(els.reportRateLak.value)) || state.settings.exchange_rate_lak);
+    const rateCny = ((els.reportRateCny && parseFloat(els.reportRateCny.value)) || state.settings.exchange_rate_cny);
 
     let totalLAK = 0, totalTHB = 0, totalCNY = 0;
     let transLAK = 0, transTHB = 0, transCNY = 0;
@@ -3718,38 +3719,85 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
     `;
 
-    document.body.appendChild(reportDiv);
+    // พิมพ์ผ่าน browser native print (Save as PDF) — รองรับลาว/จีน, ไม่พึ่ง library ภายนอก
+    printHTMLReport(reportDiv.innerHTML, `Sales_Report_${lang.toUpperCase()}_${start}_to_${end}`);
+  }
 
-    if (typeof html2pdf === 'undefined') {
-      document.body.removeChild(reportDiv);
-      alert('ບໍ່ສາມາດສ້າງ PDF ໄດ້: ໂຫຼດ library html2pdf ບໍ່ສຳເລັດ.\nກວດເບິ່ງວ່າໄຟລ໌ html2pdf.bundle.min.js ມີຢູ່ໃນ GitHub ບໍ່ ແລະ ກວດອິນເຕີເນັດ.');
+  /* =========================================================================
+     NATIVE PRINT HELPERS (browser print -> Save as PDF). ບໍ່ພຶ່ງ html2pdf/CDN
+     ========================================================================= */
+  function printHTMLReport(bodyHTML, title) {
+    const baseHref = location.href.substring(0, location.href.lastIndexOf('/') + 1);
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert('ກະລຸນາອະນຸຍາດ Pop-up ສຳລັບເວັບນີ້ ເພື່ອພິມ/ບັນທຶກ PDF (ກວດໄອຄອນບລັອກ pop-up ທີ່ແຖບ URL)');
       return;
     }
-
-    // ລໍຖ້າຮູບໂລໂກ້ໂຫຼດກ່ອນ render (ປ້ອງກັນ logo ບໍ່ທັນຂຶ້ນໃນ PDF)
-    const logoImg = reportDiv.querySelector('img');
-    if (logoImg && !logoImg.complete) {
-      await new Promise(res => { logoImg.onload = res; logoImg.onerror = res; setTimeout(res, 2000); });
-    }
-
-    try {
-      const options = {
-        margin: 10,
-        filename: `Sales_Report_${lang.toUpperCase()}_${start}_to_${end}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] }
-      };
-
-      await html2pdf().set(options).from(reportDiv).save();
-    } catch (err) {
-      console.error('PDF export error:', err);
-      alert('ເກີດຂໍ້ຜິດພາດໃນການສ້າງ PDF:\n' + (err && err.message ? err.message : err));
-    } finally {
-      if (reportDiv.parentNode) document.body.removeChild(reportDiv);
-    }
+    const html =
+      '<!DOCTYPE html><html lang="lo"><head><meta charset="utf-8">' +
+      '<base href="' + baseHref + '">' +
+      '<title>' + title + '</title>' +
+      '<link rel="stylesheet" href="styles.css">' +
+      '<style>@page{size:A4;margin:12mm;}' +
+      'html,body{display:block;width:auto;height:auto;background:#fff;color:#000;margin:0;padding:0;' +
+      "font-family:'Noto Sans Lao','Outfit',sans-serif;}</style></head><body>" +
+      bodyHTML +
+      '<scr' + 'ipt>window.onload=function(){var im=document.images,n=im.length,d=0;' +
+      'function go(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},300);}' +
+      'if(!n){go();return;}for(var i=0;i<n;i++){if(im[i].complete){if(++d===n)go();}' +
+      'else{im[i].onload=im[i].onerror=function(){if(++d===n)go();};}}};<\/scr' + 'ipt>' +
+      '</body></html>';
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
   }
+
+  // ພິມສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ (Admin)
+  function printStockSummary() {
+    if (!state.products || state.products.length === 0) {
+      alert('ບໍ່ມີຂໍ້ມູນສິນຄ້າເພື່ອພິມ');
+      return;
+    }
+    const dateStr = new Date().toLocaleString('lo-LA');
+    let totalValue = 0;
+    const sorted = state.products.slice().sort((x, y) =>
+      (x.category || '').localeCompare(y.category || '') || (x.id || '').localeCompare(y.id || ''));
+    const rows = sorted.map(p => {
+      const isService = p.stock >= 9999;
+      const stockDisplay = isService ? 'ບໍ່ຈຳກັດ' : formatNumber(p.stock);
+      const val = (isService ? 0 : (p.stock || 0)) * (p.cost_thb || 0);
+      totalValue += val;
+      const lowStyle = (!isService && p.stock <= 3) ? ' background:#fee2e2;' : '';
+      return '<tr style="' + lowStyle + '">' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;font-weight:700;">' + (p.code || p.id) + '</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.name_lo || '') + '</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.category || '') + '</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.unit || 'ຊິ້ນ') + '</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;text-align:right;">' + formatNumber(p.cost_thb) + ' B</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;font-weight:700;">' + stockDisplay + '</td>' +
+        '</tr>';
+    }).join('');
+    const body =
+      '<div style="text-align:center;margin-bottom:14px;">' +
+      '<img src="logo.png" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
+      '<h2 style="margin:4px 0;color:#0d3b66;">ສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2>' +
+      '<div style="font-size:0.85rem;color:#555;">ສະໜາມບິນສາກົນບໍ່ແກ້ວ · ພິມວັນທີ: ' + dateStr + '</div>' +
+      '</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:0.78rem;">' +
+      '<thead><tr style="background:#0d3b66;color:#fff;">' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ລະຫັດ</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ລາຍການສິນຄ້າ</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ໝວດໝູ່</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ຫົວໜ່ວຍ</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:right;">ລາຄາຕົ້ນທຶນ</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຈຳນວນຄົງເຫຼືອ</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div style="margin-top:12px;text-align:right;font-weight:700;font-size:0.9rem;color:#0d3b66;">' +
+      'ມູນຄ່າສະຕັອກລວມ (ຕາມຕົ້ນທຶນ): ' + formatNumber(totalValue) + ' B&nbsp;&nbsp;|&nbsp;&nbsp;ລາຍການທັງໝົດ: ' + state.products.length + '</div>';
+    printHTMLReport(body, 'Stock_Summary_' + getLocalYMD());
+  }
+  window.printStockSummary = printStockSummary;
+
 
   /* =========================================================================
      STOCK MANAGEMENT (Replenishment & Deduction)
