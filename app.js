@@ -3418,12 +3418,11 @@ document.addEventListener('DOMContentLoaded', async () => {
      PDF BILINGUAL SALES SUMMARY REPORTS (Lao & Chinese 100% correct)
      ========================================================================= */
 
-  els.btnExportLaoPDF.addEventListener('click', () => {
-    exportSalesSummaryPDF('lo');
+  if (els.btnExportLaoPDF) els.btnExportLaoPDF.addEventListener('click', () => {
+    exportSalesSummaryPDF('bi');
   });
-
-  els.btnExportCnyPDF.addEventListener('click', () => {
-    exportSalesSummaryPDF('cn');
+  if (els.btnExportCnyPDF) els.btnExportCnyPDF.addEventListener('click', () => {
+    exportSalesSummaryPDF('bi');
   });
 
   async function exportSalesSummaryPDF(lang) {
@@ -3603,13 +3602,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
 
-    const t = texts[lang];
+    const bi = function (lo, cn) { return (String(lo) === String(cn)) ? String(lo) : (lo + ' / ' + cn); };
+    const t = {};
+    Object.keys(texts.lo).forEach(function (k) { t[k] = bi(texts.lo[k], texts.cn[k]); });
     if (reportPeriod === 'monthly') {
-      t.title = lang === 'cn' ? '机场销售月结汇总报告' : 'ບົດລາຍງານສະຫຼຸບຍອດຂາຍປະຈຳເດືອນ';
-      t.posSummaryTitle = lang === 'cn' ? '各销售点月销售额汇总' : 'ສະຫຼຸບລາຍຮັບແຍກຕາມຈຸດຂາຍລາຍເດືອນ';
-      t.dailyTotal = lang === 'cn' ? '月结总计' : 'ລວມຍອດປະຈຳເດືອນ';
+      t.title = bi('ບົດລາຍງານສະຫຼຸບຍອດຂາຍປະຈຳເດືອນ', '机场销售月结汇总报告');
+      t.posSummaryTitle = bi('ສະຫຼຸບລາຍຮັບແຍກຕາມຈຸດຂາຍລາຍເດືອນ', '各销售点月销售额汇总');
+      t.dailyTotal = bi('ລວມຍອດປະຈຳເດືອນ', '月结总计');
     } else {
-      t.title = lang === 'cn' ? '机场销售日结汇总报告' : 'ບົດລາຍງານສະຫຼຸບຍອດຂາຍປະຈຳວັນ';
+      t.title = bi('ບົດລາຍງານສະຫຼຸບຍອດຂາຍປະຈຳວັນ', '机场销售日结汇总报告');
     }
 
     // Generate Daily POS Summary table for PDF
@@ -3645,7 +3646,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       pdfSortedDates.forEach(dateStr => {
         const _p = dateStr.split('-');
         const formattedDate = reportPeriod === 'monthly'
-          ? ((lang === 'cn' ? '月份 ' : 'ເດືອນ ') + _p[1] + '/' + _p[0])
+          ? (bi('ເດືອນ', '月份') + ' ' + _p[1] + '/' + _p[0])
           : (_p[2] + '/' + _p[1] + '/' + _p[0]);
         
         let rowsHtml = '';
@@ -3660,7 +3661,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           dayTotalThb += metrics.thb;
           dayTotalCny += metrics.cny;
           
-          const translatedPOSName = lang === 'cn' ? (posTranslations[posName]?.cn || posName) : posName;
+          const translatedPOSName = bi(posName, posTranslations[posName]?.cn || posName);
           rowsHtml += `
             <tr style="page-break-inside: avoid; break-inside: avoid;">
               <td style="padding: 6px 8px; border: 1px solid #ddd; font-size: 0.75rem;">${translatedPOSName}</td>
@@ -3700,9 +3701,9 @@ document.addEventListener('DOMContentLoaded', async () => {
               </tbody>
             </table>
             <div style="font-size: 0.72rem; color: #555; text-align: right; font-weight: 600; padding-top: 2px; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
-              <span>${lang === 'cn' ? '折合基普总额' : 'ລວມທຽບເທົ່າກີບ'}: <span style="color: #0f766e;">${formatNumber(dayCombinedLak)} ₭</span></span>
-              <span>${lang === 'cn' ? '折合泰铢总额' : 'ລວມທຽບເທົ່າບາດ'}: <span style="color: #0f766e;">${formatNumber(dayCombinedThb)} ฿</span></span>
-              <span>${lang === 'cn' ? '折合人民币总额' : 'ລວມທຽບເທົ່າຢວນ'}: <span style="color: #0f766e;">${formatNumber(dayCombinedCny)} ¥</span></span>
+              <span>${bi('ລວມທຽບເທົ່າກີບ', '折合基普总额')}: <span style="color: #0f766e;">${formatNumber(dayCombinedLak)} ₭</span></span>
+              <span>${bi('ລວມທຽບເທົ່າບາດ', '折合泰铢总额')}: <span style="color: #0f766e;">${formatNumber(dayCombinedThb)} ฿</span></span>
+              <span>${bi('ລວມທຽບເທົ່າຢວນ', '折合人民币总额')}: <span style="color: #0f766e;">${formatNumber(dayCombinedCny)} ¥</span></span>
             </div>
           </div>
         `;
@@ -3718,17 +3719,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isCustomRates = (rateLak !== state.settings.exchange_rate_lak) || (rateCny !== state.settings.exchange_rate_cny);
     const rateWarningBanner = `
       <div style="background-color: ${isCustomRates ? '#fffbeb' : '#f0fdf4'}; border: 1px solid ${isCustomRates ? '#fef3c7' : '#dcfce7'}; border-radius: 8px; padding: 12px; margin-bottom: 24px; text-align: center; color: ${isCustomRates ? '#b45309' : '#166534'}; font-weight: 600; font-size: 0.85rem; page-break-inside: avoid; break-inside: avoid;">
-        ${lang === 'cn' ? `
-          <div>${isCustomRates ? '⚠️ 汇率警示：此报告采用自定义汇总汇率计算' : 'ℹ️ 汇率说明：此报告采用系统当前汇率计算'}：1 THB = ${formatNumber(rateLak)} LAK | 1 THB = ${rateCny} CNY</div>
-          <div style="font-size: 0.75rem; margin-top: 2px; font-weight: normal; opacity: 0.95;">
-            ${isCustomRates ? 'Custom Exchange Rates Warning: Totals recalculated using custom reporting rates.' : 'Standard Exchange Rates: Totals calculated using active system exchange rates.'}
-          </div>
-        ` : `
-          <div>${isCustomRates ? '⚠️ ແຈ້ງເຕືອນອັດຕາແລກປ່ຽນ: ບົດລາຍງານນີ້ໃຊ້ການຄິດໄລ່ດ້ວຍອັດຕາແລກປ່ຽນທີ່ກຳນົດເອງ' : 'ℹ️ ຂໍ້ມູນອັດຕາແລກປ່ຽນ: ບົດລາຍງານນີ້ໃຊ້ການຄິດໄລ່ດ້ວຍອັດຕາແລກປ່ຽນມາດຕະຖານ'}: 1 THB = ${formatNumber(rateLak)} LAK | 1 THB = ${rateCny} CNY</div>
-          <div style="font-size: 0.75rem; margin-top: 2px; font-weight: normal; opacity: 0.95;">
-            ${isCustomRates ? 'Custom Exchange Rates Warning: Totals recalculated using custom reporting rates.' : 'Standard Exchange Rates: Totals calculated using active system exchange rates.'}
-          </div>
-        `}
+        <div>${isCustomRates ? '⚠️ ໃຊ້ອັດຕາແລກປ່ຽນກຳນົດເອງ / 采用自定义汇率' : 'ℹ️ ອັດຕາແລກປ່ຽນມາດຕະຖານ / 系统当前汇率'}: 1 THB = ${formatNumber(rateLak)} LAK | 1 THB = ${rateCny} CNY</div>
+        <div style="font-size: 0.75rem; margin-top: 2px; font-weight: normal; opacity: 0.95;">${isCustomRates ? 'Custom Exchange Rates: recalculated using custom rates.' : 'Standard Exchange Rates: using active system rates.'}</div>
       </div>
     `;
 
@@ -3746,11 +3738,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _top5 = Object.keys(_prodAgg).map(function (k) { return _prodAgg[k]; }).sort(function (a, b) { return b.qty - a.qty; }).slice(0, 5);
     let top5HTML = '';
     if (_top5.length > 0) {
-      const _thName = lang === 'cn' ? '商品 / 服务' : 'ລາຍການ ສິນຄ້າ / ບໍລິການ';
-      const _thQty = lang === 'cn' ? '销售数量' : 'ຈຳນວນຂາຍ';
-      const _thRev = lang === 'cn' ? '销售额 (基普)' : 'ຍອດຂາຍ (ກີບ)';
+      const _thName = bi('ລາຍການ ສິນຄ້າ / ບໍລິການ', '商品/服务');
+      const _thQty = bi('ຈຳນວນຂາຍ', '销售数量');
+      const _thRev = bi('ຍອດຂາຍ (ກີບ)', '销售额(基普)');
       top5HTML = '<h3 style="font-size:1.1rem; border-bottom:2px solid #333; padding-bottom:6px; margin-top:24px; margin-bottom:12px; page-break-inside:avoid;">' +
-        (lang === 'cn' ? '畅销商品 / 服务 前5名' : 'ສິນຄ້າ / ບໍລິການ ຂາຍດີ 5 ອັນດັບ') + '</h3>' +
+        bi('ສິນຄ້າ / ບໍລິການ ຂາຍດີ 5 ອັນດັບ', '畅销商品/服务 前5名') + '</h3>' +
         '<table style="width:100%; border-collapse:collapse; font-size:0.8rem; margin-bottom:8px;"><thead><tr style="background:#0d3b66; color:#fff;">' +
         '<th style="padding:7px; border:1px solid #ddd; width:50px; text-align:center;">#</th>' +
         '<th style="padding:7px; border:1px solid #ddd; text-align:left;">' + _thName + '</th>' +
@@ -3764,15 +3756,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }).join('') + '</tbody></table>';
     }
 
-    const _isCn = lang === 'cn';
     const _signers = [
-      _isCn ? '汇总人' : 'ຜູ້ສະຫຼຸບ',
-      _isCn ? '航站楼与停车场部主管' : 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ',
-      _isCn ? '财务与会计部主管' : 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ'
+      bi('ຜູ້ສະຫຼຸບ', '汇总人'),
+      bi('ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ', '航站楼与停车场部主管'),
+      bi('ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ', '财务与会计部主管')
     ];
-    if (optHeadDivision) _signers.push(_isCn ? '业务线主管' : 'ຫົວໜ້າສາຍງານ');
-    if (optDirector) _signers.push(_isCn ? '总经理' : 'ຜູ້ອຳນວຍການ');
-    const _signLabel = _isCn ? '签名' : 'ລາຍເຊັນ ແລະ ຊື່';
+    if (optHeadDivision) _signers.push(bi('ຫົວໜ້າສາຍງານ', '业务线主管'));
+    if (optDirector) _signers.push(bi('ຜູ້ອຳນວຍການ', '总经理'));
+    const _signLabel = bi('ລາຍເຊັນ ແລະ ຊື່', '签名');
     const signHTML = '<div style="margin-top:40px; display:flex; flex-direction:row-reverse; justify-content:space-between; gap:10px; font-size:0.8rem; page-break-inside:avoid; break-inside:avoid;">' +
       _signers.map(function (nm) { return '<div style="text-align:center; flex:1; page-break-inside:avoid;"><p style="margin-bottom:44px; font-weight:600;">' + nm + '</p><p style="border-top:1px dashed #333; padding-top:4px;">' + _signLabel + '</p></div>'; }).join('') +
       '</div>';
@@ -3842,7 +3833,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <tr style="background-color: #f2f2f2;">
               <th style="padding: 8px; border: 1px solid #ddd;">${t.invNo}</th>
               <th style="padding: 8px; border: 1px solid #ddd;">${t.time}</th>
-              <th style="padding: 8px; border: 1px solid #ddd;">${lang === 'cn' ? '销售点' : 'ຈຸດຂາຍ'}</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">${bi('ຈຸດຂາຍ', '销售点')}</th>
               <th style="padding: 8px; border: 1px solid #ddd;">${t.cashier}</th>
               <th style="padding: 8px; border: 1px solid #ddd;">${t.type}</th>
               <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">${t.amount}</th>
@@ -3858,15 +3849,10 @@ document.addEventListener('DOMContentLoaded', async () => {
               else if (tx.paid_currency === 'CNY') { val = txTotalThb * rateCny; sym = '¥'; }
 
               let displayPaymentType = tx.payment_type;
-              if (lang === 'cn') {
-                if (displayPaymentType === 'ເງິນສົດ') {
-                  displayPaymentType = '现金';
-                } else if (displayPaymentType === 'ໂອນ') {
-                  displayPaymentType = '转账';
-                }
-              }
+              if (displayPaymentType === 'ເງິນສົດ') displayPaymentType = 'ເງິນສົດ / 现金';
+              else if (displayPaymentType === 'ໂອນ') displayPaymentType = 'ໂອນ / 转账';
 
-              const displayPOS = lang === 'cn' ? (posTranslations[tx.pos]?.cn || tx.pos) : tx.pos;
+              const displayPOS = bi(tx.pos, posTranslations[tx.pos]?.cn || tx.pos);
 
               return `
                 <tr style="page-break-inside: avoid; break-inside: avoid;">
@@ -3977,31 +3963,31 @@ document.addEventListener('DOMContentLoaded', async () => {
           '</div>' +
           '<div style="font-size:0.85rem; line-height:1.8;"><div>ເລກທີ: ................. /ອລລ</div><div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: .................</div></div>' +
         '</div>' +
-        '<div style="text-align:center; margin-top:16px;"><h2 style="font-size:1.4rem; margin:0; color:#0d3b66;">ບົດລາຍງານສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2><p style="font-size:0.85rem; color:#555; margin-top:4px;">ພິມວັນທີ: ' + dateStr + '</p></div>' +
+        '<div style="text-align:center; margin-top:16px;"><h2 style="font-size:1.4rem; margin:0; color:#0d3b66;">ບົດລາຍງານສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ<br><span style="font-size:1rem;">库存商品结余汇总报告</span></h2><p style="font-size:0.85rem; color:#555; margin-top:4px;">ພິມວັນທີ: ' + dateStr + '</p></div>' +
       '</div>';
-    const _stkSigners = ['ຜູ້ສະຫຼຸບ', 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ', 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ'];
-    if (document.getElementById('stock-sign-head-division') && document.getElementById('stock-sign-head-division').checked) _stkSigners.push('ຫົວໜ້າສາຍງານ');
-    if (document.getElementById('stock-sign-director') && document.getElementById('stock-sign-director').checked) _stkSigners.push('ຜູ້ອຳນວຍການ');
+    const _stkSigners = ['ຜູ້ສະຫຼຸບ / 汇总人', 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ / 航站楼与停车场部主管', 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ / 财务与会计部主管'];
+    if (document.getElementById('stock-sign-head-division') && document.getElementById('stock-sign-head-division').checked) _stkSigners.push('ຫົວໜ້າສາຍງານ / 业务线主管');
+    if (document.getElementById('stock-sign-director') && document.getElementById('stock-sign-director').checked) _stkSigners.push('ຜູ້ອຳນວຍການ / 总经理');
     const _sign =
       '<div style="margin-top:40px; display:flex; flex-direction:row-reverse; justify-content:space-between; gap:10px; font-size:0.8rem; page-break-inside:avoid;">' +
       _stkSigners.map(function (nm) {
-        return '<div style="text-align:center; flex:1;"><p style="margin-bottom:44px; font-weight:600;">' + nm + '</p><p style="border-top:1px dashed #333; padding-top:4px;">ລາຍເຊັນ ແລະ ຊື່</p></div>';
+        return '<div style="text-align:center; flex:1;"><p style="margin-bottom:44px; font-weight:600;">' + nm + '</p><p style="border-top:1px dashed #333; padding-top:4px;">ລາຍເຊັນ ແລະ ຊື່ / 签名</p></div>';
       }).join('') + '</div>';
     const body =
       _lh +
       '<table style="width:100%;border-collapse:collapse;font-size:0.78rem;">' +
       '<thead><tr style="background:#0d3b66;color:#fff;">' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ລະຫັດ</th>' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ລາຍການສິນຄ້າ</th>' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ໝວດໝູ່</th>' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ຫົວໜ່ວຍ</th>' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:right;">ລາຄາຕົ້ນທຶນ</th>' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຂາຍອອກ</th>' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ເພີ່ມເຂົ້າ</th>' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຄົງເຫຼືອ</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ລະຫັດ / 编号</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ລາຍການສິນຄ້າ / 商品名称</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ໝວດໝູ່ / 类别</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ຫົວໜ່ວຍ / 单位</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:right;">ຕົ້ນທຶນ / 成本</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຂາຍອອກ / 售出</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ເພີ່ມເຂົ້າ / 入库</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຄົງເຫຼືອ / 结余</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table>' +
       '<div style="margin-top:12px;text-align:right;font-weight:700;font-size:0.9rem;color:#0d3b66;">' +
-      'ມູນຄ່າສະຕັອກລວມ (ຕາມຕົ້ນທຶນ): ' + formatNumber(totalValue) + ' B&nbsp;&nbsp;|&nbsp;&nbsp;ລາຍການທັງໝົດ: ' + sorted.length + '</div>' + _sign;
+      'ມູນຄ່າສະຕັອກລວມ / 库存总值: ' + formatNumber(totalValue) + ' B&nbsp;&nbsp;|&nbsp;&nbsp;ລາຍການທັງໝົດ: ' + sorted.length + '</div>' + _sign;
     printHTMLReport(body, 'Stock_Summary_' + getLocalYMD());
   }
   window.printStockSummary = printStockSummary;
