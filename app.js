@@ -2542,6 +2542,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         _monthInput.addEventListener('change', _applyPeriod);
       }
 
+      const _btnRefresh = document.getElementById('btn-refresh-dashboard');
+      if (_btnRefresh) {
+        _btnRefresh.addEventListener('click', async () => {
+          const _ic = _btnRefresh.querySelector('i');
+          if (_ic) _ic.classList.add('fa-spin');
+          _btnRefresh.disabled = true;
+          try {
+            await window.BokeoDB.syncWithGoogleSheets();
+            state.products = await window.BokeoDB.getProducts();
+          } catch (e) { console.error('refresh sync failed:', e); }
+          await loadDashboardData();
+          if (_ic) _ic.classList.remove('fa-spin');
+          _btnRefresh.disabled = false;
+          if (typeof showToast === 'function') showToast('✓ ໂຫຼດຂໍ້ມູນໃໝ່ສຳເລັດ / 已刷新', 'success');
+        });
+      }
+
       // Bind new chart toggles
       const btnDaily = document.getElementById('chart-btn-daily');
       const btnMonthly = document.getElementById('chart-btn-monthly');
@@ -3961,6 +3978,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       return 0;
     };
     let totalValue = 0;
+    const _catMap = {
+      'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ': '零售商品店',
+      'ຫ້ອງ VIP': '贵宾厅',
+      'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ': '行李打包服务',
+      'ບໍລິການແທັກຊີ່': '出租车服务',
+      'ບໍລິການລານຈອດ': '停车场服务'
+    };
+    const _catBi = function (c) { const cn = _catMap[c]; return cn ? (c + ' / ' + cn) : (c || ''); };
     const sorted = state.products.filter(function (p) { return !(p.stock >= 9999); }).sort((x, y) =>
       (x.category || '').localeCompare(y.category || '') || (x.id || '').localeCompare(y.id || ''));
     const rows = sorted.map(p => {
@@ -3972,7 +3997,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return '<tr style="' + lowStyle + '">' +
         '<td style="border:1px solid #ccc;padding:5px 7px;font-weight:700;">' + (p.code || p.id) + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.name_lo || '') + '</td>' +
-        '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.category || '') + '</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;">' + _catBi(p.category) + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.unit || 'ຊິ້ນ') + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;text-align:right;">' + formatNumber(p.cost_thb) + ' B</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;color:#c0392b;">' + (isService ? '-' : formatNumber(_soldInPeriod(p))) + '</td>' +
