@@ -6,14 +6,14 @@
   <title>Bokeo International Airport POS - ລະບົບຈຸດຂາຍ</title>
 
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=27">
+  <link rel="stylesheet" href="styles.css?v=29">
 
   <!-- FontAwesome for Premium Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 
   <!-- html2pdf.js (local copy — ບໍ່ຂຶ້ນກັບ CDN) -->
-  <script src="html2pdf.bundle.min.js?v=27"></script>
+  <script src="html2pdf.bundle.min.js?v=29"></script>
 </head>
 <body>
   <!-- =========================================================================
@@ -231,6 +231,7 @@
                           <option value="monthly">ສະຫຼຸບປະຈຳເດືອນ</option>
                         </select>
                       </label>
+                      <input type="month" id="report-month" style="display:none; padding:4px 8px; border-radius:8px; border:1px solid var(--border-color);">
                       <span style="font-weight:600;">ເພີ່ມບ່ອນເຊັນ:</span>
                       <label style="cursor:pointer;"><input type="checkbox" id="sign-head-division"> ຫົວໜ້າສາຍງານ</label>
                       <label style="cursor:pointer;"><input type="checkbox" id="sign-director"> ຜູ້ອຳນວຍການ</label>
@@ -262,8 +263,11 @@
           <div class="stock-view">
             <div class="view-header">
               <h2><i class="fas fa-boxes"></i> ຄັງສະຕັອກສິນຄ້າ (Stock Management)</h2>
-              <div style="display:flex; gap:12px; align-items:center;">
-                <input type="text" class="form-input" id="stock-search" placeholder="ຄົ້ນຫາລະຫັດ ຫຼື ຊື່ສິນຄ້າ..." style="width: 280px; border-radius: 24px;">
+              <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+                <input type="text" class="form-input" id="stock-search" placeholder="ຄົ້ນຫາລະຫັດ ຫຼື ຊື່ສິນຄ້າ..." style="width: 240px; border-radius: 24px;">
+                <span style="font-size:0.8rem; font-weight:600;">ເພີ່ມບ່ອນເຊັນ:</span>
+                <label style="font-size:0.8rem; cursor:pointer;"><input type="checkbox" id="stock-sign-head-division"> ຫົວໜ້າສາຍງານ</label>
+                <label style="font-size:0.8rem; cursor:pointer;"><input type="checkbox" id="stock-sign-director"> ຜູ້ອຳນວຍການ</label>
                 <button class="primary-btn" id="btn-print-stock" onclick="window.printStockSummary()" style="white-space:nowrap;"><i class="fas fa-print"></i> ພິມສະຫຼຸບສະຕັອກ</button>
               </div>
             </div>
@@ -672,7 +676,7 @@
   <!-- Hidden uploader for product menu images -->
   <input type="file" id="hidden-product-image-uploader" accept="image/*" style="display: none;">
   <!-- Load Database and Application Logic scripts -->
-  <script src="database.js?v=27"></script>
-  <script src="app.js?v=27"></script>
+  <script src="database.js?v=29"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>
