@@ -3619,7 +3619,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     reportDiv.innerHTML = `
       <div style="text-align:center; margin-bottom: 24px;">
-        <img src="logo.png" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
+        <img src="logo.png?v=17" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
         <h2 style="font-size: 1.6rem; margin-bottom: 4px;">${t.title}</h2>
         <h4 style="font-size: 0.95rem; font-weight: 500; color: #444; margin-bottom: 8px;">${t.sub}</h4>
         <p style="font-size: 0.85rem; color: #555;">${t.date} | ${t.pos}</p>
@@ -3728,28 +3728,39 @@ document.addEventListener('DOMContentLoaded', async () => {
      ========================================================================= */
   function printHTMLReport(bodyHTML, title) {
     const baseHref = location.href.substring(0, location.href.lastIndexOf('/') + 1);
-    const w = window.open('', '_blank');
-    if (!w) {
-      alert('ກະລຸນາອະນຸຍາດ Pop-up ສຳລັບເວັບນີ້ ເພື່ອພິມ/ບັນທຶກ PDF (ກວດໄອຄອນບລັອກ pop-up ທີ່ແຖບ URL)');
-      return;
-    }
+    const old = document.getElementById('print-report-frame');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    const iframe = document.createElement('iframe');
+    iframe.id = 'print-report-frame';
+    iframe.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow.document;
     const html =
       '<!DOCTYPE html><html lang="lo"><head><meta charset="utf-8">' +
       '<base href="' + baseHref + '">' +
       '<title>' + title + '</title>' +
       '<link rel="stylesheet" href="styles.css">' +
       '<style>@page{size:A4;margin:12mm;}' +
-      'html,body{display:block;width:auto;height:auto;background:#fff;color:#000;margin:0;padding:0;' +
-      "font-family:'Noto Sans Lao','Outfit',sans-serif;}</style></head><body>" +
-      bodyHTML +
-      '<scr' + 'ipt>window.onload=function(){var im=document.images,n=im.length,d=0;' +
-      'function go(){setTimeout(function(){try{window.focus();window.print();}catch(e){}},300);}' +
-      'if(!n){go();return;}for(var i=0;i<n;i++){if(im[i].complete){if(++d===n)go();}' +
-      'else{im[i].onload=im[i].onerror=function(){if(++d===n)go();};}}};<\/scr' + 'ipt>' +
-      '</body></html>';
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
+      "html,body{background:#fff;color:#000;margin:0;padding:0;font-family:'Noto Sans Lao','Outfit',sans-serif;}</style>" +
+      '</head><body>' + bodyHTML + '</body></html>';
+    doc.open(); doc.write(html); doc.close();
+    const win = iframe.contentWindow;
+    let done = false;
+    function cleanup() {
+      if (done) return; done = true;
+      setTimeout(function () { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 300);
+    }
+    win.onafterprint = cleanup;
+    function go() {
+      try { win.focus(); win.print(); }
+      catch (e) { alert('ບໍ່ສາມາດພິມໄດ້: ' + e.message); cleanup(); }
+    }
+    const imgs = doc.images; const n = imgs.length; let c = 0;
+    if (!n) { setTimeout(go, 200); return; }
+    for (let i = 0; i < n; i++) {
+      if (imgs[i].complete) { if (++c === n) setTimeout(go, 150); }
+      else { imgs[i].onload = imgs[i].onerror = function () { if (++c === n) setTimeout(go, 150); }; }
+    }
   }
 
   // ພິມສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ (Admin)
@@ -3779,7 +3790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
     const body =
       '<div style="text-align:center;margin-bottom:14px;">' +
-      '<img src="logo.png" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
+      '<img src="logo.png?v=17" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
       '<h2 style="margin:4px 0;color:#0d3b66;">ສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2>' +
       '<div style="font-size:0.85rem;color:#555;">ສະໜາມບິນສາກົນບໍ່ແກ້ວ · ພິມວັນທີ: ' + dateStr + '</div>' +
       '</div>' +
