@@ -776,6 +776,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
     ].includes(posObj.name);
 
+    // บังคับ: กะแรกของวัน (ยังไม่มี session วันนี้ที่จุดขายนี้) ต้องป้อนเงินทอนเริ่มต้นอย่างน้อย 1 สกุล
+    if (!isAdminPOS) {
+      const _todayStr = getLocalYMD();
+      const _allPetty = await window.BokeoDB.getPettyCashSessions();
+      const _todaySess = _allPetty.filter(pp => isSameDay(pp.date, _todayStr) && pp.pos === posObj.name);
+      const _isFirstShift = _todaySess.length === 0;
+      if (_isFirstShift && (pettyLak + pettyThb + pettyCny) <= 0) {
+        alert('ນີ້ແມ່ນກະທຳອິດຂອງມື້ນີ້ — ກະລຸນາປ້ອນເງິນທອນເລີ່ມຕົ້ນ (ຢ່າງໜ້ອຍ 1 ສະກຸນເງິນ) ກ່ອນເລີ່ມຂາຍ');
+        return;
+      }
+    }
+
     // Save Cashier if new
     const cashierExists = state.cashiers.some(c => c.name.toLowerCase() === cashierName.toLowerCase());
     if (!cashierExists) {
@@ -1798,6 +1810,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 2. Save Transaction to database
     await window.BokeoDB.saveTransaction(transaction);
 
+    // บันทึกลง Google Sheet ทันที (ไม่ขึ้นกับ PDF — กันข้อมูลไม่ตรงกับ Sheet)
+    logTransactionToSheet(transaction);
+
     // Send WhatsApp notification in background (automatically notify WhatsApp group)
     sendWhatsAppNotification(transaction);
 
@@ -2138,6 +2153,48 @@ document.addEventListener('DOMContentLoaded', async () => {
    * Client-side Google Drive PDF Upload
    * Recreates folder structures: YYYY-MM-DD -> POS Name -> Payment Type -> File
    */
+  // บันทึก transaction ลง Google Sheet โดยตรง (best-effort, ไม่พึ่ง html2pdf/PDF)
+  async function logTransactionToSheet(transaction) {
+    const scriptUrl = state.settings.gdrive_script_url;
+    if (!scriptUrl) return;
+    try {
+      await fetch(scriptUrl, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'log_transaction', transaction: transaction })
+      });
+    } catch (err) {
+      console.error('logTransactionToSheet failed (จะลองใหม่รอบ sync ถัดไป):', err);
+    }
+  }
+
+  // ดันยอดขายในเครื่อง (IndexedDB) ขึ้น Sheet ทั้งหมด — สำหรับรายการเก่าที่ค้าง (dedup กันซ้ำ)
+  async function pushLocalSalesToSheet() {
+    const scriptUrl = state.settings.gdrive_script_url;
+    if (!scriptUrl) { alert('ຍັງບໍ່ໄດ້ຕັ້ງຄ່າ Apps Script URL'); return; }
+    const all = await window.BokeoDB.getTransactions();
+    if (!all.length) { alert('ບໍ່ມີລາຍການຂາຍໃນເຄື່ອງນີ້'); return; }
+    if (!confirm('ຈະດັນຍອດຂາຍ ' + all.length + ' ລາຍການຂຶ້ນ Google Sheet (ກັນຊ້ຳອັດຕະໂນມັດ). ດຳເນີນການ?')) return;
+    const btn = document.getElementById('btn-push-sales');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ກຳລັງດັນຂຶ້ນ Sheet...'; }
+    let ok = 0, fail = 0;
+    for (const tx of all) {
+      try {
+        const r = await fetch(scriptUrl, {
+          method: 'POST', mode: 'cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ action: 'log_transaction', transaction: tx })
+        });
+        const d = await r.json();
+        if (d && d.success) ok++; else fail++;
+      } catch (e) { fail++; }
+    }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> ດັນຍອດຂາຍຂຶ້ນ Sheet'; }
+    alert('ສຳເລັດ: ສົ່ງ ' + ok + ' ລາຍການ | ຜິດພາດ ' + fail + '\n(ລາຍການທີ່ມີໃນ Sheet ແລ້ວ ຖືກກັນຊ້ຳໄວ້)');
+  }
+  window.pushLocalSalesToSheet = pushLocalSalesToSheet;
+
   async function uploadPDFToGoogleDrive(blob, fullPath, transaction) {
     const scriptUrl = state.settings.gdrive_script_url;
     if (!scriptUrl) {
@@ -3619,7 +3676,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     reportDiv.innerHTML = `
       <div style="text-align:center; margin-bottom: 24px;">
-        <img src="logo.png?v=17" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
+        <img src="logo.png?v=19" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
         <h2 style="font-size: 1.6rem; margin-bottom: 4px;">${t.title}</h2>
         <h4 style="font-size: 0.95rem; font-weight: 500; color: #444; margin-bottom: 8px;">${t.sub}</h4>
         <p style="font-size: 0.85rem; color: #555;">${t.date} | ${t.pos}</p>
@@ -3790,7 +3847,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
     const body =
       '<div style="text-align:center;margin-bottom:14px;">' +
-      '<img src="logo.png?v=17" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
+      '<img src="logo.png?v=19" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
       '<h2 style="margin:4px 0;color:#0d3b66;">ສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2>' +
       '<div style="font-size:0.85rem;color:#555;">ສະໜາມບິນສາກົນບໍ່ແກ້ວ · ພິມວັນທີ: ' + dateStr + '</div>' +
       '</div>' +
