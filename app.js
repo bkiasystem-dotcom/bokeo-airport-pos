@@ -2735,11 +2735,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="window.reprintInvoice('${tx.id}')">
               <i class="fas fa-print"></i>
             </button>
-            ${isAdminPOS ? `
-            <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem; color:var(--danger-color);" onclick="window.deleteInvoice('${tx.id}')">
+            <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem; color:var(--danger-color);" onclick="window.deleteInvoice('${tx.id}')" title="ລຶບບິນ (ຕ້ອງໃສ່ PIN ຜູ້ดูแลລະບົບ)">
               <i class="fas fa-trash-alt"></i>
             </button>
-            ` : ''}
           </td>
         `;
         els.dashTableBody.appendChild(tr);
@@ -3354,6 +3352,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const performDelete = async () => {
       const confirmDelete = confirm(`ທ່ານຕ້ອງການລຶບບິນ ${txId} ແທ້ຫຼືບໍ່?`);
       if (confirmDelete) {
+        // ลบจาก Google Sheet ก่อน (Sheet = ฐานข้อมูลจริง) ไม่งั้น sync จะดึงกลับมา
+        try {
+          if (state.settings.gdrive_script_url) {
+            await fetch(state.settings.gdrive_script_url, {
+              method: 'POST', mode: 'cors',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify({ action: 'delete_transaction', id: txId })
+            });
+          }
+        } catch (e) { console.error('ลบจาก Sheet ไม่สำเร็จ:', e); }
         await window.BokeoDB.deleteTransaction(txId);
         // Reload products/dashboard
         state.products = await window.BokeoDB.getProducts();
@@ -3362,11 +3370,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
 
-    if (isAdminPOS) {
-      performDelete();
-    } else {
-      promptPIN(performDelete);
-    }
+    // ต้องใส่ PIN ผู้ดูแลระบบ (ตั้งใน Settings) ทุกครั้งที่จะลบ/แก้ข้อมูล
+    promptPIN(performDelete);
   };
 
   /* =========================================================================
@@ -3676,7 +3681,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     reportDiv.innerHTML = `
       <div style="text-align:center; margin-bottom: 24px;">
-        <img src="logo.png?v=19" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
+        <img src="logo.png?v=20" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
         <h2 style="font-size: 1.6rem; margin-bottom: 4px;">${t.title}</h2>
         <h4 style="font-size: 0.95rem; font-weight: 500; color: #444; margin-bottom: 8px;">${t.sub}</h4>
         <p style="font-size: 0.85rem; color: #555;">${t.date} | ${t.pos}</p>
@@ -3847,7 +3852,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
     const body =
       '<div style="text-align:center;margin-bottom:14px;">' +
-      '<img src="logo.png?v=19" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
+      '<img src="logo.png?v=20" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
       '<h2 style="margin:4px 0;color:#0d3b66;">ສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2>' +
       '<div style="font-size:0.85rem;color:#555;">ສະໜາມບິນສາກົນບໍ່ແກ້ວ · ພິມວັນທີ: ' + dateStr + '</div>' +
       '</div>' +

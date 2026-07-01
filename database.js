@@ -19,7 +19,7 @@ const DB_VERSION = 4;
 
 // Helper to fetch with a timeout (default 6 seconds)
 async function fetchWithTimeout(resource, options = {}) {
-  const { timeout = 6000 } = options;
+  const { timeout = 15000 } = options;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
@@ -1419,6 +1419,7 @@ class BokeoPOSDB {
         try {
           console.log('Parsing and updating sales transactions from Google Sheets...');
           const salesRows = this._parseCSV(salesText);
+          const _sheetIds = new Set();
           const txSess = this.db.transaction('transactions', 'readwrite');
           const storeSess = txSess.objectStore('transactions');
           
@@ -1431,6 +1432,7 @@ class BokeoPOSDB {
             if (idx === 0 || row.length < 10) return; // Skip header or invalid rows
             const txId = row[0] ? row[0].trim() : '';
             if (!txId) return;
+            _sheetIds.add(txId);
 
             // Reconstruct transaction object
             const totalThb = parseFloat(row[18] ? row[18].replace(/[^\d\.\-]/g, '') : '0') || 0;
@@ -1463,15 +1465,16 @@ class BokeoPOSDB {
             let timestampStr = row[1] ? row[1].trim() : '';
             let parsedTimestamp = new Date().toISOString();
             if (timestampStr) {
-              try {
-                if (timestampStr.indexOf(' ') > 0) {
-                  parsedTimestamp = new Date(timestampStr.replace(' ', 'T') + '+07:00').toISOString();
-                } else {
-                  parsedTimestamp = new Date(timestampStr).toISOString();
-                }
-              } catch (e) {
-                console.warn('Failed to parse timestamp:', timestampStr, e);
+              // รองรับ "YYYY-MM-DD H:M:S" (ชั่วโมง/นาที หลักเดียว) โดยไม่ให้ throw
+              const _m = timestampStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+              let _d = null;
+              if (_m) {
+                _d = new Date(Number(_m[1]), Number(_m[2]) - 1, Number(_m[3]), Number(_m[4]), Number(_m[5]), Number(_m[6] || 0));
+              } else {
+                const _t = new Date(timestampStr);
+                if (!isNaN(_t.getTime())) _d = _t;
               }
+              if (_d && !isNaN(_d.getTime())) parsedTimestamp = _d.toISOString();
             }
 
             const itemsStr = row[4] ? row[4].trim() : '';
@@ -1560,6 +1563,21 @@ class BokeoPOSDB {
           if (firebaseBatch) {
             await firebaseBatch.commit();
           }
+
+          // Sheet = ฐานข้อมูลจริง: ลบรายการใน local ที่ไม่มีใน Sheet (orphan) ยกเว้นที่เพิ่งสร้าง < 15 นาที (รอ sync ขึ้น Sheet)
+          try {
+            const _allLocal = await this.getTransactions();
+            const _cutoff = Date.now() - 15 * 60 * 1000;
+            const _orphans = _allLocal.filter(t => !_sheetIds.has(t.id) && (new Date(t.timestamp).getTime() || 0) < _cutoff);
+            if (_orphans.length > 0) {
+              const _delTx = this.db.transaction('transactions', 'readwrite');
+              const _delStore = _delTx.objectStore('transactions');
+              _orphans.forEach(t => _delStore.delete(t.id));
+              await new Promise(r => _delTx.oncomplete = r);
+              console.log('Removed ' + _orphans.length + ' local orphan transaction(s) not in Sheet.');
+            }
+          } catch (e) { console.warn('Orphan reconcile skipped:', e); }
+
           console.log('Transactions synced successfully from Google Sheets.');
           this._notifyListener('transactions');
         } catch (err) {
