@@ -6,14 +6,14 @@
   <title>Bokeo International Airport POS - ລະບົບຈຸດຂາຍ</title>
 
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=21">
+  <link rel="stylesheet" href="styles.css?v=24">
 
   <!-- FontAwesome for Premium Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 
   <!-- html2pdf.js (local copy — ບໍ່ຂຶ້ນກັບ CDN) -->
-  <script src="html2pdf.bundle.min.js?v=21"></script>
+  <script src="html2pdf.bundle.min.js?v=24"></script>
 </head>
 <body>
   <!-- =========================================================================
@@ -219,9 +219,21 @@
               <div class="report-card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
                   <h3>ລາຍການທຸລະກຳການຂາຍ</h3>
-                  <div style="display:flex; gap: 8px;">
-                    <button class="primary-btn" id="btn-export-lao-pdf"><i class="fas fa-file-pdf"></i> ສົ່ງອອກ PDF (ພາສາລາວ)</button>
-                    <button class="primary-btn" id="btn-export-cny-pdf"><i class="fas fa-file-pdf"></i> ສົ່ງອອກ PDF (中文/ພາສາຈີນ)</button>
+                  <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+                    <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:0.82rem;">
+                      <label style="font-weight:600;">ຮູບແບບ:
+                        <select id="report-period" class="form-select" style="width:auto; display:inline-block; padding:4px 8px; border-radius:8px;">
+                          <option value="daily">ສະຫຼຸບປະຈຳວັນ</option>
+                          <option value="monthly">ສະຫຼຸບປະຈຳເດືອນ</option>
+                        </select>
+                      </label>
+                      <label style="cursor:pointer;"><input type="checkbox" id="sign-head-division"> ເພີ່ມ ຫົວໜ້າສາຍງານ</label>
+                      <label style="cursor:pointer;"><input type="checkbox" id="sign-director"> ເພີ່ມ ຜູ້ອຳນວຍການ</label>
+                    </div>
+                    <div style="display:flex; gap: 8px;">
+                      <button class="primary-btn" id="btn-export-lao-pdf"><i class="fas fa-file-pdf"></i> ສົ່ງອອກ PDF (ພາສາລາວ)</button>
+                      <button class="primary-btn" id="btn-export-cny-pdf"><i class="fas fa-file-pdf"></i> ສົ່ງອອກ PDF (中文/ພາສາຈີນ)</button>
+                    </div>
                   </div>
                 </div>
                 <div class="table-wrapper">
@@ -659,7 +671,7 @@
   <!-- Hidden uploader for product menu images -->
   <input type="file" id="hidden-product-image-uploader" accept="image/*" style="display: none;">
   <!-- Load Database and Application Logic scripts -->
-  <script src="database.js?v=21"></script>
-  <script src="app.js?v=21"></script>
+  <script src="database.js?v=24"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

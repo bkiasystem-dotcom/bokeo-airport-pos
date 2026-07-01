@@ -3410,6 +3410,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const start = els.startDateFilter.value;
     const end = els.endDateFilter.value;
     const selectedPOS = els.dashPOSFilter.value;
+    const reportPeriod = (document.getElementById('report-period') && document.getElementById('report-period').value) || 'daily';
+    const optHeadDivision = !!(document.getElementById('sign-head-division') && document.getElementById('sign-head-division').checked);
+    const optDirector = !!(document.getElementById('sign-director') && document.getElementById('sign-director').checked);
 
     const posTranslations = {
       // Service Types
@@ -3535,12 +3538,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         cnyCol: 'ຢວນ (CNY)',
         dailyTotal: 'ລວມຍອດປະຈຳວັນ',
         combinedLak: 'ລວມທັງໝົດທຽບເທົ່າກີບ',
-        deptTitle: 'ພະແນກ ບັນຊີ - ການເງິນ',
-        deptSub: 'Accounting Department',
+        deptTitle: 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ',
+        deptSub: 'Finance & Accounting',
         middleTitle: 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ',
-        middleSub: 'Terminal & Parking Lot Dept',
-        cashierTitle: 'ພະນັກງານຂາຍ/ຜູ້ສະຫລຸບ',
-        cashierSub: 'Cashier Signature'
+        middleSub: 'Terminal & Parking Lot',
+        cashierTitle: 'ຜູ້ສະຫຼຸບ',
+        cashierSub: 'Reporter / Compiler'
       },
       cn: {
         title: '机场销售日结汇总报告',
@@ -3566,21 +3569,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         cnyCol: '人民币 (CNY)',
         dailyTotal: '日结总计',
         combinedLak: '折合基普总额',
-        deptTitle: '财务与会计部',
-        deptSub: 'Accounting & Finance Dept',
-        middleTitle: '站楼与停车场部',
-        middleSub: 'Terminal & Parking Lot Dept',
-        cashierTitle: '收银员签字',
-        cashierSub: 'Cashier Signature'
+        deptTitle: '财务与会计部主管',
+        deptSub: 'Finance & Accounting',
+        middleTitle: '航站楼与停车场部主管',
+        middleSub: 'Terminal & Parking Lot',
+        cashierTitle: '汇总人',
+        cashierSub: 'Reporter / Compiler'
       }
     };
 
     const t = texts[lang];
+    if (reportPeriod === 'monthly') {
+      t.title = lang === 'cn' ? '机场销售月结汇总报告' : 'ບົດລາຍງານສະຫຼຸບຍອດຂາຍປະຈຳເດືອນ';
+      t.posSummaryTitle = lang === 'cn' ? '各销售点月销售额汇总' : 'ສະຫຼຸບລາຍຮັບແຍກຕາມຈຸດຂາຍລາຍເດືອນ';
+      t.dailyTotal = lang === 'cn' ? '月结总计' : 'ລວມຍອດປະຈຳເດືອນ';
+    } else {
+      t.title = lang === 'cn' ? '机场销售日结汇总报告' : 'ບົດລາຍງານສະຫຼຸບຍອດຂາຍປະຈຳວັນ';
+    }
 
     // Generate Daily POS Summary table for PDF
     const pdfPosDailyData = {};
     dashboardTransactions.forEach(tx => {
-      const dateStr = getLocalYMD(new Date(tx.timestamp));
+      const _full = getLocalYMD(new Date(tx.timestamp));
+      const dateStr = reportPeriod === 'monthly' ? _full.slice(0, 7) : _full;
       const posName = tx.pos;
       if (!pdfPosDailyData[dateStr]) {
         pdfPosDailyData[dateStr] = {};
@@ -3607,8 +3618,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
       
       pdfSortedDates.forEach(dateStr => {
-        const [y, m, d] = dateStr.split('-');
-        const formattedDate = `${d}/${m}/${y}`;
+        const _p = dateStr.split('-');
+        const formattedDate = reportPeriod === 'monthly'
+          ? ((lang === 'cn' ? '月份 ' : 'ເດືອນ ') + _p[1] + '/' + _p[0])
+          : (_p[2] + '/' + _p[1] + '/' + _p[0]);
         
         let rowsHtml = '';
         let dayTotalLak = 0;
@@ -3694,12 +3707,75 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
     `;
 
+    // สินค้า/บริการ ขายดี Top 5 + จำนวนขาย (จาก items ใน Sales sheet)
+    const _prodAgg = {};
+    dashboardTransactions.forEach(function (tx) {
+      (tx.items || []).forEach(function (it) {
+        const key = (it.name_lo || it.name_en || it.id || '-').trim();
+        if (!key || key === '-') return;
+        if (!_prodAgg[key]) _prodAgg[key] = { name: key, qty: 0, revThb: 0 };
+        _prodAgg[key].qty += (it.qty || 0);
+        _prodAgg[key].revThb += (it.price_thb || 0) * (it.qty || 0);
+      });
+    });
+    const _top5 = Object.keys(_prodAgg).map(function (k) { return _prodAgg[k]; }).sort(function (a, b) { return b.qty - a.qty; }).slice(0, 5);
+    let top5HTML = '';
+    if (_top5.length > 0) {
+      const _thName = lang === 'cn' ? '商品 / 服务' : 'ລາຍການ ສິນຄ້າ / ບໍລິການ';
+      const _thQty = lang === 'cn' ? '销售数量' : 'ຈຳນວນຂາຍ';
+      const _thRev = lang === 'cn' ? '销售额 (基普)' : 'ຍອດຂາຍ (ກີບ)';
+      top5HTML = '<h3 style="font-size:1.1rem; border-bottom:2px solid #333; padding-bottom:6px; margin-top:24px; margin-bottom:12px; page-break-inside:avoid;">' +
+        (lang === 'cn' ? '畅销商品 / 服务 前5名' : 'ສິນຄ້າ / ບໍລິການ ຂາຍດີ 5 ອັນດັບ') + '</h3>' +
+        '<table style="width:100%; border-collapse:collapse; font-size:0.8rem; margin-bottom:8px;"><thead><tr style="background:#0d3b66; color:#fff;">' +
+        '<th style="padding:7px; border:1px solid #ddd; width:50px; text-align:center;">#</th>' +
+        '<th style="padding:7px; border:1px solid #ddd; text-align:left;">' + _thName + '</th>' +
+        '<th style="padding:7px; border:1px solid #ddd; text-align:center;">' + _thQty + '</th>' +
+        '<th style="padding:7px; border:1px solid #ddd; text-align:right;">' + _thRev + '</th></tr></thead><tbody>' +
+        _top5.map(function (p, i) {
+          return '<tr><td style="padding:6px 8px; border:1px solid #ddd; text-align:center; font-weight:700;">' + (i + 1) + '</td>' +
+            '<td style="padding:6px 8px; border:1px solid #ddd;">' + p.name + '</td>' +
+            '<td style="padding:6px 8px; border:1px solid #ddd; text-align:center; font-weight:700;">' + formatNumber(p.qty) + '</td>' +
+            '<td style="padding:6px 8px; border:1px solid #ddd; text-align:right;">' + formatNumber(p.revThb * rateLak) + ' ₭</td></tr>';
+        }).join('') + '</tbody></table>';
+    }
+
+    const _isCn = lang === 'cn';
+    const _signers = [
+      _isCn ? '汇总人' : 'ຜູ້ສະຫຼຸບ',
+      _isCn ? '航站楼与停车场部主管' : 'ຫົວໜ້າພະແນກ ອາຄານ ແລະ ລານຈອດ',
+      _isCn ? '财务与会计部主管' : 'ຫົວໜ້າພະແນກ ການເງິນ-ບັນຊີ'
+    ];
+    if (optHeadDivision) _signers.push(_isCn ? '业务线主管' : 'ຫົວໜ້າສາຍງານ');
+    if (optDirector) _signers.push(_isCn ? '总经理' : 'ຜູ້ອຳນວຍການ');
+    const _signLabel = _isCn ? '签名' : 'ລາຍເຊັນ ແລະ ຊື່';
+    const signHTML = '<div style="margin-top:40px; display:flex; flex-direction:row-reverse; justify-content:space-between; gap:10px; font-size:0.8rem; page-break-inside:avoid; break-inside:avoid;">' +
+      _signers.map(function (nm) { return '<div style="text-align:center; flex:1; page-break-inside:avoid;"><p style="margin-bottom:44px; font-weight:600;">' + nm + '</p><p style="border-top:1px dashed #333; padding-top:4px;">' + _signLabel + '</p></div>'; }).join('') +
+      '</div>';
+
     reportDiv.innerHTML = `
-      <div style="text-align:center; margin-bottom: 24px;">
-        <img src="logo.png?v=21" alt="" style="height: 80px; margin-bottom: 10px;" onerror="this.style.display='none';" />
-        <h2 style="font-size: 1.6rem; margin-bottom: 4px;">${t.title}</h2>
-        <h4 style="font-size: 0.95rem; font-weight: 500; color: #444; margin-bottom: 8px;">${t.sub}</h4>
-        <p style="font-size: 0.85rem; color: #555;">${t.date} | ${t.pos}</p>
+      <div style="margin-bottom: 18px;">
+        <div style="text-align:center; line-height:1.5;">
+          <div style="font-size:1.05rem; font-weight:700;">ສາທາລະນະລັດ ປະຊາທິປະໄຕ ປະຊາຊົນລາວ</div>
+          <div style="font-size:0.9rem; font-weight:700;">ສັນຕິພາບ ເອກະລາດ ປະຊາທິປະໄຕ ເອກະພາບ ວັດທະນະຖາວອນ</div>
+          <div style="width:180px; border-bottom:1.5px solid #333; margin:6px auto 0;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top:14px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <img src="logo.png?v=24" alt="" style="height:62px;" onerror="this.style.display='none';" />
+            <div style="font-size:0.9rem; line-height:1.5;">
+              <div style="font-weight:700;">ບໍລິສັດ ສະໜາມບິນສາກົນ ບໍ່ແກ້ວ</div>
+              <div>ພະແນກ ອາຄານ ແລະ ລານຈອດລົດ</div>
+            </div>
+          </div>
+          <div style="font-size:0.85rem; line-height:1.8; text-align:left;">
+            <div>ເລກທີ: ................. /ອລລ</div>
+            <div>ແຂວງ ບໍ່ແກ້ວ, ວັນທີ: .................</div>
+          </div>
+        </div>
+        <div style="text-align:center; margin-top:18px;">
+          <h2 style="font-size:1.4rem; margin:0;">${t.title}</h2>
+          <p style="font-size:0.85rem; color:#555; margin-top:4px;">${t.date} | ${t.pos}</p>
+        </div>
       </div>
 
       ${rateWarningBanner}
@@ -3731,6 +3807,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
 
       ${pdfPosSummaryHTML}
+
+      ${top5HTML}
 
       <div style="page-break-inside: avoid; break-inside: avoid;">
         <h3 style="font-size: 1.1rem; border-bottom: 2px solid #333; padding-bottom: 6px; margin-top: 24px; margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid;">${t.txList}</h3>
@@ -3780,20 +3858,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         </table>
       </div>
 
-      <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 0.85rem; page-break-inside: avoid; break-inside: avoid;">
-        <div style="text-align: center; width: 220px; page-break-inside: avoid; break-inside: avoid;">
-          <p>${t.deptTitle}</p>
-          <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">${t.deptSub}</p>
-        </div>
-        <div style="text-align: center; width: 220px; page-break-inside: avoid; break-inside: avoid;">
-          <p>${t.middleTitle}</p>
-          <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">${t.middleSub}</p>
-        </div>
-        <div style="text-align: center; width: 200px; page-break-inside: avoid; break-inside: avoid;">
-          <p>${t.cashierTitle}</p>
-          <p style="margin-top: 40px; border-top: 1px dashed #333; padding-top: 4px;">${t.cashierSub}</p>
-        </div>
-      </div>
+      ${signHTML}
     `;
 
     // พิมพ์ผ่าน browser native print (Save as PDF) — รองรับลาว/จีน, ไม่พึ่ง library ภายนอก
@@ -3862,12 +3927,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.category || '') + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;">' + (p.unit || 'ຊິ້ນ') + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;text-align:right;">' + formatNumber(p.cost_thb) + ' B</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;color:#c0392b;">' + (isService ? '-' : formatNumber(p.sold || 0)) + '</td>' +
+        '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;color:#16a34a;">' + (isService ? '-' : formatNumber(p.added || 0)) + '</td>' +
         '<td style="border:1px solid #ccc;padding:5px 7px;text-align:center;font-weight:700;">' + stockDisplay + '</td>' +
         '</tr>';
     }).join('');
     const body =
       '<div style="text-align:center;margin-bottom:14px;">' +
-      '<img src="logo.png?v=21" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
+      '<img src="logo.png?v=24" style="height:70px;margin-bottom:8px;" onerror="this.style.display=\'none\'">' +
       '<h2 style="margin:4px 0;color:#0d3b66;">ສະຫຼຸບສະຕັອກສິນຄ້າຄົງເຫຼືອ</h2>' +
       '<div style="font-size:0.85rem;color:#555;">ສະໜາມບິນສາກົນບໍ່ແກ້ວ · ພິມວັນທີ: ' + dateStr + '</div>' +
       '</div>' +
@@ -3878,7 +3945,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ໝວດໝູ່</th>' +
       '<th style="border:1px solid #ccc;padding:7px;text-align:left;">ຫົວໜ່ວຍ</th>' +
       '<th style="border:1px solid #ccc;padding:7px;text-align:right;">ລາຄາຕົ້ນທຶນ</th>' +
-      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຈຳນວນຄົງເຫຼືອ</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຂາຍອອກ</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ເພີ່ມເຂົ້າ</th>' +
+      '<th style="border:1px solid #ccc;padding:7px;text-align:center;">ຄົງເຫຼືອ</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table>' +
       '<div style="margin-top:12px;text-align:right;font-weight:700;font-size:0.9rem;color:#0d3b66;">' +
       'ມູນຄ່າສະຕັອກລວມ (ຕາມຕົ້ນທຶນ): ' + formatNumber(totalValue) + ' B&nbsp;&nbsp;|&nbsp;&nbsp;ລາຍການທັງໝົດ: ' + state.products.length + '</div>';
