@@ -3765,7 +3765,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (optDirector) _signers.push(bi('ຜູ້ອຳນວຍການ', '总经理'));
     const _signLabel = bi('ລາຍເຊັນ ແລະ ຊື່', '签名');
     const signHTML = '<div style="margin-top:40px; display:flex; flex-direction:row-reverse; justify-content:space-between; gap:10px; font-size:0.8rem; page-break-inside:avoid; break-inside:avoid;">' +
-      _signers.map(function (nm) { return '<div style="text-align:center; flex:1; page-break-inside:avoid;"><p style="margin-bottom:44px; font-weight:600;">' + nm + '</p><p style="border-top:1px dashed #333; padding-top:4px;">' + _signLabel + '</p></div>'; }).join('') +
+      _signers.map(function (nm) { return '<div style="text-align:center; flex:1; page-break-inside:avoid;"><p style="margin-bottom:44px; font-weight:600; line-height:1.4;">' + nm.replace(' / ', '<br>') + '</p><p style="border-top:1px dashed #333; padding-top:4px; line-height:1.4;">' + _signLabel.replace(' / ', '<br>') + '</p></div>'; }).join('') +
       '</div>';
 
     reportDiv.innerHTML = `
@@ -4002,7 +4002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _sign =
       '<div style="margin-top:40px; display:flex; flex-direction:row-reverse; justify-content:space-between; gap:10px; font-size:0.8rem; page-break-inside:avoid;">' +
       _stkSigners.map(function (nm) {
-        return '<div style="text-align:center; flex:1;"><p style="margin-bottom:44px; font-weight:600;">' + nm + '</p><p style="border-top:1px dashed #333; padding-top:4px;">ລາຍເຊັນ ແລະ ຊື່ / 签名</p></div>';
+        return '<div style="text-align:center; flex:1;"><p style="margin-bottom:44px; font-weight:600; line-height:1.4;">' + nm.replace(' / ', '<br>') + '</p><p style="border-top:1px dashed #333; padding-top:4px; line-height:1.4;">ລາຍເຊັນ ແລະ ຊື່<br>签名</p></div>';
       }).join('') + '</div>';
     const body =
       _lh +
