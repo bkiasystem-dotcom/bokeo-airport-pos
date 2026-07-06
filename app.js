@@ -23,6 +23,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     selectedMember: null,
     settings: {},
     currentCashier: null,
+    currentRole: null, // Role of the logged-in staff: root | admin | accountant | cashier
+    currentCashierId: null, // employee_id of the logged-in staff (used for PIN changes)
+    loginDate: null, // YMD the session started; used to expire the session on a new day
+    editingUserId: null, // employee_id being edited in the Users settings form (null = add mode)
     currentPOS: null,
     currentCurrency: 'LAK', // Selected checkout checkout currency
     activeCategory: 'ທັງໝົດ',
@@ -40,11 +44,224 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `${year}-${month}-${day}`;
   }
 
+  // Which views each role may access (nav data-view values). 'cashier' is the fallback.
+  // Only the cashier role can sell (access the POS view); root/admin/accountant cannot.
+  const ROLE_VIEWS = {
+    root:       ['dashboard', 'stock', 'settings'],
+    admin:      ['dashboard', 'stock', 'settings'],
+    accountant: ['dashboard', 'stock'],
+    cashier:    ['pos', 'stock'],
+  };
+  function allowedViews() {
+    return ROLE_VIEWS[state.currentRole] || ROLE_VIEWS.cashier;
+  }
+
+  // URL hash is "#<view>" or "#settings/<tab>". Parse the two parts.
+  function mainViewFromHash() {
+    return (location.hash || '').replace(/^#/, '').split('/')[0].trim();
+  }
+  function settingsTabFromHash() {
+    const parts = (location.hash || '').replace(/^#/, '').split('/');
+    return (parts[0] === 'settings' && parts[1]) ? parts[1].trim() : null;
+  }
+  // The view to land on: the URL hash if it's allowed for this role, else the role default.
+  function landingView() {
+    const v = mainViewFromHash();
+    return allowedViews().includes(v) ? v : (allowedViews()[0] || 'pos');
+  }
+
+  // POS points are fixed in code and referenced by key. Each cashier row in the Sheet
+  // carries a `pos` key (column F) that maps to one of these entries.
+  const POS_POINTS = {
+    consumer_shop:  { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
+    vip:            { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
+    wrapping:       { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
+    taxi:           { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
+    parking:        { name: 'ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
+  };
+  // POS keys that are admin desks (no selling). None now — admins have no POS.
+  const ADMIN_POS_KEYS = [];
+
+  // Resolve a POS key to a full POS object { key, name, serviceType }, or null if unknown.
+  function resolvePOS(key) {
+    const p = POS_POINTS[key];
+    return p ? { key, name: p.name, serviceType: p.serviceType } : null;
+  }
+  function isAdminPOSName(name) {
+    return ADMIN_POS_KEYS.some(k => POS_POINTS[k].name === name);
+  }
+
+  // Synthetic POS marker for non-selling staff (root/admin have no assigned POS)
+  const ADMIN_POS = { key: 'admin', name: 'ຜູ້ບໍລິຫານ (Admin)', serviceType: 'admin' };
+
+  // Admin-level view = any non-cashier role: sees all POS in reports and does not sell.
+  function isAdminView() {
+    return !!state.currentRole && state.currentRole !== 'cashier';
+  }
+
+  // Global loading overlay shown while fetching data from Google Sheets
+  function showLoading(text) {
+    if (els.loadingText && text) els.loadingText.textContent = text;
+    if (els.loadingOverlay) els.loadingOverlay.classList.add('active');
+  }
+  function hideLoading() {
+    if (els.loadingOverlay) els.loadingOverlay.classList.remove('active');
+  }
+
+  /* =========================================================================
+     LOGIN SESSION PERSISTENCE (survives page refresh; expires on a new day)
+     ========================================================================= */
+  const SESSION_KEY = 'bkia_pos_session_v1';
+
+  function saveLoginSession() {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        date: getLocalYMD(),
+        employeeId: state.currentCashierId,
+        pettyCashSessionId: state.pettyCashSession ? state.pettyCashSession.id : null,
+        shiftStartTime: state.shiftStartTime ? new Date(state.shiftStartTime).toISOString() : null,
+      }));
+    } catch (e) { console.warn('saveLoginSession failed:', e); }
+  }
+
+  function clearLoginSession() {
+    try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+  }
+
+  // Restore a saved login (same calendar day only) so a refresh does not force re-login.
+  async function restoreLoginSession() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      // Valid only for the same day — crossing midnight forces a fresh login
+      if (!data || data.date !== getLocalYMD()) { clearLoginSession(); return false; }
+
+      const cashierObj = state.cashiers.find(c => String(c.employee_id || c.id) === String(data.employeeId));
+      if (!cashierObj || !cashierObj.pin) { clearLoginSession(); return false; }
+
+      const role = cashierObj.role || 'cashier';
+      const isSellingCashier = role === 'cashier';
+      let posObj = resolvePOS(cashierObj.pos);
+      if (isSellingCashier) {
+        if (!posObj || isAdminPOSName(posObj.name)) { clearLoginSession(); return false; }
+      } else if (!posObj) {
+        posObj = ADMIN_POS;
+      }
+
+      let session = null;
+      if (data.pettyCashSessionId) {
+        session = await window.BokeoDB.getPettyCashSession(data.pettyCashSessionId);
+      }
+
+      state.currentCashier = cashierObj.name;
+      state.currentRole = role;
+      state.currentCashierId = cashierObj.employee_id || cashierObj.id;
+      state.currentPOS = posObj;
+      state.pettyCashSession = session;
+      state.shiftStartTime = data.shiftStartTime ? new Date(data.shiftStartTime) : new Date();
+      state.loginDate = data.date;
+
+      const roleLabels = { root: 'Root', admin: 'Admin', accountant: 'ບັນຊີ', cashier: 'Cashier' };
+      els.headerPOSName.innerHTML = `<i class="fas fa-terminal"></i> ${posObj.name}`;
+      els.headerCashierName.innerHTML = `<i class="fas fa-user-tie"></i> ${cashierObj.name} · ${roleLabels[role] || 'Cashier'}`;
+
+      els.setupOverlay.style.display = 'none';
+      applyRoleUI();
+      switchView(landingView());
+      renderProducts();
+      updateCartUI();
+      return true;
+    } catch (e) {
+      console.warn('restoreLoginSession failed:', e);
+      return false;
+    }
+  }
+
+  // Compact synchronous SHA-256 (hex). Self-contained so it also works from file://,
+  // where the Web Crypto API (crypto.subtle) may be unavailable.
+  function sha256Hex(ascii) {
+    function rightRotate(value, amount) { return (value >>> amount) | (value << (32 - amount)); }
+    const mathPow = Math.pow;
+    const maxWord = mathPow(2, 32);
+    let result = '';
+    const words = [];
+    const asciiBitLength = ascii.length * 8;
+    let hash = sha256Hex.h = sha256Hex.h || [];
+    const k = sha256Hex.k = sha256Hex.k || [];
+    let primeCounter = k.length;
+    const isComposite = {};
+    for (let candidate = 2; primeCounter < 64; candidate++) {
+      if (!isComposite[candidate]) {
+        for (let i = 0; i < 313; i += candidate) { isComposite[i] = candidate; }
+        hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+        k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+      }
+    }
+    ascii += '\x80';
+    while (ascii.length % 64 - 56) ascii += '\x00';
+    for (let i = 0; i < ascii.length; i++) {
+      const j = ascii.charCodeAt(i);
+      if (j >> 8) return; // ASCII only
+      words[i >> 2] |= j << ((3 - i) % 4) * 8;
+    }
+    words[words.length] = ((asciiBitLength / maxWord) | 0);
+    words[words.length] = (asciiBitLength);
+    for (let j = 0; j < words.length;) {
+      const w = words.slice(j, j += 16);
+      const oldHash = hash;
+      hash = hash.slice(0, 8);
+      for (let i = 0; i < 64; i++) {
+        const w15 = w[i - 15], w2 = w[i - 2];
+        const a = hash[0], e = hash[4];
+        const temp1 = hash[7]
+          + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25))
+          + ((e & hash[5]) ^ ((~e) & hash[6]))
+          + k[i]
+          + (w[i] = i < 16 ? w[i] : (
+              w[i - 16]
+              + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3))
+              + w[i - 7]
+              + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))
+            ) | 0
+          );
+        const temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22))
+          + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+        hash = [(temp1 + temp2) | 0].concat(hash);
+        hash[4] = (hash[4] + temp1) | 0;
+      }
+      for (let i = 0; i < 8; i++) { hash[i] = (hash[i] + oldHash[i]) | 0; }
+    }
+    for (let i = 0; i < 8; i++) {
+      for (let j = 3; j + 1; j--) {
+        const b = (hash[i] >> (j * 8)) & 255;
+        result += ((b < 16) ? 0 : '') + b.toString(16);
+      }
+    }
+    return result;
+  }
+
+  // Compare an entered PIN to the stored value. A 64-char hex string is treated as a
+  // SHA-256 hash (Sheet stores hashes); otherwise a plain-text compare is used so the
+  // shared 4-digit admin PIN keeps working.
+  function pinMatches(entered, expected) {
+    const exp = (expected === undefined || expected === null) ? '' : String(expected).trim();
+    if (/^[0-9a-fA-F]{64}$/.test(exp)) {
+      return sha256Hex(String(entered)) === exp.toLowerCase();
+    }
+    return String(entered) === exp;
+  }
+
   // DOM Elements Cache
   const els = {
     setupOverlay: document.getElementById('setup-overlay'),
-    setupPOS: document.getElementById('setup-pos'),
-    setupCashier: document.getElementById('setup-cashier'),
+    loadingOverlay: document.getElementById('loading-overlay'),
+    loadingText: document.getElementById('loading-text'),
+    setupEmpId: document.getElementById('setup-empid'),
+    setupStaffInfo: document.getElementById('setup-staff-info'),
+    setupStaffName: document.getElementById('setup-staff-name'),
+    setupStaffRole: document.getElementById('setup-staff-role'),
+    setupStaffPos: document.getElementById('setup-staff-pos'),
     setupPettyLak: document.getElementById('setup-petty-lak'),
     setupPettyThb: document.getElementById('setup-petty-thb'),
     setupPettyCny: document.getElementById('setup-petty-cny'),
@@ -54,7 +271,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     headerPOSName: document.getElementById('header-pos-name'),
     headerCashierName: document.getElementById('header-cashier-name'),
     headerRefreshBtn: document.getElementById('header-refresh-btn'),
+    headerChangePinBtn: document.getElementById('header-change-pin-btn'),
     headerCloseCounterBtn: document.getElementById('header-close-counter-btn'),
+    changePinModal: document.getElementById('change-pin-modal'),
+    changePinCurrent: document.getElementById('change-pin-current'),
+    changePinNew: document.getElementById('change-pin-new'),
+    changePinConfirm: document.getElementById('change-pin-confirm'),
+    confirmChangePinBtn: document.getElementById('confirm-change-pin-btn'),
 
     navItems: document.querySelectorAll('.nav-item'),
     viewPanels: document.querySelectorAll('.view-panel'),
@@ -102,6 +325,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // PIN Modal
     pinModal: document.getElementById('pin-modal'),
+    pinModalTitle: document.getElementById('pin-modal-title'),
+    pinModalSubtitle: document.getElementById('pin-modal-subtitle'),
     pinDots: document.querySelectorAll('.pin-dot'),
     pinKeys: document.querySelectorAll('.pin-key'),
 
@@ -128,22 +353,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Settings View
     settingsRatesThbLak: document.getElementById('settings-rate-thb-lak'),
     settingsRatesThbCny: document.getElementById('settings-rate-thb-cny'),
-    settingsAdminPin: document.getElementById('settings-admin-pin'),
-    settingsFirebaseConfig: document.getElementById('settings-firebase-config'),
     settingsCashiersList: document.getElementById('settings-cashiers-list'),
-    newCashierNameInput: document.getElementById('new-cashier-name'),
-    btnAddCashier: document.getElementById('btn-add-cashier'),
-    settingsPOSList: document.getElementById('settings-pos-list'),
-    newPOSNameInput: document.getElementById('new-pos-name'),
-    newPOSServiceInput: document.getElementById('new-pos-service'),
-    btnAddPOS: document.getElementById('btn-add-pos'),
+    userFormTitle: document.getElementById('user-form-title'),
+    userFormEmpId: document.getElementById('user-form-empid'),
+    userFormName: document.getElementById('user-form-name'),
+    userFormDept: document.getElementById('user-form-dept'),
+    userFormRole: document.getElementById('user-form-role'),
+    userFormPos: document.getElementById('user-form-pos'),
+    userFormPin: document.getElementById('user-form-pin'),
+    userPinHint: document.getElementById('user-pin-hint'),
+    userFormSave: document.getElementById('user-form-save'),
+    userFormCancel: document.getElementById('user-form-cancel'),
     settingsSaveBtn: document.getElementById('settings-save-btn'),
 
     // Printer Hidden Box
     billPrintBox: document.getElementById('bill-print-box'),
 
     // Google Drive script URL in Settings
-    settingsGDriveScriptUrl: document.getElementById('settings-gdrive-script-url'),
+    settingsGDriveUrlDisplay: document.getElementById('settings-gdrive-url-display'),
     settingsGDriveFolderId: document.getElementById('settings-gdrive-folder-id'),
     settingsReceiptAddress: document.getElementById('settings-receipt-address'),
     settingsReceiptPhone: document.getElementById('settings-receipt-phone'),
@@ -228,17 +455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         admin_pin: '1234',
         gdrive_script_url: '',
         gdrive_folder_id: '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC',
-        pos_points: [
-          { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-          { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
-          { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
-          { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
-          { name: 'ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
-          { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-          { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-          { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
-        ],
-        firebase_config: null,
+        pos_points: Object.values(POS_POINTS).map(p => ({ name: p.name, serviceType: p.serviceType })),
         qr_codes: {
           bcel_lak: '',
           bcel_thb: '',
@@ -266,16 +483,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         settingsUpdated = true;
       }
       
-      const defaultPOSPoints = [
-        { name: 'ຫ້ອງຂາຍເຄື່ອງ (Consumer Shop)', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-        { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
-        { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
-        { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
-        { name: 'ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
-        { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-        { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-        { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
-      ];
+      const defaultPOSPoints = Object.values(POS_POINTS).map(p => ({ name: p.name, serviceType: p.serviceType }));
 
       // Sort pos_points to match defaultPOSPoints order exactly
       const sortedPOSPoints = [];
@@ -292,12 +500,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           settingsUpdated = true;
         }
       });
-      state.settings.pos_points.forEach(existing => {
-        const isDefault = defaultPOSPoints.some(def => def.name === existing.name);
-        if (!isDefault) {
-          sortedPOSPoints.push(existing);
-        }
-      });
+      // POS is fixed in code — do not keep any extra/legacy POS stored in settings
       if (JSON.stringify(state.settings.pos_points) !== JSON.stringify(sortedPOSPoints)) {
         state.settings.pos_points = sortedPOSPoints;
         settingsUpdated = true;
@@ -392,35 +595,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Call updateSetupStartingCash immediately with local data
     updateSetupStartingCash();
 
-    // Run Google Sheets sync in the background without blocking the UI
+    // Restore a saved login session (same-day only) so a refresh keeps the user logged in
+    await restoreLoginSession();
+
+    // Fetch fresh data from Google Sheets on startup. Since login needs the synced staff
+    // list, show a blocking loading overlay while NOT logged in; if a session was restored,
+    // sync silently in the background instead.
+    const blockWithLoading = getComputedStyle(els.setupOverlay).display !== 'none';
+    if (blockWithLoading) {
+      showLoading('ກຳລັງໂຫຼດຂໍ້ມູນຈາກ Google Sheet...');
+      if (els.setupBtn) els.setupBtn.disabled = true;
+    }
     window.BokeoDB.syncWithGoogleSheets().then(async (success) => {
-      console.log('Background startup sync finished. Success:', success);
+      console.log('Startup sync finished. Success:', success);
       state.products = await window.BokeoDB.getProducts();
       state.cashiers = await window.BokeoDB.getCashiers();
       populateSetupOptions();
       await updateSetupStartingCash();
-      
-      let infoDiv = document.getElementById('setup-petty-info');
-      if (infoDiv) {
-        if (success) {
-          infoDiv.innerHTML = `<i class="fas fa-check-circle" style="color:var(--success-color)"></i> ອັບເດດຂໍ້ມູນຫຼ້າສຸດສຳເລັດ`;
-        } else {
-          infoDiv.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:var(--warning-color)"></i> ໃຊ້ຂໍ້ມູນຫຼ້າສຸດໃນເຄື່ອງ (Offline)`;
-        }
-        setTimeout(() => {
-          const div = document.getElementById('setup-petty-info');
-          if (div) div.style.display = 'none';
-        }, 4000);
-      }
+      if (state.currentView === 'pos') renderProducts();
+      checkLowStockAlerts();
     }).catch(e => {
-      console.warn('Background startup sync failed:', e);
-      let infoDiv = document.getElementById('setup-petty-info');
-      if (infoDiv) {
-        infoDiv.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:var(--warning-color)"></i> ໃຊ້ຂໍ້ມູນຫຼ້າສຸດໃນເຄື່ອງ (Offline)`;
+      console.warn('Startup sync failed:', e);
+    }).finally(() => {
+      if (blockWithLoading) {
+        hideLoading();
+        if (els.setupBtn) els.setupBtn.disabled = false;
       }
     });
 
-    els.setupPOS.addEventListener('change', updateSetupStartingCash);
+    els.setupEmpId.addEventListener('input', updateSetupStartingCash);
     checkLowStockAlerts();
 
     // Listen to Products changes and reload UI
@@ -463,17 +666,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // Initial Google Sheets Auto-Sync on startup
-    window.BokeoDB.syncWithGoogleSheets().then(async () => {
-      state.products = await window.BokeoDB.getProducts();
-      if (state.currentView === 'pos') renderProducts();
-      checkLowStockAlerts();
-    });
-
-    // Auto-polling Google Sheets every 5 minutes (was 30s — too frequent, exhausted Firestore quota).
-    // Real-time multi-device updates already come through Firestore listeners; the Sheet only needs
-    // an occasional pull. Staff can also press "ອັບເດດຂໍ້ມູນ" anytime for an immediate sync.
+    // Auto-polling Google Sheets every 5 minutes to pull updates from other devices.
+    // Staff can also press "ອັບເດດຂໍ້ມູນ" anytime for an immediate sync.
     setInterval(async () => {
+      // Force re-login if the day rolled over while a session was open
+      if (state.currentCashierId && state.loginDate && getLocalYMD() !== state.loginDate) {
+        clearLoginSession();
+        location.reload();
+        return;
+      }
       console.log('Polling Google Sheets for updates...');
       await window.BokeoDB.syncWithGoogleSheets();
     }, 300000);
@@ -586,43 +787,79 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function updateSetupStartingCash() {
-    if (!els.setupPOS.value) return;
     try {
-      const posObj = JSON.parse(els.setupPOS.value);
-      const isAdminPOS = posObj && [
-        'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
-        'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
-        'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
-      ].includes(posObj.name);
+      const empId = (els.setupEmpId.value || '').trim();
+      const cashier = state.cashiers.find(c => String(c.employee_id || c.id) === empId);
+      const posObj = cashier ? resolvePOS(cashier.pos) : null;
 
-      if (isAdminPOS) {
+      // Staff confirmation panel (name + role + resolved POS)
+      if (els.setupStaffInfo) {
+        if (cashier) {
+          const roleLabels = { root: 'Root', admin: 'Admin', accountant: 'ບັນຊີ', cashier: 'Cashier' };
+          els.setupStaffInfo.style.display = '';
+          els.setupStaffName.textContent = cashier.name;
+          els.setupStaffRole.textContent = '· ' + (roleLabels[cashier.role] || 'Cashier');
+          // POS line only matters for cashiers; root/admin/accountant have no POS
+          const posRow = els.setupStaffPos.parentElement;
+          if ((cashier.role || 'cashier') === 'cashier') {
+            if (posRow) posRow.style.display = '';
+            els.setupStaffPos.textContent = posObj
+              ? posObj.name
+              : (cashier.pos ? ('POS ບໍ່ຮູ້ຈັກ: ' + cashier.pos) : 'ຍັງບໍ່ໄດ້ກຳນົດຈຸດຂາຍ');
+          } else if (posRow) {
+            posRow.style.display = 'none';
+          }
+        } else {
+          els.setupStaffInfo.style.display = 'none';
+        }
+      }
+
+      // Only a cashier assigned to a real selling POS needs starting petty cash
+      const isSellingCashier = cashier && (cashier.role || 'cashier') === 'cashier' && posObj && !isAdminPOSName(posObj.name);
+
+      if (!isSellingCashier) {
         if (els.setupPettyGroup) els.setupPettyGroup.style.display = 'none';
         els.setupPettyLak.value = '0';
         els.setupPettyThb.value = '0';
         els.setupPettyCny.value = '0';
-        
-        let infoDiv = document.getElementById('setup-petty-info');
-        if (infoDiv) infoDiv.style.display = 'none';
-        
+        const infoDiv0 = document.getElementById('setup-petty-info');
+        if (infoDiv0) infoDiv0.style.display = 'none';
         if (els.setupBtn) {
-          els.setupBtn.innerHTML = `<i class="fas fa-user-shield"></i> ເຂົ້າສູ່ລະບົບແອດມິນ (Enter Admin)`;
+          els.setupBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i> ເຂົ້າສູ່ລະບົບ`;
         }
         return;
       }
 
-      // Restore elements for cashier
-      if (els.setupPettyGroup) els.setupPettyGroup.style.display = '';
-      if (els.setupBtn) {
-        els.setupBtn.innerHTML = `<i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)`;
-      }
-
+      // Starting petty cash is entered ONLY by the first cashier (first shift) of the day.
+      // Later shifts inherit the drawer's remaining balance and never see the input.
       const todayStr = getLocalYMD();
       const allPetty = await window.BokeoDB.getPettyCashSessions();
-      
-      // Filter sessions for this POS on the same calendar date safely
       const todaySessions = allPetty.filter(p => isSameDay(p.date, todayStr) && p.pos === posObj.name);
-      
-      // Find or create info element to show the tip
+      const isFirstShift = todaySessions.length === 0;
+
+      if (!isFirstShift) {
+        // Not the first shift today: hide the starting cash input entirely
+        if (els.setupPettyGroup) els.setupPettyGroup.style.display = 'none';
+        const infoHide = document.getElementById('setup-petty-info');
+        if (infoHide) infoHide.style.display = 'none';
+        if (els.setupBtn) els.setupBtn.innerHTML = `<i class="fas fa-sign-in-alt"></i> ເຂົ້າສູ່ລະບົບ`;
+        return;
+      }
+
+      // First shift of the day: show editable starting-cash inputs
+      if (els.setupPettyGroup) els.setupPettyGroup.style.display = '';
+      if (els.setupBtn) els.setupBtn.innerHTML = `<i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)`;
+      els.setupPettyLak.value = '0';
+      els.setupPettyThb.value = '0';
+      els.setupPettyCny.value = '0';
+      els.setupPettyLak.readOnly = false;
+      els.setupPettyThb.readOnly = false;
+      els.setupPettyCny.readOnly = false;
+      els.setupPettyLak.style.backgroundColor = '';
+      els.setupPettyThb.style.backgroundColor = '';
+      els.setupPettyCny.style.backgroundColor = '';
+
+      // Info tip (created once, appended inside the petty-cash group)
       let infoDiv = document.getElementById('setup-petty-info');
       if (!infoDiv) {
         infoDiv = document.createElement('div');
@@ -635,259 +872,284 @@ document.addEventListener('DOMContentLoaded', async () => {
         infoDiv.style.backgroundColor = '#f0fdf4';
         infoDiv.style.border = '1px solid #bbf7d0';
         infoDiv.style.borderRadius = '8px';
-        
         const pettyGroup = els.setupPettyLak.closest('.form-group');
-        if (pettyGroup) {
-          pettyGroup.appendChild(infoDiv);
-        }
+        if (pettyGroup) pettyGroup.appendChild(infoDiv);
       }
-      infoDiv.style.display = ''; // Ensure it's shown for cashiers
-      
-      // lock เฉพาะกะที่ "เปิดอยู่ + ตื่มเงินทอนแล้ว (start>0)" เท่านั้น
-      const activeSession = todaySessions.find(p => !p.closed && ((p.lak_start || 0) > 0 || (p.thb_start || 0) > 0 || (p.cny_start || 0) > 0));
-
-      if (activeSession) {
-        // กะที่ตื่มเงินทอนแล้วและยังเปิดอยู่: ล็อก + แสดงเงินทอน "คงเหลือ"
-        els.setupPettyLak.value = formatNumber(activeSession.lak_remaining);
-        els.setupPettyThb.value = formatNumber(activeSession.thb_remaining);
-        els.setupPettyCny.value = formatNumber(activeSession.cny_remaining);
-
-        els.setupPettyLak.readOnly = true;
-        els.setupPettyThb.readOnly = true;
-        els.setupPettyCny.readOnly = true;
-        els.setupPettyLak.style.backgroundColor = '#f3f4f6';
-        els.setupPettyThb.style.backgroundColor = '#f3f4f6';
-        els.setupPettyCny.style.backgroundColor = '#f3f4f6';
-
-        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ມີກະທີ່ກຳລັງເປີດຢູ່ — ສະແດງເງິນທອນ <b>ຄົງເຫຼືອ</b> (ບໍ່ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(activeSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(activeSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(activeSession.cny_remaining)} ¥</span>`;
-      } else if (todaySessions.length > 0) {
-        // All shifts today are closed: populate with last session's remaining balance, but keep EDITABLE
-        const lastSession = todaySessions[todaySessions.length - 1];
-        els.setupPettyLak.value = formatNumber(lastSession.lak_remaining);
-        els.setupPettyThb.value = formatNumber(lastSession.thb_remaining);
-        els.setupPettyCny.value = formatNumber(lastSession.cny_remaining);
-
-        els.setupPettyLak.readOnly = false;
-        els.setupPettyThb.readOnly = false;
-        els.setupPettyCny.readOnly = false;
-        els.setupPettyLak.style.backgroundColor = '';
-        els.setupPettyThb.style.backgroundColor = '';
-        els.setupPettyCny.style.backgroundColor = '';
-
-        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະໃໝ່ (ດຶງເງິນທອນຄົງເຫຼືອຈາກກະກ່ອນໜ້າ, ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(lastSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(lastSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(lastSession.cny_remaining)} ¥</span>`;
-      } else {
-        // First cashier of the day: reset to 0 and allow editing
-        els.setupPettyLak.value = '0';
-        els.setupPettyThb.value = '0';
-        els.setupPettyCny.value = '0';
-
-        els.setupPettyLak.readOnly = false;
-        els.setupPettyThb.readOnly = false;
-        els.setupPettyCny.readOnly = false;
-        els.setupPettyLak.style.backgroundColor = '';
-        els.setupPettyThb.style.backgroundColor = '';
-        els.setupPettyCny.style.backgroundColor = '';
-
-        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະທຳອິດຂອງມື້ນີ້ (ເລີ່ມຕົ້ນສະຕັອກເງິນທອນໃໝ່)`;
-      }
+      infoDiv.style.display = '';
+      infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະທຳອິດຂອງມື້ນີ້ — ກະລຸນາໃສ່ເງິນທອນເລີ່ມຕົ້ນ`;
     } catch (e) {
       console.error('Error updating setup starting cash:', e);
     }
   }
 
   function populateSetupOptions() {
-    // Cashiers Datalist
-    const datalist = document.getElementById('cashier-list');
-    if (datalist) {
-      datalist.innerHTML = '';
-      state.cashiers.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.name;
-        datalist.appendChild(opt);
-      });
-    }
-
-    // POS Points
-    els.setupPOS.innerHTML = '';
-    state.settings.pos_points.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = JSON.stringify(p);
-      const trimmedName = p.name.trim();
-      const isAdmin = trimmedName.startsWith('ແອດມິນ') || 
-                      trimmedName.startsWith('ແອັດມິນ') || 
-                      trimmedName.includes('ແອດມິນ') || 
-                      trimmedName.includes('ແອັດມິນ') || 
-                      trimmedName.includes('Admin') || 
-                      trimmedName.includes('admin');
-      if (isAdmin) {
-        opt.textContent = p.name;
-      } else {
-        opt.textContent = `${p.name} (${p.serviceType})`;
-      }
-      els.setupPOS.appendChild(opt);
-    });
+    // Login is by employee_id typed directly; the staff panel updates on input and
+    // each cashier's POS is resolved from their row. Nothing to pre-populate here.
   }
 
-  // Custom cashier dropdown (styled box under the input; replaces native datalist)
-  (function bindCashierDropdown() {
-    const input = els.setupCashier;
-    const dd = document.getElementById('cashier-dropdown');
-    if (!input || !dd) return;
-    function render(filter) {
-      const q = (filter || '').trim().toLowerCase();
-      const list = (state.cashiers || []).filter(c => !q || (c.name || '').toLowerCase().includes(q));
-      if (list.length === 0) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
-      dd.innerHTML = list.map(() => '<div class="cdd-item"></div>').join('');
-      const items = dd.querySelectorAll('.cdd-item');
-      list.forEach((c, i) => {
-        items[i].textContent = c.name;
-        items[i].addEventListener('mousedown', function (e) {
-          e.preventDefault();
-          input.value = c.name;
-          dd.classList.remove('open');
-        });
-      });
-      dd.classList.add('open');
-    }
-    input.addEventListener('focus', () => render(input.value));
-    input.addEventListener('input', () => render(input.value));
-    input.addEventListener('blur', () => setTimeout(() => dd.classList.remove('open'), 150));
-  })();
-
-  // Handle POS Setup Submission
+  // Handle login submission (employee_id + personal PIN)
   els.setupBtn.addEventListener('click', async () => {
-    const cashierName = els.setupCashier.value.trim();
-    if (!cashierName) {
-      alert('ກະລຸນາປ້ອນ ຫຼື ເລືອກ ພະນັກງານຂາຍ');
+    const empId = (els.setupEmpId.value || '').trim();
+    if (!empId) {
+      alert('ກະລຸນາປ້ອນ ຫຼື ເລືອກ ລະຫັດພະນັກງານ');
       return;
     }
 
-    const posObj = JSON.parse(els.setupPOS.value);
-    const pettyLak = getCleanFloat(els.setupPettyLak.value) || 0;
-    const pettyThb = getCleanFloat(els.setupPettyThb.value) || 0;
-    const pettyCny = getCleanFloat(els.setupPettyCny.value) || 0;
-
-    if (!posObj) {
-      alert('ກະລຸນາເລືອກ ຈຸດຂາຍ');
+    // Login requires an existing staff account (matched by employee_id)
+    const cashierObj = state.cashiers.find(c => String(c.employee_id || c.id) === empId);
+    if (!cashierObj) {
+      alert('ບໍ່ພົບລະຫັດພະນັກງານນີ້ໃນລະບົບ');
+      return;
+    }
+    // Mandatory personal PIN: staff without a PIN in the Sheet cannot log in
+    if (!cashierObj.pin) {
+      alert('ພະນັກງານນີ້ຍັງບໍ່ໄດ້ຕັ້ງ PIN — ກະລຸນາຕິດຕໍ່ admin ໃຫ້ຕັ້ງ PIN ໃນຖັນ "pin" ຂອງ Google Sheet');
       return;
     }
 
-    const isAdminPOS = [
-      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
-      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
-      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
-    ].includes(posObj.name);
+    const role = cashierObj.role || 'cashier';
+    const cashierName = cashierObj.name;
+    const isSellingCashier = role === 'cashier';
 
-    // บังคับ: กะแรกของวัน (ยังไม่มี session วันนี้ที่จุดขายนี้) ต้องป้อนเงินทอนเริ่มต้นอย่างน้อย 1 สกุล
-    if (!isAdminPOS) {
+    // Cashiers must have a valid selling POS (column F). Other roles (root/admin/
+    // accountant) don't sell — they use their assigned POS if any, else an admin marker.
+    let posObj = resolvePOS(cashierObj.pos);
+    if (isSellingCashier) {
+      if (!posObj || isAdminPOSName(posObj.name)) {
+        alert('ພະນັກງານຂາຍນີ້ຍັງບໍ່ໄດ້ກຳນົດຈຸດຂາຍ (pos) ທີ່ຖືກຕ້ອງໃນ Sheet');
+        return;
+      }
+    } else if (!posObj) {
+      posObj = ADMIN_POS;
+    }
+
+    // Starting petty cash: only the first cashier of the day enters it; later shifts
+    // inherit the drawer's remaining balance from the most recent session automatically.
+    let pettyLak = 0, pettyThb = 0, pettyCny = 0;
+    if (isSellingCashier) {
       const _todayStr = getLocalYMD();
       const _allPetty = await window.BokeoDB.getPettyCashSessions();
       const _todaySess = _allPetty.filter(pp => isSameDay(pp.date, _todayStr) && pp.pos === posObj.name);
-      const _isFirstShift = _todaySess.length === 0;
-      if (_isFirstShift && (pettyLak + pettyThb + pettyCny) <= 0) {
-        alert('ນີ້ແມ່ນກະທຳອິດຂອງມື້ນີ້ — ກະລຸນາປ້ອນເງິນທອນເລີ່ມຕົ້ນ (ຢ່າງໜ້ອຍ 1 ສະກຸນເງິນ) ກ່ອນເລີ່ມຂາຍ');
-        return;
+      if (_todaySess.length === 0) {
+        // First shift: read the entered starting cash (at least one currency required)
+        pettyLak = getCleanFloat(els.setupPettyLak.value) || 0;
+        pettyThb = getCleanFloat(els.setupPettyThb.value) || 0;
+        pettyCny = getCleanFloat(els.setupPettyCny.value) || 0;
+        if ((pettyLak + pettyThb + pettyCny) <= 0) {
+          alert('ນີ້ແມ່ນກະທຳອິດຂອງມື້ນີ້ — ກະລຸນາປ້ອນເງິນທອນເລີ່ມຕົ້ນ (ຢ່າງໜ້ອຍ 1 ສະກຸນເງິນ) ກ່ອນເລີ່ມຂາຍ');
+          return;
+        }
+      } else {
+        // Later shift: carry over the remaining balance from the last session
+        const _last = _todaySess[_todaySess.length - 1];
+        pettyLak = _last.lak_remaining || 0;
+        pettyThb = _last.thb_remaining || 0;
+        pettyCny = _last.cny_remaining || 0;
       }
     }
 
-    // Save Cashier if new
-    const cashierExists = state.cashiers.some(c => c.name.toLowerCase() === cashierName.toLowerCase());
-    if (!cashierExists) {
-      const newCashier = { id: 'cashier_' + Date.now(), name: cashierName };
-      await window.BokeoDB.saveCashier(newCashier);
-      state.cashiers.push(newCashier);
-      renderSettingsCashiers();
-      populateSetupOptions();
-    }
+    // Completes login after the personal PIN is verified
+    const completeLogin = async () => {
+      state.currentCashier = cashierName;
+      state.currentRole = cashierObj.role || 'cashier';
+      state.currentCashierId = cashierObj.employee_id || cashierObj.id;
+      state.currentPOS = posObj;
+      state.shiftStartTime = new Date();
 
-    state.currentCashier = cashierName;
-    state.currentPOS = posObj;
-    state.shiftStartTime = new Date();
+      // Load or create petty cash session for today
+      const todayStr = getLocalYMD();
+      const sessionId = `${todayStr}_${posObj.name.replace(/\s+/g, '_')}_${cashierName.replace(/\s+/g, '_')}_${Date.now()}`;
 
-    // Load or create petty cash session for today
-    const todayStr = getLocalYMD();
-    const sessionId = `${todayStr}_${posObj.name.replace(/\s+/g, '_')}_${cashierName.replace(/\s+/g, '_')}_${Date.now()}`;
+      let session = await window.BokeoDB.getPettyCashSession(sessionId);
+      if (!session) {
+        session = {
+          id: sessionId,
+          date: todayStr,
+          pos: posObj.name,
+          cashier: cashierName,
+          lak_start: pettyLak,
+          thb_start: pettyThb,
+          cny_start: pettyCny,
+          lak_remaining: pettyLak,
+          thb_remaining: pettyThb,
+          cny_remaining: pettyCny,
+          closed: isSellingCashier ? false : true
+        };
+        await window.BokeoDB.savePettyCashSession(session);
+      }
+      state.pettyCashSession = session;
+      state.loginDate = getLocalYMD();
 
-    let session = await window.BokeoDB.getPettyCashSession(sessionId);
-    if (!session) {
-      session = {
-        id: sessionId,
-        date: todayStr,
-        pos: posObj.name,
-        cashier: cashierName,
-        lak_start: pettyLak,
-        thb_start: pettyThb,
-        cny_start: pettyCny,
-        lak_remaining: pettyLak,
-        thb_remaining: pettyThb,
-        cny_remaining: pettyCny,
-        closed: isAdminPOS ? true : false
-      };
-      await window.BokeoDB.savePettyCashSession(session);
-    }
-    state.pettyCashSession = session;
+      // Persist the session so a page refresh keeps the user logged in for the day
+      saveLoginSession();
 
-    // Update Header UI
-    els.headerPOSName.innerHTML = `<i class="fas fa-terminal"></i> ${posObj.name}`;
-    els.headerCashierName.innerHTML = `<i class="fas fa-user-tie"></i> ${cashierName}`;
+      // Update Header UI (show the logged-in staff name and role)
+      const roleLabels = { root: 'Root', admin: 'Admin', accountant: 'ບັນຊີ', cashier: 'Cashier' };
+      els.headerPOSName.innerHTML = `<i class="fas fa-terminal"></i> ${posObj.name}`;
+      els.headerCashierName.innerHTML = `<i class="fas fa-user-tie"></i> ${cashierName} · ${roleLabels[state.currentRole] || 'Cashier'}`;
 
-    // Close setup screen
-    els.setupOverlay.style.display = 'none';
+      // Close setup screen
+      els.setupOverlay.style.display = 'none';
 
-    // Apply role UI adjustments
-    applyRoleUI();
+      // Apply role-based UI (nav visibility) and land on the first allowed view
+      applyRoleUI();
+      switchView(landingView());
 
-    // Redirect to view
-    if (isAdminPOS) {
-      switchView('dashboard');
-    } else {
-      switchView('pos');
-    }
+      // Load view
+      renderProducts();
+      updateCartUI();
+    };
 
-    // Load view
-    renderProducts();
-    updateCartUI();
+    // Require the staff member's personal PIN before entering
+    promptPIN(
+      completeLogin,
+      cashierObj.pin,
+      '<i class="fas fa-user-lock"></i> ເຂົ້າສູ່ລະບົບ',
+      `ໃສ່ລະຫັດ PIN ຂອງ ${cashierName}`
+    );
   });
 
   // Refresh Button click handler
   els.headerRefreshBtn.addEventListener('click', async () => {
-    // Add rotating animation
     const icon = els.headerRefreshBtn.querySelector('i');
     icon.classList.add('fa-spin');
-    
-    const success = await window.BokeoDB.syncWithGoogleSheets();
-    
-    // Stop spin
-    setTimeout(() => {
+    showLoading('ກຳລັງອັບເດດຂໍ້ມູນ...');
+
+    let success = false;
+    try {
+      success = await window.BokeoDB.syncWithGoogleSheets();
+    } finally {
       icon.classList.remove('fa-spin');
-      if (success) {
-        alert('ອັບເດດຂໍ້ມູນສິນຄ້າ ແລະ ສະຕັອກຈາກ Google Sheet ສຳເລັດ!');
-      } else {
-        alert('ບໍ່ສາມາດອັບເດດຂໍ້ມູນໄດ້, ກະລຸນາກວດສອບການເຊື່ອມຕໍ່ອິນເຕີເນັດ');
-      }
-    }, 800);
+      hideLoading();
+    }
+
+    if (success) {
+      alert('ອັບເດດຂໍ້ມູນສິນຄ້າ ແລະ ສະຕັອກຈາກ Google Sheet ສຳເລັດ!');
+    } else {
+      alert('ບໍ່ສາມາດອັບເດດຂໍ້ມູນໄດ້, ກະລຸນາກວດສອບການເຊື່ອມຕໍ່ອິນເຕີເນັດ');
+    }
+  });
+
+  /* =========================================================================
+     SELF-SERVICE CHANGE PIN
+     ========================================================================= */
+
+  function openChangePinModal() {
+    if (!state.currentCashierId) {
+      alert('ກະລຸນາເຂົ້າສູ່ລະບົບກ່ອນ');
+      return;
+    }
+    els.changePinCurrent.value = '';
+    els.changePinNew.value = '';
+    els.changePinConfirm.value = '';
+    els.changePinModal.classList.add('active');
+    els.changePinCurrent.focus();
+  }
+
+  function closeChangePinModal() {
+    els.changePinModal.classList.remove('active');
+  }
+
+  if (els.headerChangePinBtn) {
+    els.headerChangePinBtn.addEventListener('click', openChangePinModal);
+  }
+  if (els.changePinModal) {
+    els.changePinModal.querySelector('.close-modal-btn').addEventListener('click', closeChangePinModal);
+    els.changePinModal.addEventListener('click', (e) => {
+      if (e.target === els.changePinModal) closeChangePinModal();
+    });
+  }
+
+  // Writes the new PIN hash back to the cashiers Google Sheet (column E) via Apps Script
+  async function updatePinOnGoogleSheets(employeeId, pinHash) {
+    const scriptUrl = state.settings.gdrive_script_url;
+    if (!scriptUrl) {
+      console.warn('Apps Script URL not configured — PIN saved locally only.');
+      return false;
+    }
+    try {
+      const response = await fetch(scriptUrl, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'update_pin', employee_id: employeeId, pin: pinHash })
+      });
+      const resData = await response.json();
+      return !!resData.success;
+    } catch (err) {
+      console.error('Failed to update PIN via Apps Script:', err);
+      return false;
+    }
+  }
+
+  els.confirmChangePinBtn.addEventListener('click', async () => {
+    const current = (els.changePinCurrent.value || '').trim();
+    const next = (els.changePinNew.value || '').trim();
+    const confirm2 = (els.changePinConfirm.value || '').trim();
+
+    // Validate the logged-in staff account
+    const me = state.cashiers.find(c => (c.employee_id || c.id) === state.currentCashierId);
+    if (!me) {
+      alert('ບໍ່ພົບບັນຊີຜູ້ໃຊ້ປັດຈຸບັນ');
+      return;
+    }
+    if (!pinMatches(current, me.pin)) {
+      alert('PIN ປັດຈຸບັນບໍ່ຖືກຕ້ອງ');
+      return;
+    }
+    if (!/^\d{4}$/.test(next)) {
+      alert('PIN ໃໝ່ຕ້ອງເປັນຕົວເລກ 4 ຫຼັກ');
+      return;
+    }
+    if (next !== confirm2) {
+      alert('ຢືนยัน PIN ໃໝ່ບໍ່ກົງກັນ');
+      return;
+    }
+    if (next === current) {
+      alert('PIN ໃໝ່ຕ້ອງບໍ່ຊ້ຳກັບ PIN ເກົ່າ');
+      return;
+    }
+
+    const pinHash = sha256Hex(next);
+
+    // Update locally first so the change is immediate on this device
+    me.pin = pinHash;
+    await window.BokeoDB.saveCashier(me);
+
+    // Persist to the Google Sheet (master source)
+    els.confirmChangePinBtn.disabled = true;
+    const synced = await updatePinOnGoogleSheets(state.currentCashierId, pinHash);
+    els.confirmChangePinBtn.disabled = false;
+
+    closeChangePinModal();
+    if (synced) {
+      alert('ປ່ຽນ PIN ສຳເລັດ! ຄັ້ງຕໍ່ໄປໃຫ້ໃຊ້ PIN ໃໝ່.');
+    } else {
+      alert('ບັນທຶກ PIN ໃນເຄື່ອງແລ້ວ ແຕ່ຍັງບໍ່ໄດ້ sync ຂຶ້ນ Sheet (ກວດການເຊື່ອມຕໍ່). ອາດຖືກທັບເມື່ອ sync ຄັ້ງຕໍ່ໄປ.');
+    }
   });
 
   // Close Counter Button click handler
   els.headerCloseCounterBtn.addEventListener('click', async () => {
     if (!state.currentPOS || !state.currentCashier) return;
 
-    const isAdminPOS = [
-      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
-      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
-      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
-    ].includes(state.currentPOS.name);
+    const isAdminPOS = isAdminView();
 
     if (isAdminPOS) {
       const confirmLogout = confirm('ທ່ານຕ້ອງການອອກຈາກລະບົບແທ້ຫຼືບໍ່?');
       if (confirmLogout) {
+        clearLoginSession();
         state.currentCashier = null;
+        state.currentRole = null;
+        state.currentCashierId = null;
+        state.loginDate = null;
         state.currentPOS = null;
         state.pettyCashSession = null;
         state.shiftStartTime = null;
         state.cart = [];
 
-        els.setupCashier.value = '';
+        els.setupEmpId.value = '';
+        if (els.setupStaffInfo) els.setupStaffInfo.style.display = 'none';
         els.setupOverlay.style.display = 'flex';
         await updateSetupStartingCash();
         updateCartUI();
@@ -1019,14 +1281,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       syncPettyCashToGoogleSheets(state.pettyCashSession);
 
       // Clear state
+      clearLoginSession();
       state.currentCashier = null;
+      state.currentRole = null;
+      state.currentCashierId = null;
+      state.loginDate = null;
       state.currentPOS = null;
       state.pettyCashSession = null;
       state.shiftStartTime = null;
       state.cart = [];
 
       // Update UI & show overlay
-      els.setupCashier.value = '';
+      els.setupEmpId.value = '';
+      if (els.setupStaffInfo) els.setupStaffInfo.style.display = 'none';
       els.closeCounterModal.classList.remove('active');
       els.setupOverlay.style.display = 'flex';
       await updateSetupStartingCash();
@@ -1042,34 +1309,69 @@ document.addEventListener('DOMContentLoaded', async () => {
   els.navItems.forEach(item => {
     item.addEventListener('click', (e) => {
       const targetView = e.currentTarget.getAttribute('data-view');
-      
-      // Check permission for admin areas (Stock, Settings)
-      if (targetView === 'settings') {
-        promptPIN(() => {
-          switchView(targetView);
-        });
-      } else if (targetView === 'stock') {
-        const isAdminPOS = state.currentPOS && [
-          'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
-          'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
-          'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
-        ].includes(state.currentPOS.name);
-
-        if (isAdminPOS) {
-          switchView(targetView);
-        } else {
-          promptPIN(() => {
-            switchView(targetView);
-          });
-        }
-      } else {
-        switchView(targetView);
-      }
+      // Role permissions already control which nav items are visible; ignore disallowed views
+      if (!allowedViews().includes(targetView)) return;
+      switchView(targetView);
     });
   });
 
+  // Browser back/forward or manual URL hash edits navigate between views (when logged in)
+  window.addEventListener('hashchange', () => {
+    if (!state.currentRole) return;
+    const v = mainViewFromHash();
+    if (v && allowedViews().includes(v)) {
+      if (v !== state.currentView) switchView(v);
+      if (v === 'settings') showSettingsTab(settingsTabFromHash() || 'general');
+    }
+  });
+
+  /* =========================================================================
+     SETTINGS TABS
+     ========================================================================= */
+  const SETTINGS_TABS = ['general', 'qr', 'users'];
+
+  function showSettingsTab(tab) {
+    if (!SETTINGS_TABS.includes(tab)) tab = 'general';
+    // The Users tab is manageable by root only
+    if (tab === 'users' && state.currentRole !== 'root') tab = 'general';
+
+    document.querySelectorAll('.settings-tab-panel').forEach(p => {
+      p.style.display = (p.getAttribute('data-tab') === tab) ? '' : 'none';
+    });
+    document.querySelectorAll('.settings-tab-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+    });
+
+    // The Users tab is a read-only list — no "save" button there
+    if (els.settingsSaveBtn) els.settingsSaveBtn.style.display = (tab === 'users') ? 'none' : '';
+
+    const h = '#settings/' + tab;
+    if (h !== location.hash) {
+      try { history.replaceState(null, '', h); }
+      catch (e) { location.hash = 'settings/' + tab; }
+    }
+  }
+
+  document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => showSettingsTab(btn.getAttribute('data-tab')));
+  });
+
   function switchView(viewName) {
+    // Enforce role permissions (history is a sub-view of reports/dashboard)
+    if (state.currentRole) {
+      const check = (viewName === 'history') ? 'dashboard' : viewName;
+      if (!allowedViews().includes(check)) return;
+    }
     state.currentView = viewName;
+
+    // Reflect the current page in the URL hash so a refresh/share keeps the page.
+    // Settings keeps its active sub-tab in the hash too: "#settings/<tab>".
+    let hashTarget = '#' + viewName;
+    if (viewName === 'settings') hashTarget = '#settings/' + (settingsTabFromHash() || 'general');
+    if (hashTarget !== location.hash) {
+      try { history.replaceState(null, '', hashTarget); }
+      catch (e) { location.hash = hashTarget.slice(1); } // fallback (e.g. file://)
+    }
     
     // Tabs Active State
     els.navItems.forEach(item => {
@@ -1119,29 +1421,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function applyRoleUI() {
     if (!state.currentPOS) return;
-    
-    const isAdminPOS = [
-      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
-      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
-      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
-    ].includes(state.currentPOS.name);
 
+    // Show only the nav items this staff member's role is allowed to open
+    const allowed = allowedViews();
     els.navItems.forEach(item => {
       const view = item.getAttribute('data-view');
-      if (isAdminPOS) {
-        if (view === 'pos') {
-          item.style.display = 'none';
-        } else {
-          item.style.display = 'flex';
-        }
-      } else {
-        if (view === 'pos' || view === 'dashboard' || view === 'history') {
-          item.style.display = 'flex';
-        } else {
-          item.style.display = 'none';
-        }
-      }
+      item.style.display = allowed.includes(view) ? 'flex' : 'none';
     });
+
+    const isAdminPOS = isAdminView();
 
     if (els.headerCloseCounterBtn) {
       if (isAdminPOS) {
@@ -2372,8 +2660,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let pinInput = '';
 
-  function promptPIN(onSuccess) {
+  // Show the numeric PIN pad.
+  //   onSuccess    - callback run when the correct PIN is entered
+  //   expectedPin  - PIN to match against (defaults to the shared admin PIN)
+  //   title/subtitle - optional custom modal texts (used by the staff login prompt)
+  function promptPIN(onSuccess, expectedPin, title, subtitle) {
     state.pinTargetAction = onSuccess;
+    state.pinExpected = (expectedPin !== undefined && expectedPin !== null && expectedPin !== '')
+      ? String(expectedPin)
+      : state.settings.admin_pin;
+    if (els.pinModalTitle) {
+      els.pinModalTitle.innerHTML = title || '<i class="fas fa-lock"></i> ຢືນຢັນລະຫັດ PIN';
+    }
+    if (els.pinModalSubtitle) {
+      els.pinModalSubtitle.textContent = subtitle || 'ກະລຸນາໃສ່ລະຫັດ PIN 4 ຫຼັກ ເພື່ອອະນຸມັດການດຳເນີນການ';
+    }
     pinInput = '';
     updatePinDots();
     els.pinModal.classList.add('active');
@@ -2395,8 +2696,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       updatePinDots();
 
       if (pinInput.length === 4) {
-        // Verify PIN
-        if (pinInput === state.settings.admin_pin) {
+        // Verify PIN against the expected value (personal login PIN hash or shared admin PIN)
+        const expected = (state.pinExpected !== undefined && state.pinExpected !== null && state.pinExpected !== '')
+          ? String(state.pinExpected)
+          : state.settings.admin_pin;
+        if (pinMatches(pinInput, expected)) {
           els.pinModal.classList.remove('active');
           if (state.pinTargetAction) {
             state.pinTargetAction();
@@ -2449,11 +2753,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Populate POS Filters
     els.dashPOSFilter.innerHTML = '';
     
-    const isAdminPOS = state.currentPOS && [
-      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
-      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
-      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
-    ].includes(state.currentPOS.name);
+    const isAdminPOS = isAdminView();
 
     if (els.reportRateLak && !els.reportRateLak.value) {
       els.reportRateLak.value = state.settings.exchange_rate_lak;
@@ -2643,11 +2943,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const end = els.endDateFilter.value;
     const selectedPOS = els.dashPOSFilter ? els.dashPOSFilter.value : 'all';
 
-    const isAdminPOS = state.currentPOS && [
-      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
-      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
-      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
-    ].includes(state.currentPOS.name);
+    const isAdminPOS = isAdminView();
 
     const rateLak = ((els.reportRateLak && parseFloat(els.reportRateLak.value)) || state.settings.exchange_rate_lak);
     const rateCny = ((els.reportRateCny && parseFloat(els.reportRateCny.value)) || state.settings.exchange_rate_cny);
@@ -3400,11 +3696,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Delete invoice with passcode PIN confirmation
   window.deleteInvoice = (txId) => {
-    const isAdminPOS = state.currentPOS && [
-      'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ',
-      'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ',
-      'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ'
-    ].includes(state.currentPOS.name);
+    const isAdminPOS = isAdminView();
 
     const performDelete = async () => {
       const confirmDelete = confirm(`ທ່ານຕ້ອງການລຶບບິນ ${txId} ແທ້ຫຼືບໍ່?`);
@@ -4155,9 +4447,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const s = state.settings;
     els.settingsRatesThbLak.value = s.exchange_rate_lak;
     els.settingsRatesThbCny.value = s.exchange_rate_cny;
-    els.settingsAdminPin.value = s.admin_pin;
-    if (els.settingsFirebaseConfig) els.settingsFirebaseConfig.value = s.firebase_config ? JSON.stringify(s.firebase_config, null, 2) : '';
-    els.settingsGDriveScriptUrl.value = s.gdrive_script_url || '';
+    if (els.settingsGDriveUrlDisplay) els.settingsGDriveUrlDisplay.textContent = s.gdrive_script_url || '(ຍັງບໍ່ໄດ້ຕັ້ງ)';
+
+    // The Users tab (staff management) is visible to root only
+    const usersTabBtn = document.getElementById('settings-tab-users');
+    if (usersTabBtn) usersTabBtn.style.display = (state.currentRole === 'root') ? '' : 'none';
+    // The Apps Script URL is auto-applied from code — only root may see/edit it
+    const gdriveCard = document.getElementById('settings-gdrive-card');
+    if (gdriveCard) gdriveCard.style.display = (state.currentRole === 'root') ? '' : 'none';
+    showSettingsTab(settingsTabFromHash() || 'general');
     if (els.settingsGDriveFolderId) {
       els.settingsGDriveFolderId.value = s.gdrive_folder_id || '1ao3TJesHPrdVCflFPnU6ndcGKAyVPXyC';
     }
@@ -4188,11 +4486,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderSettingsQRPreview('ldb_thb');
     renderSettingsQRPreview('ldb_cny');
 
-    // Render Cashier List
+    // Render Cashier List + prepare the user form (root only)
+    populateUserFormPOS();
+    resetUserForm();
     renderSettingsCashiers();
-
-    // Render POS List
-    renderSettingsPOSList();
 
     // Load and render membership settings
     if (els.settingsMemberThreshold) {
@@ -4261,11 +4558,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       li.style.padding = '8px 12px';
       li.style.borderBottom = '1px solid var(--border-color)';
       
+      const roleLabels = { root: 'Root', admin: 'Admin', accountant: 'ບັນຊີ', cashier: 'Cashier' };
+      const role = c.role || 'cashier';
+      const roleColors = { root: '#b91c1c', admin: '#b45309', accountant: '#6d28d9', cashier: '#0f766e' };
+      const posObj = c.pos ? resolvePOS(c.pos) : null;
+      const posLabel = posObj ? posObj.name : (c.pos || '—');
       li.innerHTML = `
-        <span>${c.name}</span>
-        <button class="secondary-btn" style="padding:4px 8px; color:var(--danger-color);" onclick="window.deleteCashier('${c.id}')">
-          <i class="fas fa-trash-alt"></i>
-        </button>
+        <span>
+          <b>${c.name}</b>
+          <span style="font-size:0.7rem; color:var(--text-secondary);"> ${c.employee_id || c.id || ''}</span>
+          <span style="font-size:0.7rem; font-weight:700; color:${roleColors[role] || roleColors.cashier}; border:1px solid currentColor; border-radius:6px; padding:1px 6px; margin-left:6px;">${roleLabels[role] || 'Cashier'}</span>
+          <span style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-top:2px;"><i class="fas fa-map-marker-alt"></i> ${posLabel}</span>
+        </span>
+        <span style="display:flex; gap:6px; flex-shrink:0;">
+          <button class="secondary-btn" style="padding:4px 8px;" onclick="window.editUser('${c.employee_id || c.id}')" title="ແກ້ໄຂ">
+            <i class="fas fa-pen"></i>
+          </button>
+          <button class="secondary-btn" style="padding:4px 8px; color:var(--danger-color);" onclick="window.deleteUser('${c.employee_id || c.id}')" title="ລຶບ">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </span>
       `;
       els.settingsCashiersList.appendChild(li);
     });
@@ -4282,97 +4594,145 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  els.btnAddCashier.addEventListener('click', async () => {
-    const name = els.newCashierNameInput.value.trim();
-    if (!name) return;
+  /* =========================================================================
+     USER MANAGEMENT (root only) — add/edit/delete staff; writes back to Sheet
+     ========================================================================= */
 
-    const newCashier = {
-      id: 'cashier_' + Date.now(),
-      name: name
-    };
-
-    await window.BokeoDB.saveCashier(newCashier);
-    state.cashiers = await window.BokeoDB.getCashiers();
-    els.newCashierNameInput.value = '';
-    renderSettingsCashiers();
-    populateSetupOptions();
-  });
-
-  function renderSettingsPOSList() {
-    els.settingsPOSList.innerHTML = '';
-    state.settings.pos_points.forEach((p, index) => {
-      const li = document.createElement('div');
-      li.style.display = 'flex';
-      li.style.justifyContent = 'space-between';
-      li.style.alignItems = 'center';
-      li.style.padding = '8px 12px';
-      li.style.borderBottom = '1px solid var(--border-color)';
-
-      const trimmedName = p.name.trim();
-      const isAdmin = trimmedName.startsWith('ແອດມິນ') || 
-                      trimmedName.startsWith('ແອັດມິນ') || 
-                      trimmedName.includes('ແອດມິນ') || 
-                      trimmedName.includes('ແອັດມິນ') || 
-                      trimmedName.includes('Admin') || 
-                      trimmedName.includes('admin');
-      const text = isAdmin ? `<strong>${p.name}</strong>` : `<strong>${p.name}</strong> (${p.serviceType})`;
-      li.innerHTML = `
-        <span>${text}</span>
-        <button class="secondary-btn" style="padding:4px 8px; color:var(--danger-color);" onclick="window.deletePOS(${index})">
-          <i class="fas fa-trash-alt"></i>
-        </button>
-      `;
-      els.settingsPOSList.appendChild(li);
+  // Fill the POS dropdown in the user form from the fixed POS_POINTS key map
+  function populateUserFormPOS() {
+    if (!els.userFormPos) return;
+    let html = '<option value="">— (ບໍ່ມີ / admin)</option>';
+    Object.keys(POS_POINTS).forEach(key => {
+      html += `<option value="${key}">${POS_POINTS[key].name}</option>`;
     });
+    els.userFormPos.innerHTML = html;
   }
 
-  window.deletePOS = async (index) => {
-    state.settings.pos_points.splice(index, 1);
-    await window.BokeoDB.saveSettings(state.settings);
-    renderSettingsPOSList();
-    populateSetupOptions();
+  function resetUserForm() {
+    state.editingUserId = null;
+    if (els.userFormEmpId) { els.userFormEmpId.value = ''; els.userFormEmpId.disabled = false; }
+    if (els.userFormName) els.userFormName.value = '';
+    if (els.userFormDept) els.userFormDept.value = '';
+    if (els.userFormRole) els.userFormRole.value = 'cashier';
+    if (els.userFormPos) els.userFormPos.value = '';
+    if (els.userFormPin) els.userFormPin.value = '';
+    if (els.userFormTitle) els.userFormTitle.textContent = 'ເພີ່ມຜູ້ໃຊ້ໃໝ່';
+    if (els.userPinHint) els.userPinHint.textContent = 'ຕັ້ງ PIN (ຈຳເປັນ)';
+    if (els.userFormCancel) els.userFormCancel.style.display = 'none';
+  }
+
+  window.editUser = (empId) => {
+    const c = state.cashiers.find(x => String(x.employee_id || x.id) === String(empId));
+    if (!c) return;
+    state.editingUserId = empId;
+    els.userFormEmpId.value = c.employee_id || c.id;
+    els.userFormEmpId.disabled = true; // id is the key — cannot change on edit
+    els.userFormName.value = c.name || '';
+    els.userFormDept.value = c.department || '';
+    els.userFormRole.value = c.role || 'cashier';
+    els.userFormPos.value = c.pos || '';
+    els.userFormPin.value = '';
+    els.userFormTitle.textContent = 'ແກ້ໄຂຜູ້ໃຊ້: ' + (c.name || empId);
+    els.userPinHint.textContent = 'ປ່ອຍວ່າງ = ບໍ່ປ່ຽນ PIN';
+    els.userFormCancel.style.display = '';
+    if (els.userFormEmpId.scrollIntoView) els.userFormEmpId.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
-  els.btnAddPOS.addEventListener('click', async () => {
-    const name = els.newPOSNameInput.value.trim();
-    const service = els.newPOSServiceInput.value;
-    if (!name) return;
+  window.deleteUser = async (empId) => {
+    const c = state.cashiers.find(x => String(x.employee_id || x.id) === String(empId));
+    if (!c) return;
+    if (!confirm(`ລຶບຜູ້ໃຊ້ "${c.name}" (${empId})?\nການລຶບຈະມີຜົນໃນ Google Sheet ດ້ວຍ.`)) return;
+    showLoading('ກຳລັງລຶບຜູ້ໃຊ້...');
+    const ok = await postCashierToSheet('delete_cashier', { employee_id: empId });
+    try { await window.BokeoDB.deleteCashier(c.id); } catch (e) {}
+    state.cashiers = await window.BokeoDB.getCashiers();
+    renderSettingsCashiers();
+    hideLoading();
+    alert(ok ? 'ລຶບຜູ້ໃຊ້ສຳເລັດ' : 'ລຶບໃນເครื่องແລ້ວ ແຕ່ຍັງບໍ່ໄດ້ sync ຂຶ້ນ Sheet (ກວດການເชื่อมต่อ)');
+  };
 
-    state.settings.pos_points.push({ name, serviceType: service });
-    await window.BokeoDB.saveSettings(state.settings);
-    
-    els.newPOSNameInput.value = '';
-    renderSettingsPOSList();
-    populateSetupOptions();
+  // POST a staff change to the cashiers Google Sheet via Apps Script
+  async function postCashierToSheet(action, payload) {
+    const scriptUrl = state.settings.gdrive_script_url;
+    if (!scriptUrl) return false;
+    try {
+      const res = await fetch(scriptUrl, {
+        method: 'POST', mode: 'cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(Object.assign({ action }, payload))
+      });
+      const data = await res.json();
+      return !!data.success;
+    } catch (e) { console.error('postCashierToSheet failed:', e); return false; }
+  }
+
+  if (els.userFormCancel) els.userFormCancel.addEventListener('click', resetUserForm);
+
+  if (els.userFormSave) els.userFormSave.addEventListener('click', async () => {
+    const empId = (els.userFormEmpId.value || '').trim();
+    const name = (els.userFormName.value || '').trim();
+    const dept = (els.userFormDept.value || '').trim();
+    const role = els.userFormRole.value;
+    const pos = els.userFormPos.value;
+    const pinRaw = (els.userFormPin.value || '').trim();
+    const editing = state.editingUserId;
+
+    if (!empId) { alert('ກະລຸນາໃສ່ລະຫັດພະນັກງານ'); return; }
+    if (!name) { alert('ກະລຸນາໃສ່ຊື່'); return; }
+    if (role === 'cashier' && (!pos || ADMIN_POS_KEYS.includes(pos))) {
+      alert('cashier ຕ້ອງເລືອກຈຸດຂາຍ (POS) ທີ່ຂາຍໄດ້'); return;
+    }
+    if (!editing && state.cashiers.some(c => String(c.employee_id || c.id) === empId)) {
+      alert('ລະຫັດພະນັກງານນີ້ມີຢູ່ແລ້ວ'); return;
+    }
+
+    // PIN: required for new users; optional (blank = keep) when editing
+    const existing = state.cashiers.find(c => String(c.employee_id || c.id) === empId);
+    let pinHash = existing ? (existing.pin || '') : '';
+    if (pinRaw) {
+      if (!/^\d{4}$/.test(pinRaw)) { alert('PIN ຕ້ອງເປັນຕົວເລກ 4 ຫຼັກ'); return; }
+      pinHash = sha256Hex(pinRaw);
+    } else if (!editing) {
+      alert('ກະລຸນາຕັ້ງ PIN 4 ຫຼັກ ໃຫ້ຜູ້ໃຊ້ໃໝ່'); return;
+    }
+
+    const cashier = {
+      id: empId, employee_id: empId, name, department: dept, role,
+      pos: role === 'cashier' ? pos : '', pin: pinHash
+    };
+
+    showLoading('ກຳລັງບັນທຶກຜູ້ໃຊ້...');
+    const ok = await postCashierToSheet('save_cashier', { cashier });
+    try { await window.BokeoDB.saveCashier(cashier); } catch (e) {}
+    state.cashiers = await window.BokeoDB.getCashiers();
+    renderSettingsCashiers();
+    resetUserForm();
+    hideLoading();
+    alert(ok ? 'ບັນທຶກຜູ້ໃຊ້ສຳເລັດ' : 'ບັນທຶກໃນເครื่องແລ້ວ ແຕ່ຍັງບໍ່ໄດ້ sync ຂຶ້ນ Sheet (ອາจถูกทับตอน sync ຄັ້ງໜ້າ)');
   });
 
-  // Save Settings page details
+  // Save the settings for the CURRENT tab only (general = rates/gdrive; qr auto-saves on upload)
   els.settingsSaveBtn.addEventListener('click', async () => {
-    const rateLak = parseFloat(els.settingsRatesThbLak.value) || DEFAULT_LAK_RATE;
-    const rateCny = parseFloat(els.settingsRatesThbCny.value) || DEFAULT_CNY_RATE;
-    const adminPin = els.settingsAdminPin.value.trim();
-    const fbRaw = els.settingsFirebaseConfig ? els.settingsFirebaseConfig.value.trim() : '';
+    const tab = settingsTabFromHash() || 'general';
 
-    if (adminPin.length !== 4 || isNaN(adminPin)) {
-      alert('ລະຫັດ PIN ຕ້ອງເປັນຕົວເລກ 4 ຕົວ');
+    if (tab === 'qr') {
+      // QR images already persist on upload; just confirm the saved state
+      await window.BokeoDB.saveSettings(state.settings);
+      alert('ບັນທຶກ QR ຊຳລະເງິນສຳເລັດແລ້ວ');
+      return;
+    }
+    if (tab === 'users') {
+      alert('ໜ້ານີ້ບໍ່ມີການຕັ້ງຄ່າໃຫ້ບັນທຶກ');
       return;
     }
 
-    let fbConfig = null;
-    if (fbRaw) {
-      try {
-        fbConfig = JSON.parse(fbRaw);
-      } catch (err) {
-        alert('ໂຄງສ້າງ Firebase Config JSON ບໍ່ຖືກຕ້ອງ');
-        return;
-      }
-    }
+    // General tab
+    const rateLak = parseFloat(els.settingsRatesThbLak.value) || DEFAULT_LAK_RATE;
+    const rateCny = parseFloat(els.settingsRatesThbCny.value) || DEFAULT_CNY_RATE;
 
     state.settings.exchange_rate_lak = rateLak;
     state.settings.exchange_rate_cny = rateCny;
-    state.settings.admin_pin = adminPin;
-    state.settings.firebase_config = fbConfig;
-    state.settings.gdrive_script_url = els.settingsGDriveScriptUrl.value.trim();
+    // gdrive_script_url is read-only (auto-applied from code) — not editable here
 
     if (els.settingsMemberThreshold) {
       state.settings.member_points_threshold = parseFloat(els.settingsMemberThreshold.value) || 500;

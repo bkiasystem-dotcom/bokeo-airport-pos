@@ -1,21 +1,10 @@
 /**
  * Bokeo International Airport POS - Database Manager
- * Handles local IndexedDB storage and optional Firebase Firestore synchronization.
+ * Handles local IndexedDB storage and Google Sheets synchronization.
  */
 
-// Default Firebase Firestore Configuration for Real-time Cloud Sync
-// Edit these values with your Firebase Project Configuration to sync all devices!
-const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAYwndMq4pCJZrYqkkVPXgNmkcVU05x2Q0",
-  authDomain: "bokeo-airport-pos.firebaseapp.com",
-  projectId: "bokeo-airport-pos",
-  storageBucket: "bokeo-airport-pos.firebasestorage.app",
-  messagingSenderId: "95891865739",
-  appId: "1:95891865739:web:a7faadfbb749b7f8e9548e"
-};
-
 const DB_NAME = 'BokeoAirportPOS_DB_v2';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 // Helper to fetch with a timeout (default 6 seconds)
 async function fetchWithTimeout(resource, options = {}) {
@@ -43,82 +32,32 @@ const DEFAULT_CNY_RATE = 0.2; // 1 THB = 0.2 CNY (1 CNY = 5 THB)
 // ตัวอย่าง: 'https://script.google.com/macros/s/AKfycbx..../exec'
 const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbx7yBLkEA50BMKqhv-h7swHhMaEAs-U0jSRCY0xyJBdf8fAM-RH3g5zjavmWcKWkvXk/exec';
 
-// Default Cashiers
-const DEFAULT_CASHIERS = [
-  { id: 'c1', name: 'ທ້າວ ສົມພອນ' },
-  { id: 'c2', name: 'ນາງ ຈັນທະວີ' },
-  { id: 'c3', name: 'ທ້າວ ພອນສະຫວັນ' }
-];
+// Staff roles (privilege levels). 'cashier' is the default when the role is empty/unknown.
+//   root       = super admin (manages everyone, including admins)
+//   admin      = manages cashiers, settings and reports
+//   accountant = finance/accounting staff (reports & financial data, no selling)
+//   cashier    = sells only
+const VALID_ROLES = ['root', 'admin', 'accountant', 'cashier'];
 
-// Default Products & Stock Levels seeded from Google Sheets
-const DEFAULT_PRODUCTS = [
-  // 1. ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ (Consumer Goods Shop / Retail)
-  { id: 'TMN-VIPL-001', code: '200001', name_en: 'Beerlao (Can)', name_lo: 'ເບຍລາວປ໋ອງນ້ອຍ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 20.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 267, unit: 'ປ໋ອງ' },
-  { id: 'TMN-VIPL-002', code: '200002', name_en: 'Heineken', name_lo: 'ເບຍໄຮນີເກັ້ນປ໋ອງນ້ອຍ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 22.00, price_thb: 60.00, price_lak: 42000, price_cny: 12.00, stock: 212, unit: 'ປ໋ອງ' },
-  { id: 'TMN-VIPL-003', code: '200003', name_en: 'Schweppes', name_lo: 'ສະເວພສ໌', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 15.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 0, unit: 'ປ໋ອງ' },
-  { id: 'TMN-VIPL-004', code: '200004', name_en: 'Pepsi', name_lo: 'ເປບຊີ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 15.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 59, unit: 'ປ໋ອງ' },
-  { id: 'TMN-VIPL-005', code: '200005', name_en: 'Cocacola', name_lo: 'ໂຄກ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 17.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 179, unit: 'ປ໋ອງ' },
-  { id: 'TMN-VIPL-006', code: '200006', name_en: 'Juice', name_lo: 'ນ້ຳໝາກໄມ້', category: 'ຮ້ານາຍເຄື່ອງບໍລິໂພກ', cost_thb: 28.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 80, unit: 'ປ໋ອງ' },
-  { id: 'TMN-VIPL-007', code: '200007', name_en: 'Energy Drink (M150)', name_lo: 'M150', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 10.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 57, unit: 'ຕຸກ' },
-  { id: 'TMN-VIPL-008', code: '200008', name_en: 'Drinking Water(Tiger Head 350ml)', name_lo: 'ນ້ຳດື່ມຫົວເສືອ 350ml', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 4.50, price_thb: 20.00, price_lak: 14000, price_cny: 4.00, stock: 1218, unit: 'ຕຸກ' },
-  { id: 'TMN-VIPL-009', code: '200022', name_en: 'Sponsor (Can)', name_lo: 'ສະປອນເຊີ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 13.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 74, unit: 'ປ໋ອງ' },
-  { id: 'TMN-VIPL-010', code: '200013', name_en: 'Sting', name_lo: 'ສະຕິງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 14.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 90, unit: 'ຕຸກ' },
-  { id: 'TMN-VIPL-011', code: '200011', name_en: 'Eurocake (Box)', name_lo: 'ຢູ່ໂລເຄັກກ່ອງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 55.00, price_thb: 60.00, price_lak: 42000, price_cny: 12.00, stock: 25, unit: 'ກ່ອງ' },
-  { id: 'TMN-VIPL-012', code: '200028_1', name_en: 'Eurocake (Sachet)', name_lo: 'ຢູ່ໂລເຄັກຊອງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 4.60, price_thb: 5.00, price_lak: 3500, price_cny: 1.00, stock: 134, unit: 'ຊອງ' },
-  { id: 'TMN-VIPL-013', code: '200028_2', name_en: 'Sunbright', name_lo: 'ຊັນໄບ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 24.00, price_thb: 70.00, price_lak: 49000, price_cny: 14.00, stock: 134, unit: 'ຊອງ' },
-  { id: 'TMN-VIPL-014', code: '200017_1', name_en: 'Lay Stack (Big)', name_lo: 'ເລສະເຕັກໃຫຍ່', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 48.00, price_thb: 120.00, price_lak: 84000, price_cny: 24.00, stock: 97, unit: 'ກະປ໋ອງ' },
-  { id: 'TMN-VIPL-015', code: '200017_2', name_en: 'Lay Stack (Small)', name_lo: 'ເລສະເຕັກນ້ອຍ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 34.00, price_thb: 90.00, price_lak: 63000, price_cny: 18.00, stock: 97, unit: 'ກະປ໋ອງ' },
-  { id: 'TMN-VIPL-016', code: '200016', name_en: 'Butter Cake', name_lo: 'ເຄັກເນີຍສົດ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 55.00, price_thb: 140.00, price_lak: 98000, price_cny: 28.00, stock: 15, unit: 'ຊິ້ນ' },
-  { id: 'TMN-VIPL-017', code: '200019', name_en: 'Oishi', name_lo: 'ໂອອີຊິ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 16.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 183, unit: 'ຕຸກ' },
-  { id: 'TMN-VIPL-018', code: '200020', name_en: 'Coconut juice (Can)', name_lo: 'ນ້ຳໜາກພ້າວ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 12.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 129, unit: 'ປ໋ອງ' },
-  { id: 'TMN-VIPL-019', code: '200023', name_en: 'Civit', name_lo: 'ນ້ຳຊີວິດ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 14.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 184, unit: 'ຕຸກ' },
-  { id: 'TMN-VIPL-020', code: '200021', name_en: 'Instant Noodles', name_lo: 'ຫມີ່ກ່ອງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 15.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 264, unit: 'ຖ້ວຍ' },
-  { id: 'DK-0041', code: '200027', name_en: 'Croissant Ordinaire', name_lo: 'ຂະຫນົມຄົວຊອງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 20.29, price_thb: 60.00, price_lak: 42000, price_cny: 12.00, stock: 16, unit: 'ຊອງ' },
-  { id: 'DK-0043', code: '200043', name_en: 'Vitamilk', name_lo: 'ນົມໄວຕາມິວ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 15.83, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 124, unit: 'ກ່ອງ' },
-  { id: 'TMN-VIPL-024', code: 'TMN-VIPL-024', name_en: 'Birdy Coffee', name_lo: 'ກາເຟກະປ໋ອງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 0.00, price_thb: 40.00, price_lak: 28000, price_cny: 8.00, stock: 143, unit: 'ກະປ໋ອງ' },
-  { id: 'TMN-VIPL-025', code: 'TMN-VIPL-025', name_en: 'Herbal Tea', name_lo: 'ຫວາງລາວຈີ ຊາຈີນ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 0.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 128, unit: 'ກະປ໋ອງ' },
-  { id: 'DK-064', code: 'DK-064', name_en: 'Dutch Mill', name_lo: 'ນົມປ້ຽວ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 0.00, price_thb: 0.00, price_lak: 0, price_cny: 0.00, stock: 49, unit: 'ກ່ອງ' },
-  { id: 'DK-0044', code: '200044', name_en: 'Homey', name_lo: 'ຂະໜົມໂຮມມີ້', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 8.81, price_thb: 30.00, price_lak: 21000, price_cny: 6.00, stock: 160, unit: 'ຊອງ' },
-  { id: 'DK-0045', code: '200045', name_en: 'Cookies', name_lo: 'ຄຸກກີ້ເດັນມາກ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 70.00, price_thb: 200.00, price_lak: 140000, price_cny: 40.00, stock: 10, unit: 'ກ່ອງ' },
-  { id: 'DK-049', code: '200127', name_en: 'Singha soda', name_lo: 'ໂຊດາສິງ Singha soda', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 15.00, price_thb: 50.00, price_lak: 35000, price_cny: 10.00, stock: 51, unit: 'ຕຸກ' },
-  { id: 'DK-050', code: '200128', name_en: 'Chewing gum', name_lo: 'ໜາກຝຣັງແທັງ', category: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ', cost_thb: 5.50, price_thb: 20.00, price_lak: 14000, price_cny: 4.00, stock: 136, unit: 'ອັນ' },
+// Normalize a role string coming from the cashiers Google Sheet to a known role.
+// When the role cell is blank, fall back to the department: Finance/Accounting -> accountant.
+function normalizeRole(raw, department) {
+  const r = (raw || '').toString().trim().toLowerCase();
+  if (VALID_ROLES.includes(r)) return r;
+  const dept = (department || '').toString().toLowerCase();
+  if (dept.includes('finance') || dept.includes('account') || dept.includes('ບັນຊີ')) return 'accountant';
+  return 'cashier';
+}
 
-  // 2. ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Service)
-  { id: 'WRP-001', code: '200029', name_en: 'Box (C+8)', name_lo: 'ແກັດ (C+8)', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 7.00, price_thb: 80.00, price_lak: 56000, price_cny: 16.00, stock: 200, unit: 'ກ່ອງ' },
-  { id: 'WRP-002', code: '200030', name_en: 'Box (H)', name_lo: 'ແກັດ (H)', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 21.00, price_thb: 100.00, price_lak: 70000, price_cny: 20.00, stock: 173, unit: 'ກ່ອງ' },
-  { id: 'WRP-003', code: '200039', name_en: 'Box (E)', name_lo: 'ແກັດ (E)', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 9.00, price_thb: 85.00, price_lak: 59500, price_cny: 17.00, stock: 306, unit: 'ກ່ອງ' },
-  { id: 'WRP-004', code: '200035', name_en: 'Document Envelope 6*9', name_lo: '6*9 ຊອງເອກະສານ', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 1.90, price_thb: 25.00, price_lak: 17500, price_cny: 5.00, stock: 61, unit: 'ຊອງ' },
-  { id: 'WRP-005', code: '200036', name_en: 'Document Envelope 7*10', name_lo: '7*10 ຊອງເອກະສານ', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 2.20, price_thb: 30.00, price_lak: 21000, price_cny: 6.00, stock: 10, unit: 'ຊອງ' },
-  { id: 'WRP-006', code: '200037', name_en: 'Document Envelope 9*12.75', name_lo: '9*12.75 ຊອງເອກະສານ', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 2.50, price_thb: 35.00, price_lak: 24500, price_cny: 7.00, stock: 50, unit: 'ຊອງ' },
-  { id: 'WRP-007', code: '200040', name_en: 'Foam Box 5KG', name_lo: '5KG ກ່ອງໂຟມ', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 84.00, price_thb: 150.00, price_lak: 105000, price_cny: 30.00, stock: 10, unit: 'ກ່ອງ' },
-  { id: 'WRP-008', code: '200041', name_en: 'Foam Box 15KG', name_lo: '15KG ກ່ອງໂຟມ', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 109.00, price_thb: 200.00, price_lak: 140000, price_cny: 40.00, stock: 10, unit: 'ກ່ອງ' },
-  { id: 'WRP-009', code: '200042', name_en: 'Foam Box 25KG', name_lo: '25KG ກ່ອງໂຟມ', category: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ', cost_thb: 140.00, price_thb: 300.00, price_lak: 210000, price_cny: 60.00, stock: 10, unit: 'ກ່ອງ' },
-
-  // 3. ຫ້ອງ VIP (VIP Lounge)
-  { id: 'VIP-001', code: 'VIP01', name_en: 'VIP Lounge Silver Package', name_lo: 'ບໍລິການຫ້ອງ VIP Silver Package', category: 'ຫ້ອງ VIP', cost_thb: 150.00, price_thb: 500.00, price_lak: 350000, price_cny: 100.00, stock: 9999, unit: 'ຄັ້ງ' },
-  { id: 'VIP-002', code: 'VIP02', name_en: 'Lounge Premium Package', name_lo: 'ບໍລິການຫ້ອງ VIP Premium Package', category: 'ຫ້ອງ VIP', cost_thb: 250.00, price_thb: 800.00, price_lak: 560000, price_cny: 160.00, stock: 9999, unit: 'ຄັ້ງ' },
-  { id: 'VIP-003', code: 'VIP03', name_en: 'VIP Lounge Gold Package', name_lo: 'ບໍລິການຫ້ອງ VIP Gold Package', category: 'ຫ້ອງ VIP', cost_thb: 350.00, price_thb: 1200.00, price_lak: 840000, price_cny: 240.00, stock: 9999, unit: 'ຄັ້ງ' },
-
-  // 4. ບໍລິການແທັກຊີ່ (Taxi Counter)
-  { id: 'TAX-001', code: 'TAX01', name_en: 'Taxi to Bokeo Town', name_lo: 'ແທັກຊີ່ ໄປເທດສະບານເມືອງຫ້ວຍຊາຍ', category: 'ບໍລິການແທັກຊີ່', cost_thb: 100.00, price_thb: 300.00, price_lak: 210000, price_cny: 60.00, stock: 9999, unit: 'ທ່ຽວ' },
-  { id: 'TAX-002', code: 'TAX02', name_en: 'Taxi to Lao-Thai Border', name_lo: 'ແທັກຊີ່ ໄປດ່ານຊາຍແດນ ລາວ-ໄທ', category: 'ບໍລິການແທັກຊີ່', cost_thb: 150.00, price_thb: 500.00, price_lak: 350000, price_cny: 100.00, stock: 9999, unit: 'ທ່ຽວ' },
-  { id: 'TAX-003', code: 'TAX03', name_en: 'Taxi to Golden Triangle SEZ', name_lo: 'ແທັກຊີ່ ໄປເຂດເສດຖະກິດພິເສດ ສາມຫຼ່ຽມຄຳ', category: 'ບໍລິການແທັກຊີ່', cost_thb: 120.00, price_thb: 400.00, price_lak: 280000, price_cny: 80.00, stock: 9999, unit: 'ທ່ຽວ' },
-
-  // 5. ບໍລິການລານຈອດ (Parking Lot Service)
-  { id: 'TMN-PK-001', code: 'TMN-PK-001', name_en: 'Car', name_lo: 'ລົດໃຫ່ຍ', category: 'ບໍລິການລານຈອດ', cost_thb: 0.00, price_thb: 50.00, price_lak: 30000, price_cny: 10.00, stock: 9999, unit: 'ຄັ້ງ' },
-  { id: 'TMN-PK-002', code: 'TMN-PK-002', name_en: 'Motorcycle', name_lo: 'ລົດຈັກ', category: 'ບໍລິການລານຈອດ', cost_thb: 0.00, price_thb: 25.00, price_lak: 15000, price_cny: 5.00, stock: 9999, unit: 'ຄັ້ງ' }
-];
 
 class BokeoPOSDB {
   constructor() {
     this.db = null;
-    this.isFirebaseEnabled = false;
-    this.firestore = null;
     this.listeners = {};
   }
 
   /**
-   * Initialize IndexedDB and (if configured) Firebase Firestore
+   * Initialize IndexedDB
    */
   async init() {
     return new Promise((resolve, reject) => {
@@ -132,7 +71,7 @@ class BokeoPOSDB {
       request.onsuccess = async (event) => {
         this.db = event.target.result;
         await this._seedDatabaseIfEmpty();
-        await this._loadSettingsAndInitFirebase();
+        await this._loadSettings();
         resolve(this);
       };
 
@@ -183,9 +122,9 @@ class BokeoPOSDB {
   }
 
   /**
-   * Load settings and initialize Firebase if configured
+   * Load settings and apply the shared Apps Script URL if unset
    */
-  async _loadSettingsAndInitFirebase() {
+  async _loadSettings() {
     try {
       const settings = await this.getSettings();
       // Auto-apply the shared Apps Script URL so every device connects without manual entry.
@@ -194,72 +133,17 @@ class BokeoPOSDB {
         await this.saveSettings(settings);
         console.log('Applied shared Apps Script URL from DEFAULT_GAS_URL.');
       }
-      // Firebase is disabled — data syncs via Google Sheets only.
     } catch (e) {
       console.warn('Failed to load settings:', e);
     }
   }
 
   /**
-   * Set up Firebase App & Firestore
-   */
-  _initFirebase(config) {
-    // ===== Firebase DISABLED — data syncs via Google Sheets only (no Firestore quota) =====
-    this.isFirebaseEnabled = false;
-    this.firestore = null;
-    console.log('Firebase is disabled — using Google Sheets sync only.');
-    return;
-    /* eslint-disable no-unreachable */
-    try {
-      if (typeof firebase !== 'undefined') {
-        // Prevent duplicate app initialization
-        const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(config);
-        this.firestore = firebase.firestore(app);
-        this.isFirebaseEnabled = true;
-        console.log('Firebase Firestore Initialized Successfully.');
-        
-        // Setup real-time listener for products and stock
-        this._setupRealtimeSyncListeners();
-
-        // Migrate/sync local data to Firestore
-        this.syncLocalDataToFirestore();
-      } else {
-        console.warn('Firebase SDK not loaded. Dynamic Cloud Sync is disabled.');
-      }
-    } catch (error) {
-      console.error('Firebase initialization failed:', error);
-      this.isFirebaseEnabled = false;
-    }
-  }
-
-  /**
-   * Seed DB with default data if empty
+   * Seed only the app configuration (settings) on first run.
+   * Products, cashiers, members, etc. are NOT seeded — they come entirely from Google Sheets.
    */
   async _seedDatabaseIfEmpty() {
-    // Check Products
-    const productsCount = await this._countRows('products');
-    if (productsCount === 0) {
-      console.log('Seeding default products from Google Sheet data...');
-      const tx = this.db.transaction('products', 'readwrite');
-      const store = tx.objectStore('products');
-      DEFAULT_PRODUCTS.forEach(p => {
-        p.max_stock = p.stock;
-        store.put(p);
-      });
-      await new Promise(resolve => tx.oncomplete = resolve);
-    }
-
-    // Check Cashiers
-    const cashiersCount = await this._countRows('cashiers');
-    if (cashiersCount === 0) {
-      console.log('Seeding default cashiers...');
-      const tx = this.db.transaction('cashiers', 'readwrite');
-      const store = tx.objectStore('cashiers');
-      DEFAULT_CASHIERS.forEach(c => store.put(c));
-      await new Promise(resolve => tx.oncomplete = resolve);
-    }
-
-    // Check Settings
+    // Check Settings (app configuration only — no default products/cashiers)
     const settings = await this.getSettings();
     if (!settings) {
       console.log('Seeding default settings...');
@@ -281,15 +165,11 @@ class BokeoPOSDB {
           { name: 'ຫ້ອງ VIP (VIP Lounge)', serviceType: 'ຫ້ອງ VIP' },
           { name: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ (Wrapping Counter)', serviceType: 'ບໍລິການຫຸ້ມຫໍ່ເຄື່ອງ' },
           { name: 'ເຄົາເຕີ້ແທັກຊີ່ (Taxi Counter)', serviceType: 'ບໍລິການແທັກຊີ່' },
-          { name: 'ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' },
-          { name: 'ແອດມິນ ພະແນກ ບັນຊີ-ການເງິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-          { name: 'ແອດມິນ ພະແນກ ຈັດຊື້-ຊັບສິນ', serviceType: 'ຮ້ານຂາຍເຄື່ອງບໍລິໂພກ' },
-          { name: 'ແອດມິນ ພະແນກ ອາຄານແລະລານຈອດ', serviceType: 'ບໍລິການລານຈອດ' }
+          { name: 'ລານຈອດລົດ (Parking Lot)', serviceType: 'ບໍລິການລານຈອດ' }
         ],
         member_points_threshold: 500,
         member_points_below: 1,
         member_points_above: 10,
-        firebase_config: null,
         qr_codes: {
           bcel_lak: '',
           bcel_thb: '',
@@ -337,10 +217,6 @@ class BokeoPOSDB {
       const req = store.put(product);
       
       req.onsuccess = () => {
-        if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('products').doc(product.id).set(product)
-            .catch(e => console.error('Firestore saveProduct error:', e));
-        }
         this._notifyListener('products');
         resolve(product);
       };
@@ -355,10 +231,6 @@ class BokeoPOSDB {
       const req = store.delete(productId);
 
       req.onsuccess = () => {
-        if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('products').doc(productId).delete()
-            .catch(e => console.error('Firestore deleteProduct error:', e));
-        }
         this._notifyListener('products');
         resolve();
       };
@@ -386,11 +258,6 @@ class BokeoPOSDB {
           }
           
           tx.oncomplete = () => {
-            if (this.isFirebaseEnabled && this.firestore && product.stock < 9999) {
-              this.firestore.collection('products').doc(productId).update({
-                stock: product.stock
-              }).catch(e => console.error('Firestore stock sync error:', e));
-            }
             this._notifyListener('products');
             resolve(product);
           };
@@ -427,11 +294,6 @@ class BokeoPOSDB {
       const req = store.put(txData);
 
       req.onsuccess = () => {
-        // Sync to cloud in background (non-blocking)
-        if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('transactions').doc(txData.id).set(txData)
-            .catch(e => console.error('Firestore saveTransaction error:', e));
-        }
         this._notifyListener('transactions');
         resolve(txData);
       };
@@ -446,10 +308,6 @@ class BokeoPOSDB {
       const req = store.delete(txId);
 
       req.onsuccess = () => {
-        if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('transactions').doc(txId).delete()
-            .catch(e => console.error('Firestore deleteTransaction error:', e));
-        }
         this._notifyListener('transactions');
         resolve();
       };
@@ -476,10 +334,6 @@ class BokeoPOSDB {
         tx.oncomplete = () => resolve();
         tx.onerror = () => resolve();
       });
-      if (this.isFirebaseEnabled && this.firestore) {
-        this.firestore.collection('activity_log').doc(record.id).set(record)
-          .catch(e => console.error('Firestore logActivity error:', e));
-      }
       return record;
     } catch (e) {
       console.error('logActivity failed:', e);
@@ -522,10 +376,6 @@ class BokeoPOSDB {
       const req = store.put(cashier);
 
       req.onsuccess = () => {
-        if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('cashiers').doc(cashier.id).set(cashier)
-            .catch(e => console.error('Firestore saveCashier error:', e));
-        }
         this._notifyListener('cashiers');
         resolve(cashier);
       };
@@ -540,10 +390,6 @@ class BokeoPOSDB {
       const req = store.delete(id);
 
       req.onsuccess = () => {
-        if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('cashiers').doc(id).delete()
-            .catch(e => console.error('Firestore deleteCashier error:', e));
-        }
         this._notifyListener('cashiers');
         resolve();
       };
@@ -582,10 +428,6 @@ class BokeoPOSDB {
       const req = store.put(member);
 
       req.onsuccess = () => {
-        if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('members').doc(member.id).set(member)
-            .catch(e => console.error('Firestore saveMember error:', e));
-        }
         this._notifyListener('members');
         resolve(member);
       };
@@ -624,10 +466,6 @@ class BokeoPOSDB {
       const req = store.put(session);
 
       req.onsuccess = () => {
-        if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('petty_cash').doc(session.id).set(session)
-            .catch(e => console.error('Firestore savePettyCashSession error:', e));
-        }
         resolve(session);
       };
       req.onerror = () => reject(req.error);
@@ -655,299 +493,10 @@ class BokeoPOSDB {
       settings.id = 'global';
       const req = store.put(settings);
 
-      req.onsuccess = async () => {
-        // Sync to cloud in background (non-blocking)
-        if (this.isFirebaseEnabled && this.firestore) {
-          this.firestore.collection('settings').doc('global').set(settings)
-            .catch(e => console.error('Firestore saveSettings error:', e));
-        }
-        // Re-init Firebase configuration if changed
-        let fbConfig = null;
-        if (settings.firebase_config && settings.firebase_config.apiKey) {
-          fbConfig = settings.firebase_config;
-        } else if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
-          fbConfig = DEFAULT_FIREBASE_CONFIG;
-        }
-
-        if (fbConfig) {
-          this._initFirebase(fbConfig);
-        } else {
-          this.isFirebaseEnabled = false;
-          this.firestore = null;
-        }
+      req.onsuccess = () => {
         resolve(settings);
       };
       req.onerror = () => reject(req.error);
-    });
-  }
-
-  /* =========================================================================
-     REAL-TIME CLOUD SYNCHRONIZATION (FIREBASE FIRESTORE)
-     ========================================================================= */
-
-  _setupRealtimeSyncListeners() {
-    if (!this.firestore) return;
-
-    // Listen to Products Changes in Firestore (to sync stock & items real-time)
-    this.firestore.collection('products').onSnapshot((snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
-        const data = change.doc.data();
-        if (change.type === 'added' || change.type === 'modified') {
-          await this._saveProductLocalOnly(data);
-        } else if (change.type === 'removed') {
-          await this._deleteProductLocalOnly(change.doc.id);
-        }
-      });
-      this._notifyListener('products');
-    });
-
-    // Listen to Cashier Changes
-    this.firestore.collection('cashiers').onSnapshot((snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
-        const data = change.doc.data();
-        if (change.type === 'added' || change.type === 'modified') {
-          await this._saveCashierLocalOnly(data);
-        }
-      });
-      this._notifyListener('cashiers');
-    });
-
-    // Listen to Members Changes
-    this.firestore.collection('members').onSnapshot((snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
-        const data = change.doc.data();
-        if (change.type === 'added' || change.type === 'modified') {
-          await this._saveMemberLocalOnly(data);
-        }
-      });
-      this._notifyListener('members');
-    });
-
-    // Listen to Transactions (For cross-terminal dashboard update)
-    this.firestore.collection('transactions').onSnapshot((snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
-        const data = change.doc.data();
-        if (change.type === 'added' || change.type === 'modified') {
-          await this._saveTransactionLocalOnly(data);
-        } else if (change.type === 'removed') {
-          await this._deleteTransactionLocalOnly(change.doc.id);
-        }
-      });
-      this._notifyListener('transactions');
-    });
-
-    // Listen to Settings Changes (For cross-terminal configuration sync)
-    this.firestore.collection('settings').doc('global').onSnapshot(async (doc) => {
-      if (doc.exists) {
-        const data = doc.data();
-        const localSettings = await this.getSettings();
-        if (JSON.stringify(localSettings) !== JSON.stringify(data)) {
-          console.log('Settings changed on cloud. Updating local settings...');
-          await this._saveSettingsLocalOnly(data);
-          this._notifyListener('settings');
-        }
-      }
-    });
-  }
-
-  async syncLocalDataToFirestore() {
-    if (!this.isFirebaseEnabled || !this.firestore) return;
-    try {
-      console.log('Starting local data migration to Firestore...');
-
-      // 0. Sync Settings
-      const localSettings = await this.getSettings();
-      if (localSettings) {
-        const docRef = this.firestore.collection('settings').doc('global');
-        const docSnap = await docRef.get();
-        if (!docSnap.exists) {
-          await docRef.set(localSettings);
-          console.log('Uploaded settings to Firestore.');
-        } else {
-          const cloudSettings = docSnap.data();
-          if (!cloudSettings.gdrive_script_url && localSettings.gdrive_script_url) {
-            await docRef.update({ gdrive_script_url: localSettings.gdrive_script_url });
-            console.log('Merged local gdrive_script_url to Firestore settings.');
-          }
-        }
-      }
-
-      // 1. Sync Cashiers
-      const cashiers = await this.getCashiers();
-      if (cashiers.length > 0) {
-        const snapshot = await this.firestore.collection('cashiers').get();
-        const existingIds = new Set(snapshot.docs.map(doc => doc.id));
-        const missing = cashiers.filter(c => !existingIds.has(c.id));
-        
-        if (missing.length > 0) {
-          const batch = this.firestore.batch();
-          missing.forEach(c => {
-            const docRef = this.firestore.collection('cashiers').doc(c.id);
-            batch.set(docRef, c, { merge: true });
-          });
-          await batch.commit();
-          console.log(`Uploaded ${missing.length} missing cashiers to Firestore.`);
-        }
-      }
-
-      // 2. Sync Members
-      const members = await this.getMembers();
-      if (members.length > 0) {
-        const snapshot = await this.firestore.collection('members').get();
-        const existingIds = new Set(snapshot.docs.map(doc => doc.id));
-        const missing = members.filter(m => !existingIds.has(m.id));
-
-        if (missing.length > 0) {
-          // Chunk in batches of 500 (Firestore limit)
-          const chunks = [];
-          for (let i = 0; i < missing.length; i += 500) {
-            chunks.push(missing.slice(i, i + 500));
-          }
-          for (const chunk of chunks) {
-            const batch = this.firestore.batch();
-            chunk.forEach(m => {
-              const docRef = this.firestore.collection('members').doc(m.id);
-              batch.set(docRef, m, { merge: true });
-            });
-            await batch.commit();
-          }
-          console.log(`Uploaded ${missing.length} missing members to Firestore.`);
-        }
-      }
-
-      // 3. Sync Petty Cash Sessions
-      const pettySessions = await this.getPettyCashSessions();
-      if (pettySessions.length > 0) {
-        const snapshot = await this.firestore.collection('petty_cash').get();
-        const existingIds = new Set(snapshot.docs.map(doc => doc.id));
-        const missing = pettySessions.filter(p => !existingIds.has(p.id));
-
-        if (missing.length > 0) {
-          const chunks = [];
-          for (let i = 0; i < missing.length; i += 500) {
-            chunks.push(missing.slice(i, i + 500));
-          }
-          for (const chunk of chunks) {
-            const batch = this.firestore.batch();
-            chunk.forEach(s => {
-              const docRef = this.firestore.collection('petty_cash').doc(s.id);
-              batch.set(docRef, s, { merge: true });
-            });
-            await batch.commit();
-          }
-          console.log(`Uploaded ${missing.length} missing petty cash sessions to Firestore.`);
-        }
-      }
-
-      // 4. Sync Transactions
-      const transactions = await this.getTransactions();
-      if (transactions.length > 0) {
-        const snapshot = await this.firestore.collection('transactions').get();
-        const existingIds = new Set(snapshot.docs.map(doc => doc.id));
-        const missing = transactions.filter(t => !existingIds.has(t.id));
-
-        if (missing.length > 0) {
-          const chunks = [];
-          for (let i = 0; i < missing.length; i += 500) {
-            chunks.push(missing.slice(i, i + 500));
-          }
-          for (const chunk of chunks) {
-            const batch = this.firestore.batch();
-            chunk.forEach(tx => {
-              const docRef = this.firestore.collection('transactions').doc(tx.id);
-              batch.set(docRef, tx, { merge: true });
-            });
-            await batch.commit();
-          }
-          console.log(`Uploaded ${missing.length} missing transactions to Firestore.`);
-        }
-      }
-
-      console.log('Local data migration to Firestore completed successfully.');
-    } catch (e) {
-      console.error('Error during local data migration to Firestore:', e);
-    }
-  }
-
-  // Local-only database writes (called by firebase event listeners to avoid infinite loops)
-  _saveProductLocalOnly(product) {
-    return new Promise((resolve) => {
-      const tx = this.db.transaction('products', 'readwrite');
-      const store = tx.objectStore('products');
-      // Keep a locally-uploaded image: cloud docs may not carry it, so never let an
-      // image-less cloud update wipe the local product photo.
-      const getReq = store.get(product.id);
-      getReq.onsuccess = () => {
-        const existing = getReq.result;
-        if (existing && existing.image && !product.image) product.image = existing.image;
-        store.put(product);
-      };
-      getReq.onerror = () => store.put(product);
-      tx.oncomplete = resolve;
-    });
-  }
-
-  _deleteProductLocalOnly(productId) {
-    return new Promise((resolve) => {
-      const tx = this.db.transaction('products', 'readwrite');
-      tx.objectStore('products').delete(productId);
-      tx.oncomplete = resolve;
-    });
-  }
-
-  _saveCashierLocalOnly(cashier) {
-    return new Promise((resolve) => {
-      const tx = this.db.transaction('cashiers', 'readwrite');
-      tx.objectStore('cashiers').put(cashier);
-      tx.oncomplete = resolve;
-    });
-  }
-
-  _saveMemberLocalOnly(member) {
-    return new Promise((resolve) => {
-      const tx = this.db.transaction('members', 'readwrite');
-      tx.objectStore('members').put(member);
-      tx.oncomplete = resolve;
-    });
-  }
-
-  _saveTransactionLocalOnly(txData) {
-    return new Promise((resolve) => {
-      const tx = this.db.transaction('transactions', 'readwrite');
-      tx.objectStore('transactions').put(txData);
-      tx.oncomplete = resolve;
-    });
-  }
-
-  _deleteTransactionLocalOnly(txId) {
-    return new Promise((resolve) => {
-      const tx = this.db.transaction('transactions', 'readwrite');
-      tx.objectStore('transactions').delete(txId);
-      tx.oncomplete = resolve;
-    });
-  }
-
-  _saveSettingsLocalOnly(settings) {
-    return new Promise((resolve) => {
-      const tx = this.db.transaction('settings', 'readwrite');
-      const store = tx.objectStore('settings');
-      settings.id = 'global';
-      store.put(settings);
-      tx.oncomplete = () => {
-        let fbConfig = null;
-        if (settings.firebase_config && settings.firebase_config.apiKey) {
-          fbConfig = settings.firebase_config;
-        } else if (typeof DEFAULT_FIREBASE_CONFIG !== 'undefined' && DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
-          fbConfig = DEFAULT_FIREBASE_CONFIG;
-        }
-        if (fbConfig) {
-          this._initFirebase(fbConfig);
-        } else {
-          this.isFirebaseEnabled = false;
-          this.firestore = null;
-        }
-        resolve();
-      };
     });
   }
 
@@ -1087,10 +636,6 @@ class BokeoPOSDB {
 
       // Get current local products
       const localProducts = await this.getProducts();
-      // Snapshot products before merge so we only write CHANGED products to Firestore
-      // (prevents blowing the Firestore free quota by re-writing everything on every poll).
-      const _preSyncSnap = {};
-      localProducts.forEach(p => { _preSyncSnap[p.id] = JSON.stringify(p); });
 
       // Parse Exchange Rates from prices sheet
       let rateLak = settings.exchange_rate_lak;
@@ -1283,28 +828,6 @@ class BokeoPOSDB {
           store.delete(id);
         });
         await new Promise(resolve => tx.oncomplete = resolve);
-
-        // Sync with Firebase Firestore if online — ONLY write products that actually changed
-        if (this.isFirebaseEnabled && this.firestore) {
-          const batch = this.firestore.batch();
-          let _dirty = 0;
-          updatedProducts.forEach(p => {
-            if (_preSyncSnap[p.id] !== JSON.stringify(p)) { // new or changed only
-              batch.set(this.firestore.collection('products').doc(p.id), p);
-              _dirty++;
-            }
-          });
-          idsToDelete.forEach(id => {
-            batch.delete(this.firestore.collection('products').doc(id));
-            _dirty++;
-          });
-          if (_dirty > 0) {
-            await batch.commit();
-            console.log('Firestore products: wrote ' + _dirty + ' changed/removed.');
-          } else {
-            console.log('Firestore products: no changes — skipped write (saves quota).');
-          }
-        }
       } else {
         // Fallback safety if no products imported (should not happen since we return earlier on error)
         const tx = this.db.transaction('products', 'readwrite');
@@ -1345,12 +868,25 @@ class BokeoPOSDB {
           const cashierRows = this._parseCSV(cashiersText);
           const txC = this.db.transaction('cashiers', 'readwrite');
           const storeC = txC.objectStore('cashiers');
+          // The Sheet is the master source for staff accounts: clear the local list first,
+          // then repopulate so removed staff and changed roles/PINs are reflected exactly.
+          storeC.clear();
           cashierRows.forEach((row, idx) => {
-            if (idx === 0) return; // skip header
-            const name = row[0] ? row[0].trim() : '';
-            if (!name) return;
-            // Column B is Department (not a unique id) -> use the name itself as the id
-            storeC.put({ id: name, name: name });
+            if (idx === 0) return; // skip header row
+            // Columns: A=employee_id, B=name, C=department, D=role, E=pin
+            const empId = row[0] ? row[0].trim() : '';
+            const name = row[1] ? row[1].trim() : '';
+            if (!empId || !name) return; // both employee_id and name are required
+            // Columns: A=employee_id, B=name, C=department, D=role, E=pin, F=pos (POS key)
+            storeC.put({
+              id: empId,
+              employee_id: empId,
+              name: name,
+              department: row[2] ? row[2].trim() : '',
+              role: normalizeRole(row[3], row[2]),
+              pin: row[4] ? row[4].toString().trim() : '',
+              pos: row[5] ? row[5].trim() : ''
+            });
           });
           await new Promise(resolve => txC.oncomplete = resolve);
           console.log('Cashiers synced successfully from Google Sheets.');
@@ -1431,11 +967,6 @@ class BokeoPOSDB {
           const _sheetIds = new Set();
           const txSess = this.db.transaction('transactions', 'readwrite');
           const storeSess = txSess.objectStore('transactions');
-          
-          let firebaseBatch = null;
-          if (this.isFirebaseEnabled && this.firestore) {
-            firebaseBatch = this.firestore.batch();
-          }
 
           salesRows.forEach((row, idx) => {
             if (idx === 0 || row.length < 10) return; // Skip header or invalid rows
@@ -1561,17 +1092,9 @@ class BokeoPOSDB {
             };
 
             storeSess.put(txObj);
-
-            if (firebaseBatch) {
-              const docRef = this.firestore.collection('transactions').doc(txObj.id);
-              firebaseBatch.set(docRef, txObj, { merge: true });
-            }
           });
-          
+
           await new Promise(resolve => txSess.oncomplete = resolve);
-          if (firebaseBatch) {
-            await firebaseBatch.commit();
-          }
 
           // Sheet = ฐานข้อมูลจริง: ลบรายการใน local ที่ไม่มีใน Sheet (orphan) ยกเว้นที่เพิ่งสร้าง < 15 นาที (รอ sync ขึ้น Sheet)
           try {
