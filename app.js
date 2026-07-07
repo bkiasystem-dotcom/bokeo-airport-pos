@@ -4153,8 +4153,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderSettingsPage() {
     const s = state.settings;
-    els.settingsRatesThbLak.value = s.exchange_rate_lak;
-    els.settingsRatesThbCny.value = s.exchange_rate_cny;
+    if (els.settingsRatesThbLak) els.settingsRatesThbLak.value = s.exchange_rate_lak;
+    if (els.settingsRatesThbCny) els.settingsRatesThbCny.value = s.exchange_rate_cny;
     els.settingsAdminPin.value = s.admin_pin;
     if (els.settingsFirebaseConfig) els.settingsFirebaseConfig.value = s.firebase_config ? JSON.stringify(s.firebase_config, null, 2) : '';
     els.settingsGDriveScriptUrl.value = s.gdrive_script_url || '';
@@ -4348,8 +4348,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Save Settings page details
   els.settingsSaveBtn.addEventListener('click', async () => {
-    const rateLak = parseFloat(els.settingsRatesThbLak.value) || DEFAULT_LAK_RATE;
-    const rateCny = parseFloat(els.settingsRatesThbCny.value) || DEFAULT_CNY_RATE;
+    // ອັດຕາແລກປ່ຽນ ບໍ່ໃຫ້ປັບໃນ Settings ອີກຕໍ່ໄປ — ດຶງມາຈາກ Sheet 'ລາຄາສິນຄ້າ' ໂດຍອັດຕະໂນມັດ (ໃຊ້ພຽງແປງຍອດໃນລາຍງານ).
+    const rateLak = (els.settingsRatesThbLak && parseFloat(els.settingsRatesThbLak.value)) || state.settings.exchange_rate_lak || DEFAULT_LAK_RATE;
+    const rateCny = (els.settingsRatesThbCny && parseFloat(els.settingsRatesThbCny.value)) || state.settings.exchange_rate_cny || DEFAULT_CNY_RATE;
     const adminPin = els.settingsAdminPin.value.trim();
     const fbRaw = els.settingsFirebaseConfig ? els.settingsFirebaseConfig.value.trim() : '';
 
@@ -4422,13 +4423,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.settings.receipt_slogan_eng = els.settingsReceiptSloganEng.value.trim();
     }
 
-    // Apply Rate Updates to Product lists
-    state.products.forEach(p => {
-      // Recalculate price in LAK & CNY
-      p.price_lak = Math.round(p.price_thb * rateLak);
-      p.price_cny = parseFloat((p.price_thb * rateCny).toFixed(2));
-      window.BokeoDB.saveProduct(p);
-    });
+    // ໝາຍເຫດ: ບໍ່ຄິດໄລ່ລາຄາ LAK/CNY ຄືນຈາກ THB × ອັດຕາ ອີກຕໍ່ໄປ.
+    // ລາຄາແຕ່ລະສະກຸນ (LAK/THB/CNY) ຖືກກຳນົດເອງໃນ Google Sheet ໂດຍກົງ (ບໍ່ແມ່ນຄິດຈາກອັດຕາ).
+    // ອັດຕາແລກປ່ຽນ ໃຊ້ພຽງແປງຍອດລວມໃນລາຍງານເທົ່ານັ້ນ — ການທັບລາຄາເຮັດໃຫ້ໃບບິນ ແລະ ຍອດສະຫຼຸບບໍ່ກົງກັນ.
+    // (ເກົ່າ: p.price_lak = Math.round(p.price_thb * rateLak); p.price_cny = ...; saveProduct(p);)
 
     await window.BokeoDB.saveSettings(state.settings);
     alert('ບັນທຶກການຕັ້ງຄ່າສຳເລັດແລ້ວ');

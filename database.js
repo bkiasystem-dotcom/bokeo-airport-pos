@@ -1160,8 +1160,8 @@ class BokeoPOSDB {
         let priceLak = parseFloat(row[5] ? row[5].replace(/[^\d\.]/g, '') : '0') || 0;
         let priceCny = parseFloat(row[6] ? row[6].replace(/[^\d\.]/g, '') : '0') || 0;
 
-        if (!priceLak && priceThb) priceLak = Math.round(priceThb * rateLak);
-        if (!priceCny && priceThb) priceCny = parseFloat((priceThb * rateCny).toFixed(2));
+        // ລາຄາ 3 ສະກຸນ (ບາດ/ກີບ/ຢວນ) ດຶງຈາກ Sheet 'ລາຄາສິນຄ້າ' ໂດຍກົງ (ຄໍລຳ E/F/G) ເທົ່ານັ້ນ.
+        // ບໍ່ຄິດໄລ່ຈາກອັດຕາແລກປ່ຽນ — ຖ້າຊ່ອງໃນ Sheet ຫວ່າງ ໃຫ້ເປັນ 0 (ໃຫ້ໄປແກ້ໃນ Sheet).
 
         // Try to match product in our database
         let matchedProduct = localProducts.find(p => p.id === productId);
