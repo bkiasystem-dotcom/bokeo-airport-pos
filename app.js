@@ -4338,6 +4338,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof showToast === 'function') showToast('✓ ເພີ່ມພະນັກງານ ແລະ ບັນທຶກຂຶ້ນ Sheet', 'success');
   });
 
+  // ===== ລ້າງຂໍ້ມູນທົດລອງ (Clear test data) — ແອດມິນ + PIN =====
+  const _btnClearTest = document.getElementById('btn-clear-test-data');
+  if (_btnClearTest) {
+    _btnClearTest.addEventListener('click', async () => {
+      const pin = prompt('ໃສ່ລະຫັດ PIN ຜູ້ດູແລ ເພື່ອລ້າງຂໍ້ມູນທົດລອງ:');
+      if (pin === null) return;
+      if (String(pin) !== String(state.settings.admin_pin || '')) { alert('ລະຫັດ PIN ບໍ່ຖືກຕ້ອງ'); return; }
+      if (!confirm('ຢືນຢັນລ້າງຂໍ້ມູນທົດລອງທັງໝົດ?\nຍອດຂາຍ + ກະ (ທັງໃນເຄື່ອງ ແລະ Google Sheet)\nລາຄາ/ສະຕັອກ/ພະນັກງານ ຈະບໍ່ຖືກລຶບ.')) return;
+      _btnClearTest.disabled = true;
+      _btnClearTest.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ກຳລັງລ້າງ...';
+      const url = state.settings.gdrive_script_url;
+      if (url) {
+        try { await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'clear_test_data' }) }); } catch (e) { console.warn('clear sheet failed:', e); }
+      }
+      try {
+        const db = window.BokeoDB.db;
+        await new Promise((res, rej) => {
+          const txx = db.transaction(['transactions', 'petty_cash'], 'readwrite');
+          txx.objectStore('transactions').clear();
+          txx.objectStore('petty_cash').clear();
+          txx.oncomplete = res; txx.onerror = () => rej(txx.error);
+        });
+      } catch (e) { console.error('clear local failed:', e); }
+      alert('ລ້າງຂໍ້ມູນທົດລອງສຳເລັດ! ລະບົບຈະໂຫຼດໃໝ່.');
+      location.reload();
+    });
+  }
+
   function renderSettingsPOSList() {
     els.settingsPOSList.innerHTML = '';
     state.settings.pos_points.forEach((p, index) => {

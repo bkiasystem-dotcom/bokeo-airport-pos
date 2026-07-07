@@ -312,6 +312,11 @@
                     <label for="settings-admin-pin">ລະຫັດ PIN ຜູ້ດູແລລະບົບ (Admin PIN - 4 ຕົວເລກ)</label>
                     <input type="password" maxlength="4" class="form-input" id="settings-admin-pin" placeholder="1234">
                   </div>
+                  <div class="form-group" style="margin-top:10px; border-top:1px dashed var(--border-color); padding-top:12px;">
+                    <label style="color:var(--danger-color); font-weight:700;"><i class="fas fa-broom"></i> ລ້າງຂໍ້ມູນທົດລອງ (Clear Test Data)</label>
+                    <p style="font-size:0.75rem; color:var(--text-secondary); margin:4px 0 8px;">ລຶບ ຍອດຂາຍ + ກະ ທັງໃນເຄື່ອງ ແລະ Google Sheet — ໃຊ້ກ່ອນເລີ່ມຂາຍຈິງ. ບໍ່ແຕະ ລາຄາ/ສະຕັອກ/ພະນັກງານ.</p>
+                    <button class="secondary-btn" id="btn-clear-test-data" style="color:var(--danger-color); border:2px solid var(--danger-color); width:100%;"><i class="fas fa-trash-alt"></i> ລ້າງຂໍ້ມູນທົດລອງທັງໝົດ</button>
+                  </div>
                 </div>
                 <!-- Google Drive Sync Setup -->
                 <div class="settings-card">
@@ -668,6 +673,6 @@
   <input type="file" id="hidden-product-image-uploader" accept="image/*" style="display: none;">
   <!-- Load Database and Application Logic scripts -->
   <script src="database.js?v=46"></script>
-  <script src="app.js?v=49"></script>
+  <script src="app.js?v=50"></script>
 </body>
 </html>
