@@ -1027,15 +1027,7 @@ class BokeoPOSDB {
             }
           }
 
-          const piRes = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=product_images&t=${cacheBust}`);
-          if (piRes.ok) {
-            productImagesText = await piRes.text();
-            if (productImagesText.trim().startsWith('Error:')) {
-              console.warn('Apps Script product_images fetch returned error:', productImagesText);
-              productImagesText = '';
-            }
-          }
-          console.log('Apps Script Web App fetch successful.');
+          console.log('Apps Script Web App fetch successful (product_images fetched separately).');
         } catch (err) {
           console.warn('Apps Script Web App fetch failed, falling back to direct Gviz fetch:', err);
           pricesText = '';
@@ -1080,6 +1072,19 @@ class BokeoPOSDB {
         const stockJson = await stockRes.json();
         stockText = stockJson.contents;
         console.log('AllOrigins proxy fetch successful.');
+      }
+
+      // ດຶງຮູບສິນຄ້າ (product_images) ແຍກຕ່າງຫາກ ຫຼັງລາຄາ/ສະຕັອກ ໂຫຼດແລ້ວ.
+      // Apps Script ຕັ້ງ sharing ໃຫ້ທຸກໄຟລ໌ ຈຶ່ງຊ້າ — ຖ້າຢູ່ໃນລູກໂຊ່ຫຼັກ ຈະ timeout ແລ້ວລົ້ມ sync.
+      // ແຍກມາ + ໃຫ້ເວລາ 45 ວິນາທີ ເພື່ອບໍ່ໃຫ້ກະທົບຂໍ້ມູນຫຼັກ.
+      if (!productImagesText && settings && settings.gdrive_script_url) {
+        try {
+          const piRes2 = await fetchWithTimeout(`${settings.gdrive_script_url}?sheet=product_images&t=${cacheBust}`, { timeout: 45000 });
+          if (piRes2.ok) {
+            const _pit = await piRes2.text();
+            if (_pit && !_pit.trim().startsWith('Error:')) productImagesText = _pit;
+          }
+        } catch (e) { console.warn('product_images (isolated) fetch failed:', e); }
       }
 
       const pricesRows = this._parseCSV(pricesText);
