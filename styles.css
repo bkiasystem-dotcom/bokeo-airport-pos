@@ -639,6 +639,39 @@ body {
   justify-content: center;
 }
 
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.user-table th {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 2px solid var(--border-color, #e6dfd3);
+  color: var(--text-secondary, #78716c);
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: var(--surface-color, #fff);
+  white-space: nowrap;
+}
+.user-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-color, #e6dfd3);
+  vertical-align: middle;
+}
+.user-table tbody tr:last-child td { border-bottom: none; }
+.user-table tbody tr:hover { background: var(--bg-color, #faf8f5); }
+.user-role-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
 .settings-tabs {
   display: flex;
   gap: 6px;

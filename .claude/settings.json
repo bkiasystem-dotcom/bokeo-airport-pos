@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(AppsScript_FULL_paste_all.gs)",
+      "Write(AppsScript_FULL_paste_all.gs)",
+      "Edit(**/AppsScript_FULL_paste_all.gs)",
+      "Write(**/AppsScript_FULL_paste_all.gs)"
+    ]
+  }
+}

@@ -6,7 +6,7 @@
   <title>Bokeo International Airport POS - ລະບົບຈຸດຂາຍ</title>
 
   <!-- CSS Stylesheet -->
-  <link rel="stylesheet" href="styles.css?v=51">
+  <link rel="stylesheet" href="styles.css?v=53">
 
   <!-- FontAwesome for Premium Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -464,10 +464,33 @@
                     <button class="secondary-btn" id="user-form-cancel" style="display:none;"><i class="fas fa-times"></i> ຍົກເລີກ</button>
                   </div>
                 </div>
-                <!-- User list -->
+                <!-- User list (table + filters) -->
                 <div class="settings-card">
-                  <h3><i class="fas fa-user-friends"></i> ລາຍชื่อผู้ใช้ (ຈາก Google Sheet)</h3>
-                  <div id="settings-cashiers-list" style="max-height:360px; overflow-y:auto; border:1px solid var(--border-color); border-radius: var(--radius-sm);"></div>
+                  <h3><i class="fas fa-user-friends"></i> ລາຍຊື່ຜູ້ໃຊ້ (ຈາກ Google Sheet) <span id="user-count" style="font-size:0.8rem; color:var(--text-secondary); font-weight:400;"></span></h3>
+                  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+                    <input type="text" class="form-input" id="user-filter-search" placeholder="ຄົ້ນຫາ ຊື່ / ລະຫັດ..." style="flex:1; min-width:160px;">
+                    <select class="form-select" id="user-filter-role" style="max-width:160px;">
+                      <option value="">ທຸກ Role</option>
+                      <option value="root">Root</option>
+                      <option value="admin">Admin</option>
+                      <option value="accountant">Accountant</option>
+                      <option value="cashier">Cashier</option>
+                    </select>
+                    <select class="form-select" id="user-filter-pos" style="max-width:200px;">
+                      <option value="">ທຸກ POS</option>
+                    </select>
+                  </div>
+                  <div style="overflow-x:auto; border:1px solid var(--border-color); border-radius: var(--radius-sm);">
+                    <table class="user-table">
+                      <thead>
+                        <tr>
+                          <th>ລະຫັດ</th><th>ຊື່</th><th>ພະແນກ</th><th>Role</th><th>ຈຸດຂາຍ</th><th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="settings-cashiers-list"></tbody>
+                    </table>
+                    <div id="user-table-empty" style="display:none; text-align:center; padding:16px; color:var(--text-secondary);">ບໍ່ພົບຜູ້ໃຊ້</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -757,7 +780,7 @@
   <!-- Hidden uploader for product menu images -->
   <input type="file" id="hidden-product-image-uploader" accept="image/*" style="display: none;">
   <!-- Load Database and Application Logic scripts -->
-  <script src="database.js?v=50"></script>
-  <script src="app.js?v=56"></script>
+  <script src="database.js?v=51"></script>
+  <script src="app.js?v=58"></script>
 </body>
 </html>

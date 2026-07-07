@@ -354,6 +354,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     settingsRatesThbLak: document.getElementById('settings-rate-thb-lak'),
     settingsRatesThbCny: document.getElementById('settings-rate-thb-cny'),
     settingsCashiersList: document.getElementById('settings-cashiers-list'),
+    userFilterSearch: document.getElementById('user-filter-search'),
+    userFilterRole: document.getElementById('user-filter-role'),
+    userFilterPos: document.getElementById('user-filter-pos'),
+    userTableEmpty: document.getElementById('user-table-empty'),
+    userCount: document.getElementById('user-count'),
     userFormTitle: document.getElementById('user-form-title'),
     userFormEmpId: document.getElementById('user-form-empid'),
     userFormName: document.getElementById('user-form-name'),
@@ -1018,6 +1023,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let success = false;
     try {
       success = await window.BokeoDB.syncWithGoogleSheets();
+      // Reload fresh data into memory and re-render whatever the user is viewing
+      state.products = await window.BokeoDB.getProducts();
+      state.cashiers = await window.BokeoDB.getCashiers();
+      state.members = await window.BokeoDB.getMembers();
+      refreshCurrentView();
     } finally {
       icon.classList.remove('fa-spin');
       hideLoading();
@@ -1029,6 +1039,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       alert('ບໍ່ສາມາດອັບເດດຂໍ້ມູນໄດ້, ກະລຸນາກວດສອບການເຊື່ອມຕໍ່ອິນເຕີເນັດ');
     }
   });
+
+  // Re-render the currently active view with the latest in-memory data
+  function refreshCurrentView() {
+    switch (state.currentView) {
+      case 'pos': renderProducts(); break;
+      case 'stock': renderStockTable(); break;
+      case 'dashboard': if (typeof loadDashboardData === 'function') loadDashboardData(); break;
+      case 'settings': renderSettingsPage(); break;
+    }
+    checkLowStockAlerts();
+  }
 
   /* =========================================================================
      SELF-SERVICE CHANGE PIN
@@ -4488,6 +4509,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Render Cashier List + prepare the user form (root only)
     populateUserFormPOS();
+    populateUserFilterPOS();
     resetUserForm();
     renderSettingsCashiers();
 
@@ -4548,39 +4570,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
   }
 
+  // Fill the POS filter dropdown from the fixed POS_POINTS key map (once)
+  function populateUserFilterPOS() {
+    if (!els.userFilterPos) return;
+    let html = '<option value="">ທຸກ POS</option>';
+    Object.keys(POS_POINTS).forEach(key => {
+      html += `<option value="${key}">${POS_POINTS[key].name}</option>`;
+    });
+    els.userFilterPos.innerHTML = html;
+  }
+
   function renderSettingsCashiers() {
-    els.settingsCashiersList.innerHTML = '';
-    state.cashiers.forEach(c => {
-      const li = document.createElement('div');
-      li.style.display = 'flex';
-      li.style.justifyContent = 'space-between';
-      li.style.alignItems = 'center';
-      li.style.padding = '8px 12px';
-      li.style.borderBottom = '1px solid var(--border-color)';
-      
-      const roleLabels = { root: 'Root', admin: 'Admin', accountant: 'ບັນຊີ', cashier: 'Cashier' };
+    const tbody = els.settingsCashiersList;
+    if (!tbody) return;
+    const roleLabels = { root: 'Root', admin: 'Admin', accountant: 'ບັນຊີ', cashier: 'Cashier' };
+    const roleColors = { root: '#b91c1c', admin: '#b45309', accountant: '#6d28d9', cashier: '#0f766e' };
+
+    const q = (els.userFilterSearch ? els.userFilterSearch.value : '').trim().toLowerCase();
+    const roleF = els.userFilterRole ? els.userFilterRole.value : '';
+    const posF = els.userFilterPos ? els.userFilterPos.value : '';
+
+    const list = (state.cashiers || []).filter(c => {
+      const id = String(c.employee_id || c.id || '').toLowerCase();
+      const name = (c.name || '').toLowerCase();
+      if (q && !(id.includes(q) || name.includes(q))) return false;
+      if (roleF && (c.role || 'cashier') !== roleF) return false;
+      if (posF && (c.pos || '') !== posF) return false;
+      return true;
+    }).sort((a, b) => String(a.employee_id || a.id).localeCompare(String(b.employee_id || b.id)));
+
+    tbody.innerHTML = list.map(c => {
       const role = c.role || 'cashier';
-      const roleColors = { root: '#b91c1c', admin: '#b45309', accountant: '#6d28d9', cashier: '#0f766e' };
+      const id = c.employee_id || c.id || '';
       const posObj = c.pos ? resolvePOS(c.pos) : null;
       const posLabel = posObj ? posObj.name : (c.pos || '—');
-      li.innerHTML = `
-        <span>
-          <b>${c.name}</b>
-          <span style="font-size:0.7rem; color:var(--text-secondary);"> ${c.employee_id || c.id || ''}</span>
-          <span style="font-size:0.7rem; font-weight:700; color:${roleColors[role] || roleColors.cashier}; border:1px solid currentColor; border-radius:6px; padding:1px 6px; margin-left:6px;">${roleLabels[role] || 'Cashier'}</span>
-          <span style="font-size:0.7rem; color:var(--text-secondary); display:block; margin-top:2px;"><i class="fas fa-map-marker-alt"></i> ${posLabel}</span>
-        </span>
-        <span style="display:flex; gap:6px; flex-shrink:0;">
-          <button class="secondary-btn" style="padding:4px 8px;" onclick="window.editUser('${c.employee_id || c.id}')" title="ແກ້ໄຂ">
-            <i class="fas fa-pen"></i>
-          </button>
-          <button class="secondary-btn" style="padding:4px 8px; color:var(--danger-color);" onclick="window.deleteUser('${c.employee_id || c.id}')" title="ລຶບ">
-            <i class="fas fa-trash-alt"></i>
-          </button>
-        </span>
-      `;
-      els.settingsCashiersList.appendChild(li);
-    });
+      const color = roleColors[role] || roleColors.cashier;
+      return `<tr>
+        <td style="font-family:monospace;">${id}</td>
+        <td><b>${c.name || ''}</b></td>
+        <td style="color:var(--text-secondary);">${c.department || '—'}</td>
+        <td><span class="user-role-badge" style="color:${color};">${roleLabels[role] || 'Cashier'}</span></td>
+        <td style="color:var(--text-secondary);">${posLabel}</td>
+        <td style="white-space:nowrap; text-align:right;">
+          <button class="secondary-btn" style="padding:4px 8px;" onclick="window.editUser('${id}')" title="ແກ້ໄຂ"><i class="fas fa-pen"></i></button>
+          <button class="secondary-btn" style="padding:4px 8px; color:var(--danger-color);" onclick="window.deleteUser('${id}')" title="ລຶບ"><i class="fas fa-trash-alt"></i></button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    if (els.userTableEmpty) els.userTableEmpty.style.display = list.length ? 'none' : '';
+    if (els.userCount) els.userCount.textContent = `(${list.length}/${(state.cashiers || []).length})`;
   }
 
   window.deleteCashier = async (id) => {
@@ -4710,6 +4749,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     hideLoading();
     alert(ok ? 'ບັນທຶກຜູ້ໃຊ້ສຳເລັດ' : 'ບັນທຶກໃນເครื่องແລ້ວ ແຕ່ຍັງບໍ່ໄດ້ sync ຂຶ້ນ Sheet (ອາจถูกทับตอน sync ຄັ້ງໜ້າ)');
   });
+
+  // User table filters — re-render on change
+  if (els.userFilterSearch) els.userFilterSearch.addEventListener('input', renderSettingsCashiers);
+  if (els.userFilterRole) els.userFilterRole.addEventListener('change', renderSettingsCashiers);
+  if (els.userFilterPos) els.userFilterPos.addEventListener('change', renderSettingsCashiers);
 
   // Save the settings for the CURRENT tab only (general = rates/gdrive; qr auto-saves on upload)
   els.settingsSaveBtn.addEventListener('click', async () => {

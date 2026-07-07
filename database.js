@@ -6,13 +6,15 @@
 const DB_NAME = 'BokeoAirportPOS_DB_v2';
 const DB_VERSION = 5;
 
-// Helper to fetch with a timeout (default 6 seconds)
+// Helper to fetch with a timeout (default 15 seconds). Always bypasses HTTP cache
+// so a freshly-edited Google Sheet is never served from a stale cached response.
 async function fetchWithTimeout(resource, options = {}) {
   const { timeout = 15000 } = options;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
     const response = await fetch(resource, {
+      cache: 'no-store',
       ...options,
       signal: controller.signal
     });
@@ -500,7 +502,16 @@ class BokeoPOSDB {
     });
   }
 
+  // Public entry: serialize syncs so two never run at once. Overlapping syncs hammer the
+  // Apps Script endpoint and cause some sheet fetches to fail — meaning an edit in the Sheet
+  // would appear "not updated". Chaining guarantees each sync runs alone, with fresh data.
   async syncWithGoogleSheets() {
+    const run = () => this._doSyncWithGoogleSheets();
+    this._syncChain = (this._syncChain ? this._syncChain.catch(() => {}) : Promise.resolve()).then(run);
+    return this._syncChain;
+  }
+
+  async _doSyncWithGoogleSheets() {
     try {
       console.log('Starting Google Sheets Sync...');
       
