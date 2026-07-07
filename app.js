@@ -3886,20 +3886,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="page-break-inside: avoid; break-inside: avoid;">
         <h3 style="font-size: 1.1rem; border-bottom: 2px solid #333; padding-bottom: 6px; margin-top: 24px; margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid;">${t.txList}</h3>
         <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem;">
-          <thead>
-            <tr style="background-color: #f2f2f2;">
-              <th style="padding: 8px; border: 1px solid #ddd;">${t.invNo}</th>
-              <th style="padding: 8px; border: 1px solid #ddd;">${t.time}</th>
-              <th style="padding: 8px; border: 1px solid #ddd;">${bi('ລາຍການສິນຄ້າ / ບໍລິການ', '商品/服务')}</th>
-              <th style="padding: 8px; border: 1px solid #ddd;">${t.cashier}</th>
-              <th style="padding: 8px; border: 1px solid #ddd;">${t.type}</th>
-              <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">${t.amount}</th>
-            </tr>
-          </thead>
           <tbody>
             ${(() => {
               const _groups = {};
               dashboardTransactions.forEach(tx => { const k = tx.pos || '-'; (_groups[k] = _groups[k] || []).push(tx); });
+              const _colHead = '<tr style="background-color:#f2f2f2; font-weight:700;">'
+                + '<td style="padding:8px; border:1px solid #ddd;">' + t.invNo + '</td>'
+                + '<td style="padding:8px; border:1px solid #ddd;">' + t.time + '</td>'
+                + '<td style="padding:8px; border:1px solid #ddd;">' + bi('ລາຍການສິນຄ້າ / ບໍລິການ','商品/服务') + '</td>'
+                + '<td style="padding:8px; border:1px solid #ddd;">' + t.cashier + '</td>'
+                + '<td style="padding:8px; border:1px solid #ddd;">' + t.type + '</td>'
+                + '<td style="padding:8px; border:1px solid #ddd; text-align:right;">' + t.amount + '</td></tr>';
               return Object.keys(_groups).map(posName => {
                 const posLabel = bi(posName, (posTranslations[posName] && posTranslations[posName].cn) || posName);
                 const rowsHtml = _groups[posName].map(tx => {
@@ -3913,7 +3910,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   const itemsStr = (tx.items || []).map(it => `${it.name_lo || it.name_en || ''} x${it.qty}`).join(', ');
                   return `<tr style="page-break-inside: avoid; break-inside: avoid;"><td style="padding: 8px; border: 1px solid #ddd; font-weight: 700;">${tx.id}</td><td style="padding: 8px; border: 1px solid #ddd;">${new Date(tx.timestamp).toLocaleTimeString('lo-LA')}</td><td style="padding: 8px; border: 1px solid #ddd;">${itemsStr}</td><td style="padding: 8px; border: 1px solid #ddd;">${tx.cashier}</td><td style="padding: 8px; border: 1px solid #ddd;">${dpt} ${tx.bank ? `(${tx.bank})` : ''}</td><td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: 700;">${formatNumber(val)} ${sym}</td></tr>`;
                 }).join('');
-                return `<tr style="background:#e8f0fe;"><td colspan="6" style="padding: 8px; border: 1px solid #ddd; font-weight: 800; color:#0d3b66;">${bi('ຈຸດຂາຍ', '销售点')}: ${posLabel}</td></tr>${rowsHtml}`;
+                return `<tr style="background:#d9e6f7;"><td colspan="6" style="padding: 9px; border: 1px solid #ddd; font-weight: 800; color:#0d3b66; font-size:0.9rem;">${bi('ຈຸດຂາຍ', '销售点')}: ${posLabel}</td></tr>${_colHead}${rowsHtml}`;
               }).join('');
             })()}
           </tbody>
