@@ -1128,6 +1128,8 @@ class BokeoPOSDB {
       const _imgUrlByCode = {};
       // ຮູບບາງໄຟລ໌ຍັງໃຊ້ຊື່ລະຫັດເກົ່າ (TMN-VIPL-xxx) ແຕ່ສິນຄ້າປ່ຽນເປັນລະຫັດໃໝ່ (DK-xxxx) ແລ້ວ.
       // ຕາຕະລາງ alias ນີ້ ຊ່ວຍໃຫ້ຮູບຊື່ເກົ່າ ຈັບຄູ່ກັບລະຫັດໃໝ່ໄດ້ ໂດຍບໍ່ຕ້ອງປ່ຽນຊື່ໄຟລ໌.
+      // ທຳໃຫ້ລະຫັດ 'ເປັນມາດຕະຖານ' ໂດຍຕັດເລກ 0 ນຳໜ້າຂອງກຸ່ມຕົວເລກທ້າຍສຸດ (DK-037 = DK-0037)
+      const _normCode = (c) => (c || '').toString().trim().toUpperCase().replace(/0+(\d+)$/, '$1');
       const IMG_ALIAS = {
         'TMN-VIPL-001':'DK-0016','TMN-VIPL-002':'DK-0017','TMN-VIPL-003':'DK-0018','TMN-VIPL-004':'DK-0019',
         'TMN-VIPL-005':'DK-0020','TMN-VIPL-007':'DK-0021','TMN-VIPL-008':'DK-0027','TMN-VIPL-010':'DK-0029',
@@ -1143,6 +1145,7 @@ class BokeoPOSDB {
           if (code && url) {
             _imgUrlByCode[code] = url;
             _imgUrlByCode[code.toUpperCase()] = url;
+            _imgUrlByCode[_normCode(code)] = url; // ທົນ leading-zero (DK-037 = DK-0037)
             if (IMG_ALIAS[code]) _imgUrlByCode[IMG_ALIAS[code]] = url; // ຮູບເກົ່າ → ລະຫັດໃໝ່
           }
         });
@@ -1202,7 +1205,8 @@ class BokeoPOSDB {
           if (nameLo) matchedProduct.name_lo = nameLo;
           matchedProduct.category = currentCategory;
           const _imgM = _imgUrlByCode[productId] || _imgUrlByCode[(productId || '').toUpperCase()]
-            || (matchedProduct.code ? (_imgUrlByCode[matchedProduct.code] || _imgUrlByCode[matchedProduct.code.toString().toUpperCase()]) : '');
+            || _imgUrlByCode[_normCode(productId)]
+            || (matchedProduct.code ? (_imgUrlByCode[matchedProduct.code] || _imgUrlByCode[matchedProduct.code.toString().toUpperCase()] || _imgUrlByCode[_normCode(matchedProduct.code)]) : '');
           if (_imgM) matchedProduct.image = _imgM;
           if (!matchedProduct.max_stock) matchedProduct.max_stock = matchedProduct.stock;
         } else {
@@ -1224,7 +1228,7 @@ class BokeoPOSDB {
             max_stock: defaultStock,
             unit: defaultUnit
           };
-          const _imgN = _imgUrlByCode[productId] || _imgUrlByCode[(productId || '').toUpperCase()];
+          const _imgN = _imgUrlByCode[productId] || _imgUrlByCode[(productId || '').toUpperCase()] || _imgUrlByCode[_normCode(productId)];
           if (_imgN) newProduct.image = _imgN;
           localProducts.push(newProduct);
         }
