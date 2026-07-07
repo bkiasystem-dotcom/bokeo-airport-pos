@@ -1126,7 +1126,7 @@ class BokeoPOSDB {
           if (idx === 0) return;
           const code = row[0] ? row[0].trim() : '';
           const url = row[1] ? row[1].trim() : '';
-          if (code && url) _imgUrlByCode[code] = url;
+          if (code && url) { _imgUrlByCode[code] = url; _imgUrlByCode[code.toUpperCase()] = url; }
         });
       }
 
@@ -1183,7 +1183,9 @@ class BokeoPOSDB {
           if (nameEn) matchedProduct.name_en = nameEn;
           if (nameLo) matchedProduct.name_lo = nameLo;
           matchedProduct.category = currentCategory;
-          if (_imgUrlByCode[productId]) matchedProduct.image = _imgUrlByCode[productId];
+          const _imgM = _imgUrlByCode[productId] || _imgUrlByCode[(productId || '').toUpperCase()]
+            || (matchedProduct.code ? (_imgUrlByCode[matchedProduct.code] || _imgUrlByCode[matchedProduct.code.toString().toUpperCase()]) : '');
+          if (_imgM) matchedProduct.image = _imgM;
           if (!matchedProduct.max_stock) matchedProduct.max_stock = matchedProduct.stock;
         } else {
           // Create new product
@@ -1204,7 +1206,8 @@ class BokeoPOSDB {
             max_stock: defaultStock,
             unit: defaultUnit
           };
-          if (_imgUrlByCode[productId]) newProduct.image = _imgUrlByCode[productId];
+          const _imgN = _imgUrlByCode[productId] || _imgUrlByCode[(productId || '').toUpperCase()];
+          if (_imgN) newProduct.image = _imgN;
           localProducts.push(newProduct);
         }
       });
