@@ -341,9 +341,13 @@ body { background:
 .login-title { text-align: center; }
 .login-title p { margin: 0 0 16px; }
 /* prevent long text overflowing the fields */
-.login-field { min-width: 0; overflow: hidden; }
+.login-field { min-width: 0; }  /* NO overflow:hidden — would clip cashier dropdown */
 .login-field input, .login-field select {
   min-width: 0; max-width: 100%;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .login-field select { text-overflow: ellipsis; }
+
+/* cashier dropdown must not be clipped by its field */
+.login-field { overflow: visible !important; }
+.cashier-dropdown { z-index: 80; }

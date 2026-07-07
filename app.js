@@ -793,8 +793,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Save Cashier if new
     const cashierExists = state.cashiers.some(c => c.name.toLowerCase() === cashierName.toLowerCase());
     if (!cashierExists) {
-      const newCashier = { id: 'cashier_' + Date.now(), name: cashierName };
+      const newCashier = { id: cashierName, name: cashierName };
       await window.BokeoDB.saveCashier(newCashier);
+      pushCashierToSheet(cashierName, false);
       state.cashiers.push(newCashier);
       renderSettingsCashiers();
       populateSetupOptions();
@@ -4272,11 +4273,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ສົ່ງ/ລຶບ ຊື່ພະນັກງານ ໄປ-ຈາກ Google Sheet (ແທັບ Cashiers) — Sheet ເປັນຖານຂໍ້ມູນຫຼັກ
+  async function pushCashierToSheet(name, isDelete) {
+    const url = state.settings.gdrive_script_url;
+    if (!url || !name) return;
+    try {
+      await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: isDelete ? 'delete_cashier' : 'add_cashier', name: name }) });
+    } catch (e) { console.warn('cashier sheet sync failed:', e); }
+  }
+
   window.deleteCashier = async (id) => {
     const confirmDelete = confirm('ທ່ານຕ້ອງການລຶບພະນັກງານຄົນນີ້ແທ້ຫຼືບໍ່?');
     if (confirmDelete) {
       try {
         await window.BokeoDB.deleteCashier(id);
+        await pushCashierToSheet(id, true);
       } catch (e) {
         console.error('Failed to delete cashier:', e);
       }
@@ -4287,16 +4299,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const name = els.newCashierNameInput.value.trim();
     if (!name) return;
 
-    const newCashier = {
-      id: 'cashier_' + Date.now(),
-      name: name
-    };
-
+    const newCashier = { id: name, name: name };
     await window.BokeoDB.saveCashier(newCashier);
+    await pushCashierToSheet(name, false);
     state.cashiers = await window.BokeoDB.getCashiers();
     els.newCashierNameInput.value = '';
     renderSettingsCashiers();
     populateSetupOptions();
+    if (typeof showToast === 'function') showToast('✓ ເພີ່ມພະນັກງານ ແລະ ບັນທຶກຂຶ້ນ Sheet', 'success');
   });
 
   function renderSettingsPOSList() {
