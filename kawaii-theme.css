@@ -333,3 +333,17 @@ body { background:
 .pos-sidebar .clear-cart-btn { position: absolute; right: 16px; top: 15px; padding: 6px 12px; font-size: .72rem; }
 .category-nav { padding: 4px 12px 8px; background: transparent; border: none; }
 .cart-footer { background: rgba(255,255,255,0.55); border-radius: 0 0 22px 22px; }
+
+/* ========================= LOGIN v2: airport logo + fixes ========================= */
+.setup-card { max-width: 430px; width: calc(100% - 32px); padding: 24px 24px 28px; }
+.login-logo-wrap { text-align: center; margin: 2px 0 10px; }
+.login-logo { max-width: 210px; width: 74%; height: auto; display: inline-block; }
+.login-title { text-align: center; }
+.login-title p { margin: 0 0 16px; }
+/* prevent long text overflowing the fields */
+.login-field { min-width: 0; overflow: hidden; }
+.login-field input, .login-field select {
+  min-width: 0; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.login-field select { text-overflow: ellipsis; }
