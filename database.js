@@ -1126,12 +1126,25 @@ class BokeoPOSDB {
       const importedIds = new Set();
       // Shared product images from Google Drive (file name = product id) -> { productId: url }
       const _imgUrlByCode = {};
+      // ຮູບບາງໄຟລ໌ຍັງໃຊ້ຊື່ລະຫັດເກົ່າ (TMN-VIPL-xxx) ແຕ່ສິນຄ້າປ່ຽນເປັນລະຫັດໃໝ່ (DK-xxxx) ແລ້ວ.
+      // ຕາຕະລາງ alias ນີ້ ຊ່ວຍໃຫ້ຮູບຊື່ເກົ່າ ຈັບຄູ່ກັບລະຫັດໃໝ່ໄດ້ ໂດຍບໍ່ຕ້ອງປ່ຽນຊື່ໄຟລ໌.
+      const IMG_ALIAS = {
+        'TMN-VIPL-001':'DK-0016','TMN-VIPL-002':'DK-0017','TMN-VIPL-003':'DK-0018','TMN-VIPL-004':'DK-0019',
+        'TMN-VIPL-005':'DK-0020','TMN-VIPL-007':'DK-0021','TMN-VIPL-008':'DK-0027','TMN-VIPL-010':'DK-0029',
+        'TMN-VIPL-014':'DK-0032','TMN-VIPL-015':'DK-0033','TMN-VIPL-016':'DK-011','TMN-VIPL-017':'DK-034',
+        'TMN-VIPL-018':'DK-035','TMN-VIPL-019':'DK-038','TMN-VIPL-020':'DK-036','TMN-VIPL-024':'DK-039',
+        'TMN-VIPL-025':'DK-040'
+      };
       if (productImagesText) {
         this._parseCSV(productImagesText).forEach((row, idx) => {
           if (idx === 0) return;
           const code = row[0] ? row[0].trim() : '';
           const url = row[1] ? row[1].trim() : '';
-          if (code && url) { _imgUrlByCode[code] = url; _imgUrlByCode[code.toUpperCase()] = url; }
+          if (code && url) {
+            _imgUrlByCode[code] = url;
+            _imgUrlByCode[code.toUpperCase()] = url;
+            if (IMG_ALIAS[code]) _imgUrlByCode[IMG_ALIAS[code]] = url; // ຮູບເກົ່າ → ລະຫັດໃໝ່
+          }
         });
       }
 

@@ -362,6 +362,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Populate Cashier and POS dropdowns in Setup Overlay first so they are visible while syncing
     populateSetupOptions();
 
+    // ຄືນ session ຖ້າມີກະເປີດຄ້າງຢູ່ (refresh ໜ້າ ບໍ່ເດັ້ງອອກ)
+    await restoreSession();
+
     // Show loading status and disable "Start POS" button during startup sync
     let infoDiv = document.getElementById('setup-petty-info');
     if (!infoDiv) {
@@ -695,6 +698,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ຄືນ session (ພະນັກງານ/ຈຸດຂາຍ/ກະ) ຫຼັງ refresh ໜ້າ — ບໍ່ໃຫ້ເດັ້ງກັບໄປໜ້າ setup.
+  // ໝາຍເຫດ: ເກັບສະເພາະ session ຂອງເຄື່ອງນີ້ (ໃຜຢືນຂາຍ/ຈຸດໃດ/ກະໃດ) ເທົ່ານັ້ນ.
+  // ບໍ່ເກັບຂໍ້ມູນທຸລະກິດ (ຍອດຂາຍ/ລາຄາ/ສະຕັອກ/ລາຍຊື່) — ພວກນັ້ນຍັງຢູ່ Sheet ບ່ອນດຽວ.
+  async function restoreSession() {
+    try {
+      const raw = localStorage.getItem('bkia_session');
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved || !saved.cashier || !saved.pos || !saved.sessionId) return;
+      const session = await window.BokeoDB.getPettyCashSession(saved.sessionId);
+      if (!session || session.closed) { localStorage.removeItem('bkia_session'); return; }
+      state.currentCashier = saved.cashier;
+      state.currentPOS = saved.pos;
+      state.pettyCashSession = session;
+      state.shiftStartTime = new Date();
+      els.headerPOSName.innerHTML = `<i class="fas fa-terminal"></i> ${saved.pos.name}`;
+      els.headerCashierName.innerHTML = `<i class="fas fa-user-tie"></i> ${saved.cashier}`;
+      els.setupOverlay.style.display = 'none';
+      applyRoleUI();
+      switchView(saved.isAdmin ? 'dashboard' : 'pos');
+      renderProducts();
+    } catch (e) { console.warn('restoreSession failed:', e); }
+  }
+
   function populateSetupOptions() {
     // Cashiers Datalist
     const datalist = document.getElementById('cashier-list');
@@ -835,6 +862,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Close setup screen
     els.setupOverlay.style.display = 'none';
 
+    // ບັນທຶກ session ຂອງເຄື່ອງນີ້ (ບໍ່ແມ່ນຂໍ້ມູນທຸລະກິດ) ເພື່ອ refresh ແລ້ວບໍ່ເດັ້ງກັບໄປໜ້າ setup
+    try { localStorage.setItem('bkia_session', JSON.stringify({ cashier: cashierName, pos: posObj, sessionId: session.id, isAdmin: isAdminPOS })); } catch (e) {}
+
     // Apply role UI adjustments
     applyRoleUI();
 
@@ -889,7 +919,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.cart = [];
 
         els.setupCashier.value = '';
-        els.setupOverlay.style.display = 'flex';
+        try { localStorage.removeItem('bkia_session'); } catch (e) {} els.setupOverlay.style.display = 'flex';
         await updateSetupStartingCash();
         updateCartUI();
       }
@@ -1029,7 +1059,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Update UI & show overlay
       els.setupCashier.value = '';
       els.closeCounterModal.classList.remove('active');
-      els.setupOverlay.style.display = 'flex';
+      try { localStorage.removeItem('bkia_session'); } catch (e) {} els.setupOverlay.style.display = 'flex';
       await updateSetupStartingCash();
       
       updateCartUI();
