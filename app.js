@@ -646,52 +646,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       infoDiv.style.display = ''; // Ensure it's shown for cashiers
       
-      // lock เฉพาะกะที่ "เปิดอยู่ + ตื่มเงินทอนแล้ว (start>0)" เท่านั้น
-      const activeSession = todaySessions.find(p => !p.closed && ((p.lak_start || 0) > 0 || (p.thb_start || 0) > 0 || (p.cny_start || 0) > 0));
+      // ຕາມ logic ໃໝ່: ມີ drawer ຂອງມື້ນີ້ແລ້ວ (ເປີດ ຫຼື ປິດ) → ລັອກ ສະແດງເງິນທອນຄົງເຫຼືອ (ຕື່ມເພີ່ມບໍ່ໄດ້). ກະທຳອິດຂອງມື້ເທົ່ານັ້ນຈຶ່ງໃສ່ໄດ້.
+      const _pcTs3 = pp => { const a = String(pp.id || '').split('_'); return parseInt(a[a.length - 1]) || 0; };
+      let _drawer = null;
+      todaySessions.forEach(p => { if (!_drawer || _pcTs3(p) >= _pcTs3(_drawer)) _drawer = p; });
 
-      if (activeSession) {
-        // กะที่ตื่มเงินทอนแล้วและยังเปิดอยู่: ล็อก + แสดงเงินทอน "คงเหลือ"
-        els.setupPettyLak.value = formatNumber(activeSession.lak_remaining);
-        els.setupPettyThb.value = formatNumber(activeSession.thb_remaining);
-        els.setupPettyCny.value = formatNumber(activeSession.cny_remaining);
-
+      if (_drawer) {
+        els.setupPettyLak.value = formatNumber(_drawer.lak_remaining);
+        els.setupPettyThb.value = formatNumber(_drawer.thb_remaining);
+        els.setupPettyCny.value = formatNumber(_drawer.cny_remaining);
         els.setupPettyLak.readOnly = true;
         els.setupPettyThb.readOnly = true;
         els.setupPettyCny.readOnly = true;
         els.setupPettyLak.style.backgroundColor = '#f3f4f6';
         els.setupPettyThb.style.backgroundColor = '#f3f4f6';
         els.setupPettyCny.style.backgroundColor = '#f3f4f6';
-
-        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ມີກະທີ່ກຳລັງເປີດຢູ່ — ສະແດງເງິນທອນ <b>ຄົງເຫຼືອ</b> (ບໍ່ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(activeSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(activeSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(activeSession.cny_remaining)} ¥</span>`;
-      } else if (todaySessions.length > 0) {
-        // All shifts today are closed: populate with last session's remaining balance, but keep EDITABLE
-        const lastSession = todaySessions[todaySessions.length - 1];
-        els.setupPettyLak.value = formatNumber(lastSession.lak_remaining);
-        els.setupPettyThb.value = formatNumber(lastSession.thb_remaining);
-        els.setupPettyCny.value = formatNumber(lastSession.cny_remaining);
-
-        els.setupPettyLak.readOnly = false;
-        els.setupPettyThb.readOnly = false;
-        els.setupPettyCny.readOnly = false;
-        els.setupPettyLak.style.backgroundColor = '';
-        els.setupPettyThb.style.backgroundColor = '';
-        els.setupPettyCny.style.backgroundColor = '';
-
-        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະໃໝ່ (ດຶງເງິນທອນຄົງເຫຼືອຈາກກະກ່ອນໜ້າ, ສາມາດແກ້ໄຂໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(lastSession.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(lastSession.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(lastSession.cny_remaining)} ¥</span>`;
+        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ມື້ນີ້ໄດ້ໃສ່ເງິນທອນແລ້ວ — ໃຊ້ຍອດ <b>ຄົງເຫຼືອ</b> ຕໍ່ (ຕື່ມເພີ່ມບໍ່ໄດ້): <br> LAK: <span style="color:#0f766e">${formatNumber(_drawer.lak_remaining)} ₭</span> | THB: <span style="color:#0f766e">${formatNumber(_drawer.thb_remaining)} ฿</span> | CNY: <span style="color:#0f766e">${formatNumber(_drawer.cny_remaining)} ¥</span>`;
       } else {
-        // First cashier of the day: reset to 0 and allow editing
         els.setupPettyLak.value = '0';
         els.setupPettyThb.value = '0';
         els.setupPettyCny.value = '0';
-
         els.setupPettyLak.readOnly = false;
         els.setupPettyThb.readOnly = false;
         els.setupPettyCny.readOnly = false;
         els.setupPettyLak.style.backgroundColor = '';
         els.setupPettyThb.style.backgroundColor = '';
         els.setupPettyCny.style.backgroundColor = '';
-
-        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະທຳອິດຂອງມື້ນີ້ (ເລີ່ມຕົ້ນສະຕັອກເງິນທອນໃໝ່)`;
+        infoDiv.innerHTML = `<i class="fas fa-info-circle"></i> ເປີດກະທຳອິດຂອງມື້ນີ້ (ໃສ່ເງິນທອນເລີ່ມຕົ້ນ)`;
       }
     } catch (e) {
       console.error('Error updating setup starting cash:', e);
@@ -832,12 +813,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.currentPOS = posObj;
     state.shiftStartTime = new Date();
 
-    // Load or create petty cash session for today
+    // ເງິນທອນ = 1 drawer ຕໍ່ 1 ມື້ ຕໍ່ 1 ຈຸດຂາຍ. ກະທຳອິດຂອງມື້ໃສ່ເງິນທອນ; ກະຕໍ່ໄປສືບຕໍ່ໃຊ້ຍອດຄົງເຫຼືອ (ຕື່ມເພີ່ມບໍ່ໄດ້). ມື້ໃໝ່ = ໃສ່ໃໝ່.
     const todayStr = getLocalYMD();
-    const sessionId = `${todayStr}_${posObj.name.replace(/\s+/g, '_')}_${cashierName.replace(/\s+/g, '_')}_${Date.now()}`;
+    const sessionId = `${todayStr}_${posObj.name.replace(/\s+/g, '_')}`;
 
     let session = await window.BokeoDB.getPettyCashSession(sessionId);
     if (!session) {
+      // ກະທຳອິດຂອງມື້ສຳລັບຈຸດຂາຍນີ້ → ໃສ່ເງິນທອນເລີ່ມຕົ້ນ
       session = {
         id: sessionId,
         date: todayStr,
@@ -851,6 +833,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         cny_remaining: pettyCny,
         closed: isAdminPOS ? true : false
       };
+      await window.BokeoDB.savePettyCashSession(session);
+    } else {
+      // ມີ drawer ຂອງມື້ນີ້ແລ້ວ → ສືບຕໍ່ໃຊ້ຍອດຄົງເຫຼືອ (ບໍ່ໃສ່ເງິນທອນໃໝ່)
+      if (!isAdminPOS && session.closed) session.closed = false; // ເປີດກະຕໍ່ໃນມື້ດຽວກັນ
+      session.cashier = cashierName;
       await window.BokeoDB.savePettyCashSession(session);
     }
     state.pettyCashSession = session;
@@ -2763,14 +2750,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       return matchDate && matchPOS;
     });
 
+    // ໃຊ້ພຽງກະລ່າສຸດຂອງແຕ່ລະຈຸດຂາຍ (ບໍ່ບວກທຸກກະ) ເພື່ອໃຫ້ຕົງກັບສະຫຼຸບປິດກະ
+    const _pcTs = pp => { const a = String(pp.id || '').split('_'); return parseInt(a[a.length - 1]) || 0; };
+    const _latestPetty = {};
     rangePetty.forEach(p => {
-      startLAK += p.lak_start;
-      startTHB += p.thb_start;
-      startCNY += p.cny_start;
-      
-      remainLAK += p.lak_remaining;
-      remainTHB += p.thb_remaining;
-      remainCNY += p.cny_remaining;
+      const k = p.pos || '-';
+      if (!_latestPetty[k] || _pcTs(p) > _pcTs(_latestPetty[k])) _latestPetty[k] = p;
+    });
+    Object.keys(_latestPetty).forEach(k => {
+      const p = _latestPetty[k];
+      startLAK += (parseFloat(p.lak_start) || 0);
+      startTHB += (parseFloat(p.thb_start) || 0);
+      startCNY += (parseFloat(p.cny_start) || 0);
+      remainLAK += (parseFloat(p.lak_remaining) || 0);
+      remainTHB += (parseFloat(p.thb_remaining) || 0);
+      remainCNY += (parseFloat(p.cny_remaining) || 0);
     });
 
     // Render Stats
@@ -3567,7 +3561,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let startLAK = 0, startTHB = 0, startCNY = 0;
     let remainLAK = 0, remainTHB = 0, remainCNY = 0;
 
-    allPetty.filter(p => {
+    const _rangePettyPdf = allPetty.filter(p => {
       const matchDate = p.date >= start && p.date <= end;
       
       let matchPOS = false;
@@ -3584,13 +3578,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         matchPOS = p.pos === selectedPOS;
       }
       return matchDate && matchPOS;
-    }).forEach(p => {
-      startLAK += p.lak_start;
-      startTHB += p.thb_start;
-      startCNY += p.cny_start;
-      remainLAK += p.lak_remaining;
-      remainTHB += p.thb_remaining;
-      remainCNY += p.cny_remaining;
+    });
+    // ໃຊ້ພຽງກະລ່າສຸດຂອງແຕ່ລະຈຸດຂາຍ (ບໍ່ບວກທຸກກະ) ໃຫ້ຕົງກັບສະຫຼຸບປິດກະ
+    const _pcTs4 = pp => { const a = String(pp.id || '').split('_'); return parseInt(a[a.length - 1]) || 0; };
+    const _latestPetty2 = {};
+    _rangePettyPdf.forEach(p => { const k = p.pos || '-'; if (!_latestPetty2[k] || _pcTs4(p) > _pcTs4(_latestPetty2[k])) _latestPetty2[k] = p; });
+    Object.keys(_latestPetty2).forEach(k => {
+      const p = _latestPetty2[k];
+      startLAK += (parseFloat(p.lak_start) || 0);
+      startTHB += (parseFloat(p.thb_start) || 0);
+      startCNY += (parseFloat(p.cny_start) || 0);
+      remainLAK += (parseFloat(p.lak_remaining) || 0);
+      remainTHB += (parseFloat(p.thb_remaining) || 0);
+      remainCNY += (parseFloat(p.cny_remaining) || 0);
     });
 
     // Content translations
