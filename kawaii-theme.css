@@ -244,3 +244,92 @@ body { background:
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--k-mint); border-radius: 999px; border: 2px solid #fff; }
 .form-input:focus, .form-select:focus { border-color: var(--k-mint) !important; box-shadow: 0 0 0 4px var(--k-mint-soft) !important; }
+
+/* ========================= WHITE TEXT ON SOLID/GRADIENT BUTTONS ========================= */
+.checkout-btn, .checkout-btn *,
+.primary-btn, .primary-btn *,
+.pin-btn, .pin-btn *,
+.setup-card .checkout-btn, #setup-btn, #setup-btn * {
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.12);
+}
+.checkout-btn i, .primary-btn i, .pin-btn i, #setup-btn i { color:#ffffff !important; }
+/* keep disabled buttons readable (white text, just a touch faded) */
+.checkout-btn:disabled, .primary-btn:disabled {
+  opacity: 0.72 !important; color:#ffffff !important;
+}
+.checkout-btn:disabled * { color:#ffffff !important; }
+/* clear-cart & danger pills already dark text on light; ensure their hover stays white */
+.clear-cart-btn:hover, .clear-cart-btn:hover * { color:#fff !important; }
+.filter-chip.active, .filter-chip.active * { color:#fff !important; }
+
+/* ========================= KAWAII LOGIN / SETUP FORM ========================= */
+.setup-card { text-align: left; padding: 26px 26px 30px; max-width: 400px; }
+.login-mascot { margin: 0 0 4px -4px; }
+.login-mascot svg { display:block; filter: drop-shadow(0 6px 10px rgba(47,143,134,0.14)); animation: k-bounce 3s ease-in-out infinite; }
+.login-title h2 { color: var(--primary-deep); font-size: 1.18rem; margin: 2px 0 2px; }
+.login-title p { color: var(--text-secondary); font-size: .8rem; margin: 0 0 16px; font-weight: 600; }
+
+.login-field {
+  position: relative; display: flex; align-items: center; margin-bottom: 12px;
+  background: #eef5f2; border: 2px solid transparent; border-radius: 16px;
+  padding: 0 14px; transition: var(--transition);
+}
+.login-field:focus-within { background:#fff; border-color: var(--k-mint); box-shadow: 0 0 0 4px var(--k-mint-soft); }
+.login-field > i { color: var(--primary-accent); font-size: 1rem; width: 22px; text-align:center; flex-shrink:0; }
+.login-field input, .login-field select {
+  border: none; background: transparent; outline: none; flex: 1;
+  padding: 13px 8px; font-family: inherit; font-size: .95rem; color: var(--text-primary);
+  -webkit-appearance: none; appearance: none;
+}
+.login-field select { cursor: pointer; }
+
+.petty-label { font-weight: 800; color: var(--text-primary); font-size: .85rem; margin: 8px 0 10px; }
+.petty-label i { color: var(--k-yellow); margin-right: 4px; }
+.petty-chips { display: flex; gap: 10px; margin-bottom: 22px; }
+.petty-chip {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  background: #eef5f2; border: 2px solid transparent; border-radius: 16px;
+  padding: 10px 6px; cursor: text; transition: var(--transition);
+}
+.petty-chip:focus-within { background:#fff; border-color: var(--k-mint); box-shadow: 0 4px 12px rgba(47,143,134,.16); transform: translateY(-2px); }
+.petty-chip > i { font-size: 1.15rem; }
+.petty-chip.lak > i { color:#3a9b88; } .petty-chip.thb > i { color:#e07a6b; } .petty-chip.cny > i { color:#e0a83b; }
+.petty-chip span { font-size: .68rem; font-weight: 800; color: var(--text-secondary); letter-spacing:.2px; }
+.petty-chip input {
+  border: none; background: transparent; outline: none; text-align: center; width: 100%;
+  font-weight: 800; font-size: .98rem; color: var(--primary-deep); font-family: inherit;
+}
+#setup-btn { width: 100%; justify-content: center; gap: 8px; margin-top: 4px; padding: 14px; font-size: 1rem; }
+#setup-btn i { animation: k-bounce 2.6s ease-in-out infinite; }
+
+/* ========================= POS SPLIT PANELS (mint products / peach cart) ========================= */
+.pos-view { padding: 4px; background: transparent; }
+.pos-main {
+  border-right: none !important;
+  background: linear-gradient(180deg, #e2f3ed 0%, #eef8f4 100%);
+  border: 2px solid #ffffff; border-radius: 24px;
+  margin: 10px 5px 10px 10px; box-shadow: var(--shadow-sm); padding-top: 12px;
+}
+.pos-main::before {
+  content: "ລາຍການສິນຄ້າ"; align-self: center; flex-shrink: 0;
+  background: #fff; color: var(--primary-deep); font-weight: 800; font-size: .92rem;
+  padding: 9px 26px; border-radius: 999px;
+  box-shadow: 0 4px 10px rgba(47,143,134,.14); margin: 4px 0 8px;
+}
+.pos-sidebar {
+  background: linear-gradient(180deg, #fde7d8 0%, #fdf3eb 100%) !important;
+  border: 2px solid #fff; border-radius: 24px;
+  margin: 10px 10px 10px 5px; box-shadow: var(--shadow-sm);
+}
+.pos-sidebar .cart-header {
+  border-bottom: none; justify-content: center; position: relative; padding: 16px 20px 6px;
+}
+.pos-sidebar .cart-header h2 {
+  background: #fff; color: #d5824f; font-weight: 800; font-size: .92rem;
+  padding: 9px 26px; border-radius: 999px; margin: 0;
+  box-shadow: 0 4px 10px rgba(224,122,107,.16);
+}
+.pos-sidebar .clear-cart-btn { position: absolute; right: 16px; top: 15px; padding: 6px 12px; font-size: .72rem; }
+.category-nav { padding: 4px 12px 8px; background: transparent; border: none; }
+.cart-footer { background: rgba(255,255,255,0.55); border-radius: 0 0 22px 22px; }

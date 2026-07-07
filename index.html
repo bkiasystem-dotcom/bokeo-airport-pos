@@ -8,7 +8,7 @@
   <!-- CSS Stylesheet -->
   <link rel="stylesheet" href="styles.css?v=38">
   <!-- Kawaii CI theme layer (loads after styles.css) -->
-  <link rel="stylesheet" href="kawaii-theme.css?v=1">
+  <link rel="stylesheet" href="kawaii-theme.css?v=4">
 
   <!-- FontAwesome for Premium Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -23,39 +23,45 @@
        ========================================================================= -->
   <div class="setup-overlay" id="setup-overlay">
     <div class="setup-card">
-      <div class="setup-logo">
-        <i class="fas fa-plane-departure" style="font-size: 3rem; color: var(--text-primary); margin-bottom: 12px;"></i>
-        <h2>ສະໜາມບິນສາກົນບໍ່ແກ້ວ</h2>
-        <p>ລະບົບບັນທຶກການຂາຍ</p>
+            <div class="login-mascot" aria-hidden="true">
+        <svg width="92" height="72" viewBox="0 0 92 72" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="64" cy="22" r="15" fill="#a8dcc9"/>
+          <circle cx="76" cy="30" r="11" fill="#f2a08a"/>
+          <circle cx="70" cy="14" r="8" fill="#f6d97b"/>
+          <g fill="#ffffff" stroke="#dbe8f2" stroke-width="2">
+            <circle cx="27" cy="36" r="16"/>
+            <circle cx="45" cy="29" r="20"/>
+            <circle cx="61" cy="40" r="14"/>
+            <rect x="18" y="40" width="52" height="16" rx="8"/>
+          </g>
+          <circle cx="35" cy="36" r="2.6" fill="#3a5a55"/>
+          <circle cx="51" cy="36" r="2.6" fill="#3a5a55"/>
+          <path d="M39 42 q4 4 8 0" stroke="#3a5a55" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <circle cx="31" cy="41" r="3" fill="#f7c9d6" opacity="0.75"/>
+          <circle cx="55" cy="41" r="3" fill="#f7c9d6" opacity="0.75"/>
+        </svg>
       </div>
-      <div class="form-group" style="position: relative;">
-        <label for="setup-cashier"><i class="fas fa-user-tie"></i> ປ້ອນ ຫຼື ເລືອກພະນັກງານຂາຍ (Cashier)</label>
-        <input type="text" class="form-input" id="setup-cashier" autocomplete="off" placeholder="ພິມຊື່ ຫຼື ເລືອກ...">
+      <div class="login-title">
+        <h2>ສະໜາມບິນສາກົນບໍ່ແກ້ວ</h2>
+        <p>ລະບົບບັນທຶກການຂາຍ · BKIA POS</p>
+      </div>
+      <div class="login-field" style="position: relative;">
+        <i class="fas fa-user-tie"></i>
+        <input type="text" id="setup-cashier" autocomplete="off" placeholder="ພະນັກງານຂາຍ (Cashier)">
         <div class="cashier-dropdown" id="cashier-dropdown"></div>
       </div>
-      <div class="form-group">
-        <label for="setup-pos"><i class="fas fa-map-marker-alt"></i> ເລືອກຈຸດຂາຍ (POS Location)</label>
-        <select class="form-select" id="setup-pos"></select>
+      <div class="login-field">
+        <i class="fas fa-map-marker-alt"></i>
+        <select id="setup-pos"></select>
       </div>
-      <div class="form-group">
-        <label><i class="fas fa-coins"></i> ຕື່ມເງິນທອນເລີ່ມຕົ້ນ (Starting Petty Cash)</label>
-        <div class="form-group-row">
-          <div>
-            <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:700;">ກີບ (LAK)</span>
-            <input type="text" inputmode="numeric" class="form-input" id="setup-petty-lak" placeholder="0" value="0">
-          </div>
-          <div>
-            <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:700;">ບາດ (THB)</span>
-            <input type="text" inputmode="numeric" class="form-input" id="setup-petty-thb" placeholder="0" value="0">
-          </div>
-          <div>
-            <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:700;">ຢວນ (CNY)</span>
-            <input type="text" inputmode="numeric" class="form-input" id="setup-petty-cny" placeholder="0" value="0">
-          </div>
-        </div>
+      <div class="petty-label"><i class="fas fa-coins"></i> ເງິນທອນເລີ່ມຕົ້ນ (Petty Cash)</div>
+      <div class="petty-chips">
+        <label class="petty-chip lak"><i class="fas fa-coins"></i><span>LAK ກີບ</span><input type="text" inputmode="numeric" id="setup-petty-lak" placeholder="0" value="0"></label>
+        <label class="petty-chip thb"><i class="fas fa-coins"></i><span>THB ບາດ</span><input type="text" inputmode="numeric" id="setup-petty-thb" placeholder="0" value="0"></label>
+        <label class="petty-chip cny"><i class="fas fa-coins"></i><span>CNY ຢວນ</span><input type="text" inputmode="numeric" id="setup-petty-cny" placeholder="0" value="0"></label>
       </div>
-      <button class="checkout-btn" id="setup-btn" style="margin-top: 24px;">
-        <i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)
+      <button class="checkout-btn" id="setup-btn">
+        <i class="fas fa-cloud"></i> ເຂົ້າສູ່ລະບົບ (Start POS)
       </button>
     </div>
   </div>
