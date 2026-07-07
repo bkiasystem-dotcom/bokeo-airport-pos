@@ -600,6 +600,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (isAdminPOS) {
         if (els.setupPettyGroup) els.setupPettyGroup.style.display = 'none';
+        document.querySelectorAll('.petty-label, .petty-chips').forEach(el => { el.style.display = 'none'; });
         els.setupPettyLak.value = '0';
         els.setupPettyThb.value = '0';
         els.setupPettyCny.value = '0';
@@ -615,6 +616,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // Restore elements for cashier
       if (els.setupPettyGroup) els.setupPettyGroup.style.display = '';
+      document.querySelectorAll('.petty-label, .petty-chips').forEach(el => { el.style.display = ''; });
       if (els.setupBtn) {
         els.setupBtn.innerHTML = `<i class="fas fa-check-circle"></i> ເຂົ້າສູ່ລະບົບ (Start POS)`;
       }
@@ -4117,7 +4119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${formatNumber(p.cost_thb)} ฿</td>
         <td style="font-weight:700; text-align: center;">${stockHtml}</td>
         <td>
-          ${p.stock >= 9999 ? '<span style="color:var(--text-secondary);">-</span>' : `<button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="window.openRestockModal('${p.id}')"><i class="fas fa-plus"></i> ເຕີມສິນຄ້າ</button>`}
+          ${p.stock >= 9999 ? '<span style="color:var(--text-secondary);">-</span>' : `<button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="window.openRestockModal('${p.id}')"><i class="fas fa-plus"></i> ເຕີມສິນຄ້າ</button> <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem; color:var(--primary-accent); border-color:var(--primary-accent);" onclick="window.countStock('${p.id}')"><i class="fas fa-clipboard-check"></i> ນับสต๊อก</button>`}
         </td>
       `;
       els.stockTableBody.appendChild(tr);
@@ -4126,6 +4128,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   els.stockSearch.addEventListener('input', renderStockTable);
+
+  // ນັບສະຕັອກຄົງເຫຼືອຈິງ → ຄິດໄລ່ສ່ວນທີ່ໃຊ້ໄປ ຕັດອອກ + ບັນທຶກຂຶ້ນ Sheet (ໃຊ້ VIP consumables ຫຼື ນັບປິດກະ)
+  window.countStock = async (productId) => {
+    const p = state.products.find(x => x.id === productId);
+    if (!p) return;
+    const current = parseInt(p.stock) || 0;
+    const input = prompt(`ນັບສະຕັອກຈິງ: ${p.name_lo}\nລະບົບມີ: ${formatNumber(current)} ${p.unit || 'ຊິ້ນ'}\nປ້ອນຈຳນວນຄົງເຫຼືອຈິງທີ່ນັບໄດ້:`, current);
+    if (input === null) return;
+    const actual = parseInt(String(input).replace(/[^0-9]/g, ''));
+    if (isNaN(actual) || actual < 0) { alert('ຈຳນວນບໍ່ຖືກຕ້ອງ'); return; }
+    if (actual === current) { if (typeof showToast === 'function') showToast('ຄົງເຫຼືອຕົງກັນແລ້ວ', 'success'); return; }
+    const consumed = current - actual;
+    const msg = consumed > 0 ? `ໃຊ້ໄປ/ຂາຍອອກ ${formatNumber(consumed)} (ຕັດອອກ)` : `ນັບໄດ້ຫຼາຍກວ່າລະບົບ ${formatNumber(-consumed)} (ເພີ່ມເຂົ້າ)`;
+    if (!confirm(`${p.name_lo}\nຈາກ ${formatNumber(current)} → ${formatNumber(actual)}\n${msg}\nຢືນຢັນປັບບໍ?`)) return;
+    p.stock = actual;
+    await window.BokeoDB.saveProduct(p);
+    renderStockTable();
+    const url = state.settings.gdrive_script_url;
+    if (url) {
+      try {
+        await fetch(url, { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'adjust_stock_count', code: p.code || p.id, actualCount: actual }) });
+        if (typeof showToast === 'function') showToast('✓ ບັນທຶກການນັບສະຕັອກຂຶ້ນ Sheet ສຳເລັດ', 'success');
+      } catch (e) { if (typeof showToast === 'function') showToast('⚠ ບັນທຶກຂຶ້ນ Sheet ບໍ່ໄດ້', 'error'); }
+    }
+  };
 
   // Open Restock Modal
   window.openRestockModal = (productId) => {
