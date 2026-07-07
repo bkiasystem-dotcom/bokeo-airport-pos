@@ -2722,8 +2722,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     dashboardTransactions.forEach(tx => {
       const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
-      const txTotalLak = txTotalThb * rateLak;
-      const txTotalCny = txTotalThb * rateCny;
+      const txTotalLak = (tx.total_lak != null && tx.total_lak !== '') ? parseFloat(tx.total_lak) : (txTotalThb * rateLak);
+      const txTotalCny = (tx.total_cny != null && tx.total_cny !== '') ? parseFloat(tx.total_cny) : (txTotalThb * rateCny);
 
       sumLAK += txTotalLak;
       sumTHB += txTotalThb;
@@ -2809,9 +2809,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tr = document.createElement('tr');
         
         let amountDisplay = '';
-        if (tx.paid_currency === 'LAK') amountDisplay = formatNumber(tx.total_thb * rateLak) + ' ₭';
-        else if (tx.paid_currency === 'THB') amountDisplay = formatNumber(tx.total_thb) + ' ฿';
-        else if (tx.paid_currency === 'CNY') amountDisplay = formatNumber(tx.total_thb * rateCny) + ' ¥';
+        if (tx.paid_currency === 'LAK') amountDisplay = formatNumber((tx.total_lak != null && tx.total_lak !== '') ? parseFloat(tx.total_lak) : (tx.total_thb * rateLak)) + ' ₭';
+        else if (tx.paid_currency === 'THB') amountDisplay = formatNumber((tx.total_thb != null) ? parseFloat(tx.total_thb) : 0) + ' ฿';
+        else if (tx.paid_currency === 'CNY') amountDisplay = formatNumber((tx.total_cny != null && tx.total_cny !== '') ? parseFloat(tx.total_cny) : (tx.total_thb * rateCny)) + ' ¥';
 
         tr.innerHTML = `
           <td style="font-weight:700;">${tx.id}</td>
@@ -3534,8 +3534,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     dashboardTransactions.forEach(tx => {
       const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
-      const txTotalLak = txTotalThb * rateLak;
-      const txTotalCny = txTotalThb * rateCny;
+      const txTotalLak = (tx.total_lak != null && tx.total_lak !== '') ? parseFloat(tx.total_lak) : (txTotalThb * rateLak);
+      const txTotalCny = (tx.total_cny != null && tx.total_cny !== '') ? parseFloat(tx.total_cny) : (txTotalThb * rateCny);
 
       totalLAK += txTotalLak;
       totalTHB += txTotalThb;
