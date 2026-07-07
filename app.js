@@ -2159,6 +2159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function showToast(msg, type) {
     const t = document.createElement('div');
     t.textContent = msg;
+    t.className = 'app-toast ' + (type === 'error' ? 'error' : 'success');
     t.style.cssText = 'position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:9999; padding:12px 22px; border-radius:10px; font-weight:700; font-size:0.9rem; color:#fff; box-shadow:0 6px 20px rgba(0,0,0,0.25);' + (type === 'error' ? 'background:#c0392b;' : 'background:#0f766e;');
     document.body.appendChild(t);
     setTimeout(() => { t.style.transition = 'opacity 0.4s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2600);
