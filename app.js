@@ -2725,14 +2725,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const txTotalLak = (tx.total_lak != null && tx.total_lak !== '') ? parseFloat(tx.total_lak) : (txTotalThb * rateLak);
       const txTotalCny = (tx.total_cny != null && tx.total_cny !== '') ? parseFloat(tx.total_cny) : (txTotalThb * rateCny);
 
-      sumLAK += txTotalLak;
-      sumTHB += txTotalThb;
-      sumCNY += txTotalCny;
+      // ນັບຍອດຕາມສະກຸນເງິນທີ່ຈ່າຍຈິງ (ບໍ່ແປງທຽບເທົ່າ) — LAK sale ເຂົ້າ LAK, THB ເຂົ້າ THB, CNY ເຂົ້າ CNY
+      if (tx.paid_currency === 'LAK') sumLAK += txTotalLak;
+      else if (tx.paid_currency === 'THB') sumTHB += txTotalThb;
+      else if (tx.paid_currency === 'CNY') sumCNY += txTotalCny;
 
       if (tx.payment_type === 'ໂອນ') {
-        transferLAK += txTotalLak;
-        transferTHB += txTotalThb;
-        transferCNY += txTotalCny;
+        if (tx.paid_currency === 'LAK') transferLAK += txTotalLak;
+        else if (tx.paid_currency === 'THB') transferTHB += txTotalThb;
+        else if (tx.paid_currency === 'CNY') transferCNY += txTotalCny;
 
         if (tx.bank === 'BCEL') bcelCount++;
         else if (tx.bank === 'LDB') ldbCount++;
@@ -2805,6 +2806,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (dashboardTransactions.length === 0) {
       els.dashTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">ບໍ່ມີຂໍ້ມູນການຂາຍໃນໄລຍະເວລານີ້</td></tr>`;
     } else {
+      const _isAdmin = !!(state.currentPOS && (String(state.currentPOS.name||'').indexOf('ແອດມິນ')>=0 || String(state.currentPOS.name||'').indexOf('ແອັດມິນ')>=0 || /admin/i.test(state.currentPOS.name||'')));
       dashboardTransactions.forEach(tx => {
         const tr = document.createElement('tr');
         
@@ -2824,9 +2826,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="window.reprintInvoice('${tx.id}')">
               <i class="fas fa-print"></i>
             </button>
-            <button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem; color:var(--danger-color);" onclick="window.deleteInvoice('${tx.id}')" title="ລຶບບິນ (ຕ້ອງໃສ່ PIN ຜູ້ดูแลລະບົບ)">
+            ${_isAdmin ? `<button class="secondary-btn" style="padding: 4px 8px; font-size: 0.75rem; color:var(--danger-color);" onclick="window.deleteInvoice('${tx.id}')" title="ລຶບບິນ (ຕ້ອງໃສ່ PIN ຜູ້ดูแลລະບົບ)">
               <i class="fas fa-trash-alt"></i>
-            </button>
+            </button>` : ''}
           </td>
         `;
         els.dashTableBody.appendChild(tr);
@@ -3537,20 +3539,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       const txTotalLak = (tx.total_lak != null && tx.total_lak !== '') ? parseFloat(tx.total_lak) : (txTotalThb * rateLak);
       const txTotalCny = (tx.total_cny != null && tx.total_cny !== '') ? parseFloat(tx.total_cny) : (txTotalThb * rateCny);
 
-      totalLAK += txTotalLak;
-      totalTHB += txTotalThb;
-      totalCNY += txTotalCny;
+      // ນັບຕາມສະກຸນເງິນທີ່ຈ່າຍຈິງເທົ່ານັ້ນ (ບໍ່ແປງທຽບເທົ່າ)
+      let _aLak = 0, _aThb = 0, _aCny = 0;
+      if (tx.paid_currency === 'LAK') _aLak = txTotalLak;
+      else if (tx.paid_currency === 'THB') _aThb = txTotalThb;
+      else if (tx.paid_currency === 'CNY') _aCny = txTotalCny;
+
+      totalLAK += _aLak;
+      totalTHB += _aThb;
+      totalCNY += _aCny;
 
       if (tx.payment_type === 'ໂອນ') {
-        transLAK += txTotalLak;
-        transTHB += txTotalThb;
-        transCNY += txTotalCny;
+        transLAK += _aLak;
+        transTHB += _aThb;
+        transCNY += _aCny;
         if (tx.bank === 'BCEL') bcel++;
         else if (tx.bank === 'LDB') ldb++;
       } else {
-        cashLAK += txTotalLak;
-        cashTHB += txTotalThb;
-        cashCNY += txTotalCny;
+        cashLAK += _aLak;
+        cashTHB += _aThb;
+        cashCNY += _aCny;
       }
     });
 
@@ -3882,38 +3890,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             <tr style="background-color: #f2f2f2;">
               <th style="padding: 8px; border: 1px solid #ddd;">${t.invNo}</th>
               <th style="padding: 8px; border: 1px solid #ddd;">${t.time}</th>
-              <th style="padding: 8px; border: 1px solid #ddd;">${bi('ຈຸດຂາຍ', '销售点')}</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">${bi('ລາຍການສິນຄ້າ / ບໍລິການ', '商品/服务')}</th>
               <th style="padding: 8px; border: 1px solid #ddd;">${t.cashier}</th>
               <th style="padding: 8px; border: 1px solid #ddd;">${t.type}</th>
               <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">${t.amount}</th>
             </tr>
           </thead>
           <tbody>
-            ${dashboardTransactions.map(tx => {
-              let val = 0;
-              let sym = '';
-              const txTotalThb = tx.total_thb || (tx.total_lak / state.settings.exchange_rate_lak) || 0;
-              if (tx.paid_currency === 'LAK') { val = txTotalThb * rateLak; sym = '₭'; }
-              else if (tx.paid_currency === 'THB') { val = txTotalThb; sym = '฿'; }
-              else if (tx.paid_currency === 'CNY') { val = txTotalThb * rateCny; sym = '¥'; }
-
-              let displayPaymentType = tx.payment_type;
-              if (displayPaymentType === 'ເງິນສົດ') displayPaymentType = 'ເງິນສົດ / 现金';
-              else if (displayPaymentType === 'ໂອນ') displayPaymentType = 'ໂອນ / 转账';
-
-              const displayPOS = bi(tx.pos, posTranslations[tx.pos]?.cn || tx.pos);
-
-              return `
-                <tr style="page-break-inside: avoid; break-inside: avoid;">
-                  <td style="padding: 8px; border: 1px solid #ddd; font-weight: 700;">${tx.id}</td>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${new Date(tx.timestamp).toLocaleTimeString('lo-LA')}</td>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${displayPOS}</td>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${tx.cashier}</td>
-                  <td style="padding: 8px; border: 1px solid #ddd;">${displayPaymentType} ${tx.bank ? `(${tx.bank})` : ''}</td>
-                  <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: 700;">${formatNumber(val)} ${sym}</td>
-                </tr>
-              `;
-            }).join('')}
+            ${(() => {
+              const _groups = {};
+              dashboardTransactions.forEach(tx => { const k = tx.pos || '-'; (_groups[k] = _groups[k] || []).push(tx); });
+              return Object.keys(_groups).map(posName => {
+                const posLabel = bi(posName, (posTranslations[posName] && posTranslations[posName].cn) || posName);
+                const rowsHtml = _groups[posName].map(tx => {
+                  let val = 0, sym = '';
+                  if (tx.paid_currency === 'LAK') { val = parseFloat(tx.total_lak) || 0; sym = '₭'; }
+                  else if (tx.paid_currency === 'THB') { val = parseFloat(tx.total_thb) || 0; sym = '฿'; }
+                  else if (tx.paid_currency === 'CNY') { val = parseFloat(tx.total_cny) || 0; sym = '¥'; }
+                  let dpt = tx.payment_type;
+                  if (dpt === 'ເງິນສົດ') dpt = 'ເງິນສົດ / 现金';
+                  else if (dpt === 'ໂອນ') dpt = 'ໂອນ / 转账';
+                  const itemsStr = (tx.items || []).map(it => `${it.name_lo || it.name_en || ''} x${it.qty}`).join(', ');
+                  return `<tr style="page-break-inside: avoid; break-inside: avoid;"><td style="padding: 8px; border: 1px solid #ddd; font-weight: 700;">${tx.id}</td><td style="padding: 8px; border: 1px solid #ddd;">${new Date(tx.timestamp).toLocaleTimeString('lo-LA')}</td><td style="padding: 8px; border: 1px solid #ddd;">${itemsStr}</td><td style="padding: 8px; border: 1px solid #ddd;">${tx.cashier}</td><td style="padding: 8px; border: 1px solid #ddd;">${dpt} ${tx.bank ? `(${tx.bank})` : ''}</td><td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: 700;">${formatNumber(val)} ${sym}</td></tr>`;
+                }).join('');
+                return `<tr style="background:#e8f0fe;"><td colspan="6" style="padding: 8px; border: 1px solid #ddd; font-weight: 800; color:#0d3b66;">${bi('ຈຸດຂາຍ', '销售点')}: ${posLabel}</td></tr>${rowsHtml}`;
+              }).join('');
+            })()}
           </tbody>
         </table>
       </div>
